@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CustomerPanel, type CustomerOrder } from '../components/CustomerPanel'
+import { AdminTabs } from '../components/AdminTabs'
+import type { AdminSection } from '../components/AdminTabs'
+import { CatalogAdminPage } from './CatalogAdminPage'
+import { DeliverySettingsPage } from './DeliverySettingsPage'
+import { CustomersPage } from './CustomersPage'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { formatDate, formatPrice } from '../lib/format'
@@ -30,6 +35,7 @@ export function AdminPage() {
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [selectedCustomer, setSelectedCustomer] = useState<AdminOrder | null>(null)
+  const [section, setSection] = useState<AdminSection>('overview')
 
   useEffect(() => {
     let cancelled = false
@@ -122,14 +128,15 @@ export function AdminPage() {
     <section>
       <header className="page-head">
         <p className="muted">{store.name} · management</p>
-        <h1>CRM</h1>
-        <Link to="/admin/catalog">Manage catalogue</Link>
+        <h1>{section === 'overview' ? 'CRM' : section === 'orders' ? 'Orders' : section === 'customers' ? 'Customers' : section === 'catalogue' ? 'Catalogue' : 'Settings'}</h1>
+        <AdminTabs active={section} onChange={setSection} />
       </header>
-      <div className="crm-stats">
+      {section === 'customers' ? <CustomersPage /> : section === 'catalogue' ? <CatalogAdminPage embedded /> : section === 'settings' ? <DeliverySettingsPage embedded /> : <>
+      {section === 'overview' ? <><div className="crm-stats">
         <div><span>Orders</span><strong>{orders.length}</strong></div>
         <div><span>Customers</span><strong>{customerCount}</strong></div>
         <div><span>Revenue</span><strong>{formatPrice(revenue, store.currency)}</strong></div>
-      </div>
+      </div><div className="overview-grid"><section className="crm-panel"><h2>Needs attention</h2><p><strong>{orders.filter((order) => order.status === 'PENDING').length}</strong> pending orders</p><p><strong>{orders.filter((order) => order.payment_status === 'FAILED').length}</strong> failed payments</p><button type="button" className="text-btn" onClick={() => setSection('orders')}>Open orders</button></section><section className="crm-panel"><h2>Inventory alerts</h2>{inventory.flatMap((product) => product.product_variants.map((variant) => ({ product: product.name, ...variant }))).filter((variant) => variant.stock_quantity < 3).slice(0, 5).map((variant) => <p key={variant.id}>{variant.product} · {variant.name}: <strong className="stock-low">{variant.stock_quantity}</strong></p>)}<button type="button" className="text-btn" onClick={() => setSection('catalogue')}>Manage catalogue</button></section></div></> : <>
       <div className="crm-grid">
         <section className="crm-panel">
           <h2>Orders</h2>
@@ -155,7 +162,9 @@ export function AdminPage() {
           <Link className="text-btn" to="/">Open storefront</Link>
         </section>
       </div>
+      </>}
       {selectedCustomer && token && user ? <CustomerPanel order={selectedCustomer} storeId={store.id} token={token} managerId={user.id} onClose={() => setSelectedCustomer(null)} /> : null}
+      </>}
     </section>
   )
 }

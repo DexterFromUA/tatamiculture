@@ -1,9 +1,12 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useStore } from '../context/StoreContext'
+import { supabaseRequest } from '../lib/supabase'
 
 export function RegisterPage() {
   const { register, isAuthenticated, loading } = useAuth()
+  const { store } = useStore()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -18,7 +21,8 @@ export function RegisterPage() {
     event.preventDefault()
     setError(null)
     try {
-      await register({ name, email, phone, password })
+      const session = await register({ name, email, phone, password })
+      if (store) await supabaseRequest('/rest/v1/store_customers', { method: 'POST', token: session.token, body: JSON.stringify({ store_id: store.id, user_id: session.user.id }) })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed')
     }

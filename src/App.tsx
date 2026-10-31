@@ -7,6 +7,7 @@ import { AccountPage } from './pages/AccountPage'
 import { AdminPage } from './pages/AdminPage'
 import { CartPage } from './pages/CartPage'
 import { CatalogAdminPage } from './pages/CatalogAdminPage'
+import { DeliverySettingsPage } from './pages/DeliverySettingsPage'
 import { CatalogPage } from './pages/CatalogPage'
 import { CheckoutPage } from './pages/CheckoutPage'
 import { LoginPage } from './pages/LoginPage'
@@ -76,6 +77,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="admin/settings" element={<ProtectedRoute><DeliverySettingsPage /></ProtectedRoute>} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Route>

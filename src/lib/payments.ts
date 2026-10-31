@@ -3,6 +3,7 @@ import type { CartItem, CheckoutInput, Store } from '../types'
 
 export const liqPayEnabled = import.meta.env.VITE_LIQPAY_ENABLED === 'true'
 export const monobankEnabled = import.meta.env.VITE_MONOBANK_ENABLED === 'true'
+export const novaPoshtaEnabled = import.meta.env.VITE_NOVAPOSHTA_ENABLED === 'true'
 
 export async function startLiqPayCheckout(input: { store: Store; items: CartItem[]; checkout: CheckoutInput; token: string | null }) {
   return supabaseRequest<{ data: string; signature: string }>('/functions/v1/liqpay-create-checkout', {

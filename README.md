@@ -55,6 +55,14 @@ supabase functions deploy liqpay-webhook --use-api
 
 Checkout creates a Monobank invoice, opens its returned `pay.mbnk.biz` page and confirms the final payment state with Monobank before marking an order as paid.
 
+## Nova Poshta
+
+1. Generate an API 2.0 key in the Nova Poshta business cabinet and add it to Supabase Edge Function Secrets as `NOVA_POSHTA_API_KEY`.
+2. Deploy `nova-poshta-directory`.
+3. Set `VITE_NOVAPOSHTA_ENABLED=true` in `.env.local`, then restart Vite.
+
+Checkout will then search Nova Poshta cities and require a selected branch or parcel locker. The selected city and branch are saved in the existing delivery fields of the order.
+
 ### Тестовый режим LiqPay
 
 1. В кабинете LiqPay включить тестовый режим и использовать пару ключей с префиксом `sandbox_`.

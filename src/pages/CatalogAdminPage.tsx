@@ -53,7 +53,7 @@ function toDraft(product: CatalogProduct): Draft {
   }
 }
 
-export function CatalogAdminPage() {
+export function CatalogAdminPage({ embedded = false }: { embedded?: boolean }) {
   const { store } = useStore()
   const { token, user } = useAuth()
   const [member, setMember] = useState<boolean | null>(null)
@@ -193,7 +193,7 @@ export function CatalogAdminPage() {
   return (
     <section>
       <header className="page-head page-head--row">
-        <div><p className="muted">{store.name} · management</p><h1>Catalogue</h1></div>
+        {!embedded ? <div><p className="muted">{store.name} · management</p><h1>Catalogue</h1></div> : <div />}
         <button type="button" className="btn" onClick={() => { setError(null); setDraft(blankDraft()) }}>Add product</button>
       </header>
       {error ? <p className="error">{error}</p> : null}

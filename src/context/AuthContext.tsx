@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { api } from '../lib/api'
 import { removeKey, readJson, writeJson } from '../lib/storage'
 import type { User } from '../types'
+import type { AuthSession } from '../types'
 
 const TOKEN_KEY = 'shop.store.token'
 
@@ -12,7 +13,7 @@ type AuthContextValue = {
   initializing: boolean
   loading: boolean
   login: (email: string, password: string) => Promise<void>
-  register: (input: { name: string; email: string; phone: string; password: string }) => Promise<void>
+  register: (input: { name: string; email: string; phone: string; password: string }) => Promise<AuthSession>
   logout: () => void
 }
 
@@ -74,6 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       writeJson(TOKEN_KEY, session.token)
       setToken(session.token)
       setUser(session.user)
+      return session
     } finally {
       setLoading(false)
     }
