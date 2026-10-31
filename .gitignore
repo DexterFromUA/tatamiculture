@@ -15,3 +15,7 @@ node_modules
 
 #!.yarn/cache
 .pnp.*
+
+# Local credentials and machine-specific configuration.
+.env.local
+.env.*.local
