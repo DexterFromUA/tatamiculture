@@ -1,0 +1,36 @@
+import { supabaseRequest } from './supabase'
+import type { CartItem, CheckoutInput, Store } from '../types'
+
+export const liqPayEnabled = import.meta.env.VITE_LIQPAY_ENABLED === 'true'
+export const monobankEnabled = import.meta.env.VITE_MONOBANK_ENABLED === 'true'
+
+export async function startLiqPayCheckout(input: { store: Store; items: CartItem[]; checkout: CheckoutInput; token: string | null }) {
+  return supabaseRequest<{ data: string; signature: string }>('/functions/v1/liqpay-create-checkout', {
+    method: 'POST',
+    token: input.token,
+    body: JSON.stringify({ storeId: input.store.id, items: input.items, checkout: input.checkout }),
+  })
+}
+
+export function redirectToLiqPay(data: string, signature: string) {
+  const form = document.createElement('form')
+  form.method = 'POST'
+  form.action = 'https://www.liqpay.ua/api/3/checkout'
+  form.acceptCharset = 'utf-8'
+  for (const [name, value] of Object.entries({ data, signature })) {
+    const input = document.createElement('input')
+    input.type = 'hidden'
+    input.name = name
+    input.value = value
+    form.append(input)
+  }
+  document.body.append(form)
+  form.submit()
+}
+
+export async function startMonobankCheckout(input: { store: Store; items: CartItem[]; checkout: CheckoutInput; token: string | null }) {
+  return supabaseRequest<{ pageUrl: string }>('/functions/v1/monobank-create-invoice', {
+    method: 'POST', token: input.token,
+    body: JSON.stringify({ storeId: input.store.id, items: input.items, checkout: input.checkout }),
+  })
+}

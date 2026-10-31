@@ -25,11 +25,14 @@ export function RegisterPage() {
   }
 
   return (
-    <section className="form-narrow">
-      <header className="page-head">
-        <h1>Create account</h1>
-      </header>
-      <form className="form" onSubmit={(event) => void onSubmit(event)}>
+    <section className="auth-page">
+      <div className="auth-card">
+        <header className="auth-card__head">
+          <p className="eyebrow">Tatami account</p>
+          <h1>Create account</h1>
+          <p className="muted">Keep track of your training gear and every order in one place.</p>
+        </header>
+        <form className="form auth-card__form" onSubmit={(event) => void onSubmit(event)}>
         {error ? <p className="error">{error}</p> : null}
         <label className="field">
           <span>Name</span>
@@ -50,10 +53,9 @@ export function RegisterPage() {
         <button type="submit" className="btn" disabled={loading}>
           {loading ? 'Creating…' : 'Create account'}
         </button>
-      </form>
-      <p>
-        Already have an account? <Link to="/login">Sign in</Link>
-      </p>
+        </form>
+        <p className="auth-card__footer">Already have an account? <Link to="/login">Sign in</Link></p>
+      </div>
     </section>
   )
 }

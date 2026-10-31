@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { formatDate, formatPrice } from '../lib/format'
 import { supabaseRequest } from '../lib/supabase'
-import type { OrderStatus } from '../types'
+import type { OrderStatus, PaymentStatus } from '../types'
 
 export type CustomerOrder = {
   id: string
@@ -13,6 +13,7 @@ export type CustomerOrder = {
   total_price: number
   currency: string
   status: OrderStatus
+  payment_status: PaymentStatus
   created_at: string
 }
 
@@ -43,7 +44,7 @@ export function CustomerPanel({ order, storeId, token, managerId, onClose }: Pro
     setLoading(true)
     try {
       const [nextHistory, nextTags, assignments, nextNotes] = await Promise.all([
-        supabaseRequest<CustomerOrder[]>(`/rest/v1/orders?store_id=eq.${encodeURIComponent(storeId)}&user_id=eq.${encodeURIComponent(order.user_id)}&select=id,user_id,receipt_code,customer_name,customer_email,customer_phone,total_price,currency,status,created_at&order=created_at.desc`, { token }),
+        supabaseRequest<CustomerOrder[]>(`/rest/v1/orders?store_id=eq.${encodeURIComponent(storeId)}&user_id=eq.${encodeURIComponent(order.user_id)}&select=id,user_id,receipt_code,customer_name,customer_email,customer_phone,total_price,currency,status,payment_status,created_at&order=created_at.desc`, { token }),
         supabaseRequest<CustomerTag[]>(`/rest/v1/customer_tags?store_id=eq.${encodeURIComponent(storeId)}&select=id,name,color&order=name.asc`, { token }),
         supabaseRequest<Array<{ tag_id: string }>>(`/rest/v1/customer_tag_assignments?customer_id=eq.${encodeURIComponent(order.user_id)}&select=tag_id`, { token }),
         supabaseRequest<CustomerNote[]>(`/rest/v1/customer_notes?store_id=eq.${encodeURIComponent(storeId)}&customer_id=eq.${encodeURIComponent(order.user_id)}&select=id,body,created_at&order=created_at.desc`, { token }),

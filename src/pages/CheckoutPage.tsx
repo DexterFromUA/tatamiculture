@@ -6,6 +6,7 @@ import { useStore } from '../context/StoreContext'
 import { useToast } from '../context/ToastContext'
 import { formatPrice, optionPrice } from '../lib/format'
 import { api } from '../lib/api'
+import { liqPayEnabled, monobankEnabled, redirectToLiqPay, startLiqPayCheckout, startMonobankCheckout } from '../lib/payments'
 import type { CheckoutInput } from '../types'
 
 export function CheckoutPage() {
@@ -15,6 +16,7 @@ export function CheckoutPage() {
   const { addToast } = useToast()
   const navigate = useNavigate()
   const [submitting, setSubmitting] = useState(false)
+  const [provider, setProvider] = useState<'LIQPAY' | 'MONOBANK'>(monobankEnabled ? 'MONOBANK' : 'LIQPAY')
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState<CheckoutInput>({
     name: user?.name ?? '',
@@ -48,6 +50,16 @@ export function CheckoutPage() {
     setError(null)
     setSubmitting(true)
     try {
+      if (provider === 'MONOBANK' && monobankEnabled) {
+        const { pageUrl } = await startMonobankCheckout({ store, items, checkout: form, token })
+        window.location.assign(pageUrl)
+        return
+      }
+      if (provider === 'LIQPAY' && liqPayEnabled) {
+        const { data, signature } = await startLiqPayCheckout({ store, items, checkout: form, token })
+        redirectToLiqPay(data, signature)
+        return
+      }
       const order = await api.createOrder({ store, items, checkout: form, token })
       clear()
       addToast('Order placed')
@@ -68,9 +80,13 @@ export function CheckoutPage() {
       <form className="form" onSubmit={(event) => void onSubmit(event)}>
         <header className="page-head">
           <h1>Checkout</h1>
-          <p className="muted">Payment is mocked. No real charge is made.</p>
+          <p className="muted">{liqPayEnabled || monobankEnabled ? 'Choose a payment provider. You will be redirected to its secure payment page.' : 'Payment is mocked. No real charge is made.'}</p>
         </header>
         {error ? <p className="error">{error}</p> : null}
+        {liqPayEnabled || monobankEnabled ? <label className="field"><span>Payment method</span><select value={provider} onChange={(event) => setProvider(event.target.value as 'LIQPAY' | 'MONOBANK')}>
+          {monobankEnabled ? <option value="MONOBANK">monobank</option> : null}
+          {liqPayEnabled ? <option value="LIQPAY">LiqPay</option> : null}
+        </select></label> : null}
         <label className="field">
           <span>Name</span>
           <input required value={form.name} onChange={setField('name')} />

@@ -34,26 +34,25 @@ export function AccountPage() {
   if (!store || !user) return null
 
   return (
-    <section className="form-narrow">
-      <header className="page-head">
-        <h1>Account</h1>
+    <section className="account-page">
+      <header className="account-hero">
+        <p className="eyebrow">Tatami account</p>
+        <h1>Hi, {user.name.split(' ')[0] || 'athlete'}.</h1>
+        <p className="muted">Your details and orders, kept together.</p>
       </header>
-      <dl className="details">
-        <div>
-          <dt>Name</dt>
-          <dd>{user.name}</dd>
-        </div>
-        <div>
-          <dt>Email</dt>
-          <dd>{user.email}</dd>
-        </div>
-        <div>
-          <dt>Phone</dt>
-          <dd>{user.phone}</dd>
-        </div>
-      </dl>
-      <section className="account-orders">
-        <h2>Order history</h2>
+      <div className="account-layout">
+        <aside className="account-card">
+          <div className="account-avatar" aria-hidden="true">{(user.name || user.email).trim().charAt(0).toUpperCase()}</div>
+          <h2>{user.name || 'Tatami customer'}</h2>
+          <dl className="account-details">
+            <div><dt>Email</dt><dd>{user.email}</dd></div>
+            <div><dt>Phone</dt><dd>{user.phone || '—'}</dd></div>
+            <div><dt>City</dt><dd>{user.city || '—'}</dd></div>
+          </dl>
+          <button type="button" className="btn btn--ghost account-signout" onClick={() => { logout(); navigate('/') }}>Sign out</button>
+        </aside>
+        <section className="account-orders account-card">
+          <div className="account-orders__head"><div><p className="eyebrow">Your purchases</p><h2>Order history</h2></div><span className="account-orders__count">{orders.length}</span></div>
         {ordersLoading ? <p className="muted">Loading orders…</p> : ordersError ? <p className="error">{ordersError}</p> : orders.length === 0 ? <p className="muted">No orders yet.</p> : <ul className="order-list">{orders.map((order) => (
           <li key={order.id} className="order-row">
             <div>
@@ -63,17 +62,8 @@ export function AccountPage() {
             <strong>{formatPrice(order.totalPrice, order.currency)}</strong>
           </li>
         ))}</ul>}
-      </section>
-      <button
-        type="button"
-        className="btn btn--ghost"
-        onClick={() => {
-          logout()
-          navigate('/')
-        }}
-      >
-        Sign out
-      </button>
+        </section>
+      </div>
     </section>
   )
 }

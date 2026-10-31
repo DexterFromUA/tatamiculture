@@ -28,8 +28,8 @@ export async function supabaseRequest<T>(path: string, options: RequestOptions =
   })
 
   if (!response.ok) {
-    const body = await response.json().catch(() => null) as { message?: string } | null
-    throw new SupabaseError(body?.message ?? 'Supabase request failed', response.status)
+    const body = await response.json().catch(() => null) as { message?: string; error?: string } | null
+    throw new SupabaseError(body?.message ?? body?.error ?? 'Supabase request failed', response.status)
   }
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
@@ -63,8 +63,8 @@ export async function uploadProductImage(productId: string, file: File, token: s
     body: file,
   })
   if (!response.ok) {
-    const body = await response.json().catch(() => null) as { message?: string } | null
-    throw new SupabaseError(body?.message ?? 'Image upload failed', response.status)
+    const body = await response.json().catch(() => null) as { message?: string; error?: string } | null
+    throw new SupabaseError(body?.message ?? body?.error ?? 'Image upload failed', response.status)
   }
   return {
     storagePath,
@@ -79,7 +79,7 @@ export async function removeProductImage(storagePath: string, token: string) {
     headers: { apikey: anonKey, Authorization: `Bearer ${token}` },
   })
   if (!response.ok && response.status !== 404) {
-    const body = await response.json().catch(() => null) as { message?: string } | null
-    throw new SupabaseError(body?.message ?? 'Image removal failed', response.status)
+    const body = await response.json().catch(() => null) as { message?: string; error?: string } | null
+    throw new SupabaseError(body?.message ?? body?.error ?? 'Image removal failed', response.status)
   }
 }

@@ -26,14 +26,14 @@ export function LoginPage() {
   }
 
   return (
-    <section className="form-narrow">
-      <header className="page-head">
-        <h1>Sign in</h1>
-        <p className="muted">
-          Demo account: anna@example.com / {DEMO_PASSWORD}
-        </p>
-      </header>
-      <form className="form" onSubmit={(event) => void onSubmit(event)}>
+    <section className="auth-page">
+      <div className="auth-card">
+        <header className="auth-card__head">
+          <p className="eyebrow">Tatami account</p>
+          <h1>Welcome back</h1>
+          <p className="muted">Sign in to view your orders and manage your details.</p>
+        </header>
+        <form className="form auth-card__form" onSubmit={(event) => void onSubmit(event)}>
         {error ? <p className="error">{error}</p> : null}
         <label className="field">
           <span>Email</span>
@@ -46,10 +46,10 @@ export function LoginPage() {
         <button type="submit" className="btn" disabled={loading}>
           {loading ? 'Signing in…' : 'Sign in'}
         </button>
-      </form>
-      <p>
-        New here? <Link to="/register">Create an account</Link>
-      </p>
+        </form>
+        <p className="auth-card__footer">New here? <Link to="/register">Create an account</Link></p>
+        <p className="auth-card__demo">Demo: anna@example.com / {DEMO_PASSWORD}</p>
+      </div>
     </section>
   )
 }

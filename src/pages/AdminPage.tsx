@@ -45,7 +45,7 @@ export function AdminPage() {
           return
         }
         const [nextOrders, nextInventory] = await Promise.all([
-          supabaseRequest<AdminOrder[]>(`/rest/v1/orders?store_id=eq.${encodeURIComponent(store.id)}&select=id,user_id,receipt_code,customer_name,customer_email,customer_phone,total_price,currency,status,created_at&order=created_at.desc`, { token }),
+          supabaseRequest<AdminOrder[]>(`/rest/v1/orders?store_id=eq.${encodeURIComponent(store.id)}&select=id,user_id,receipt_code,customer_name,customer_email,customer_phone,total_price,currency,status,payment_status,created_at&order=created_at.desc`, { token }),
           supabaseRequest<InventoryProduct[]>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=id,name,product_variants(id,name,stock_quantity)&order=position.asc`, { token }),
         ])
         if (!cancelled) {
@@ -88,6 +88,26 @@ export function AdminPage() {
     }
   }
 
+  const cancelAndRestoreStock = async (id: string) => {
+    if (!token) return
+    setUpdatingId(id)
+    setError(null)
+    try {
+      const updated = await supabaseRequest<AdminOrder>('/rest/v1/rpc/cancel_unpaid_order', {
+        method: 'POST', token, body: JSON.stringify({ p_order_id: id }),
+      })
+      setOrders((current) => current.map((order) => order.id === id ? { ...order, status: updated.status, payment_status: updated.payment_status } : order))
+      if (store) {
+        const nextInventory = await supabaseRequest<InventoryProduct[]>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=id,name,product_variants(id,name,stock_quantity)&order=position.asc`, { token })
+        setInventory(nextInventory)
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not cancel unpaid order')
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
   if (!store) return null
   if (!supabaseConfigured) {
     return <section className="page-status"><h1>CRM needs Supabase</h1><p>Configure `.env.local` and apply the project migration first.</p></section>
@@ -122,6 +142,7 @@ export function AdminPage() {
               <select id={`status-${order.id}`} value={order.status} disabled={updatingId === order.id} onChange={(event) => void changeStatus(order.id, event.target.value as OrderStatus)}>
                 {statuses.map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ').toLowerCase()}</option>)}
               </select>
+              {order.status === 'PENDING' && order.payment_status !== 'PAID' ? <button type="button" className="text-btn" disabled={updatingId === order.id} onClick={() => void cancelAndRestoreStock(order.id)}>Cancel & restore stock</button> : <span />}
               <button type="button" className="text-btn" disabled={!order.user_id} title={order.user_id ? 'Open customer card' : 'Guest checkout has no customer account'} onClick={() => setSelectedCustomer(order)}>Customer</button>
             </li>
           ))}</ul>}

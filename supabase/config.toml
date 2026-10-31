@@ -1,0 +1,5 @@
+[functions.liqpay-webhook]
+verify_jwt = false
+
+[functions.monobank-webhook]
+verify_jwt = false
