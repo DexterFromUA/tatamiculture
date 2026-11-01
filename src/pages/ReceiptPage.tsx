@@ -4,12 +4,14 @@ import { useStore } from '../context/StoreContext'
 import { formatDate, formatPrice } from '../lib/format'
 import { api } from '../lib/api'
 import type { Order } from '../types'
+import { useTranslation } from 'react-i18next'
 
 export function ReceiptPage() {
   const { code } = useParams()
   const { store } = useStore()
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
+  const { t } = useTranslation()
 
   useEffect(() => {
     let cancelled = false
@@ -30,13 +32,13 @@ export function ReceiptPage() {
   }, [code])
 
   if (!store) return null
-  if (loading) return <div className="page-status">Looking up receipt…</div>
+  if (loading) return <div className="page-status">{t('Looking up receipt…')}</div>
 
   if (!order) {
     return (
       <section className="page-status">
-        <h1>Receipt not found</h1>
-        <Link to="/">Back to shop</Link>
+        <h1>{t('Receipt not found')}</h1>
+        <Link to="/">{t('Back to shop')}</Link>
       </section>
     )
   }
@@ -44,8 +46,8 @@ export function ReceiptPage() {
   return (
     <section className="receipt">
       <header className="page-head">
-        <p className="muted">Receipt {order.receiptCode}</p>
-        <h1>Thank you, {order.customerName}</h1>
+        <p className="muted">{t('Receipt')} {order.receiptCode}</p>
+        <h1>{t('Thank you, {{name}}', { name: order.customerName })}</h1>
         <p>
           {formatDate(order.createdAt)} · {order.paymentStatus.replaceAll('_', ' ').toLowerCase()}
         </p>
@@ -57,7 +59,7 @@ export function ReceiptPage() {
               <strong>{item.productName}</strong>
               <p className="muted">
                 {item.optionName} × {item.quantity}
-                {item.isPreOrder ? ' · pre-order' : ''}
+                {item.isPreOrder ? ` · ${t('pre-order')}` : ''}
               </p>
             </div>
             <span>{formatPrice(item.lineTotal, order.currency)}</span>
@@ -65,13 +67,13 @@ export function ReceiptPage() {
         ))}
       </ul>
       <p className="summary">
-        Total <strong>{formatPrice(order.totalPrice, order.currency)}</strong>
+        {t('Total')} <strong>{formatPrice(order.totalPrice, order.currency)}</strong>
       </p>
       <p className="muted">
-        Deliver to {order.deliveryAddress}, {order.deliveryCity}
+        {t('Deliver to')} {order.deliveryAddress}, {order.deliveryCity}
       </p>
-      <section className="receipt-delivery"><h2>Delivery</h2>{order.paymentMethod === 'CASH_ON_DELIVERY' ? <p className="muted">Payment on delivery</p> : null}{order.novaPoshtaTtn ? <><p><strong>Nova Poshta TTN: {order.novaPoshtaTtn}</strong></p>{order.novaPoshtaStatus ? <p className="muted">{order.novaPoshtaStatus}</p> : <p className="muted">TTN created — status will appear after dispatch.</p>}<a className="text-btn" href={`https://novaposhta.ua/tracking/?cargo_number=${encodeURIComponent(order.novaPoshtaTtn)}`} target="_blank" rel="noreferrer">Track shipment</a></> : <p className="muted">TTN will be added after dispatch.</p>}</section>
-      <Link to="/">Continue shopping</Link>
+      <section className="receipt-delivery"><h2>{t('Delivery')}</h2>{order.paymentMethod === 'CASH_ON_DELIVERY' ? <p className="muted">{t('Payment on delivery')}</p> : null}{order.novaPoshtaTtn ? <><p><strong>Nova Poshta TTN: {order.novaPoshtaTtn}</strong></p>{order.novaPoshtaStatus ? <p className="muted">{order.novaPoshtaStatus}</p> : <p className="muted">{t('TTN created — status will appear after dispatch.')}</p>}<a className="text-btn" href={`https://novaposhta.ua/tracking/?cargo_number=${encodeURIComponent(order.novaPoshtaTtn)}`} target="_blank" rel="noreferrer">{t('Track shipment')}</a></> : <p className="muted">{t('TTN will be added after dispatch.')}</p>}</section>
+      <Link to="/">{t('Continue shopping')}</Link>
     </section>
   )
 }

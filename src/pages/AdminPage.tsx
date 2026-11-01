@@ -12,6 +12,7 @@ import { useStore } from '../context/StoreContext'
 import { formatDate, formatPrice } from '../lib/format'
 import { supabaseConfigured, supabaseRequest } from '../lib/supabase'
 import type { OrderStatus } from '../types'
+import { useTranslation } from 'react-i18next'
 
 type AdminOrder = CustomerOrder & {
   nova_poshta_ttn: string | null
@@ -45,6 +46,7 @@ export function AdminPage() {
   const [toDate, setToDate] = useState('')
   const [selectedCustomer, setSelectedCustomer] = useState<AdminOrder | null>(null)
   const [section, setSection] = useState<AdminSection>('overview')
+  const { t } = useTranslation()
 
   useEffect(() => {
     let cancelled = false
@@ -152,51 +154,51 @@ export function AdminPage() {
 
   if (!store) return null
   if (!supabaseConfigured) {
-    return <section className="page-status"><h1>CRM needs Supabase</h1><p>Configure `.env.local` and apply the project migration first.</p></section>
+    return <section className="page-status"><h1>{t('CRM needs Supabase')}</h1><p>{t('Configure `.env.local` and apply the project migration first.')}</p></section>
   }
   if (member === false) {
-    return <section className="page-status"><h1>Manager access required</h1><p>Ask the store owner to add your account to this store.</p></section>
+    return <section className="page-status"><h1>{t('Manager access required')}</h1><p>{t('Ask the store owner to add your account to this store.')}</p></section>
   }
   if (error) return <section className="page-status error">{error}</section>
-  if (member === null) return <div className="page-status">Loading CRM…</div>
+  if (member === null) return <div className="page-status">{t('Loading CRM…')}</div>
 
   return (
     <section>
       <header className="page-head">
-        <p className="muted">{store.name} · management</p>
-        <h1>{section === 'overview' ? 'CRM' : section === 'orders' ? 'Orders' : section === 'customers' ? 'Customers' : section === 'catalogue' ? 'Catalogue' : 'Settings'}</h1>
+        <p className="muted">{store.name} · {t('management')}</p>
+        <h1>{section === 'overview' ? t('CRM') : section === 'orders' ? t('Orders') : section === 'customers' ? t('Customers') : section === 'catalogue' ? t('Catalogue') : t('Settings')}</h1>
         <AdminTabs active={section} onChange={setSection} />
       </header>
       {section === 'customers' ? <CustomersPage /> : section === 'catalogue' ? <CatalogAdminPage embedded /> : section === 'settings' ? <><NovaPostModeToggle /><DeliverySettingsPage embedded /></> : <>
       {section === 'overview' ? <><div className="crm-stats">
-        <div><span>Orders</span><strong>{orders.length}</strong></div>
-        <div><span>Customers</span><strong>{customerCount}</strong></div>
-        <div><span>Revenue</span><strong>{formatPrice(revenue, store.currency)}</strong></div><div><span>Delivered revenue</span><strong>{formatPrice(deliveredRevenue, store.currency)}</strong></div><div><span>Payment on delivery</span><strong>{codOrders.length}</strong></div>
-      </div><div className="overview-grid"><section className="crm-panel"><h2>Needs attention</h2><p><strong>{orders.filter((order) => order.status === 'PENDING').length}</strong> pending orders</p><p><strong>{orders.filter((order) => order.payment_status === 'FAILED').length}</strong> failed payments</p><button type="button" className="text-btn" onClick={() => setSection('orders')}>Open orders</button></section><section className="crm-panel"><h2>Inventory alerts</h2>{inventory.flatMap((product) => product.product_variants.map((variant) => ({ product: product.name, ...variant }))).filter((variant) => variant.stock_quantity < 3).slice(0, 5).map((variant) => <p key={variant.id}>{variant.product} · {variant.name}: <strong className="stock-low">{variant.stock_quantity}</strong></p>)}<button type="button" className="text-btn" onClick={() => setSection('catalogue')}>Manage catalogue</button></section></div></> : <>
+        <div><span>{t('Orders')}</span><strong>{orders.length}</strong></div>
+        <div><span>{t('Customers')}</span><strong>{customerCount}</strong></div>
+        <div><span>{t('Revenue')}</span><strong>{formatPrice(revenue, store.currency)}</strong></div><div><span>{t('Delivered revenue')}</span><strong>{formatPrice(deliveredRevenue, store.currency)}</strong></div><div><span>{t('Payment on delivery')}</span><strong>{codOrders.length}</strong></div>
+      </div><div className="overview-grid"><section className="crm-panel"><h2>{t('Needs attention')}</h2><p><strong>{orders.filter((order) => order.status === 'PENDING').length}</strong> {t('pending orders')}</p><p><strong>{orders.filter((order) => order.payment_status === 'FAILED').length}</strong> {t('failed payments')}</p><button type="button" className="text-btn" onClick={() => setSection('orders')}>{t('Open orders')}</button></section><section className="crm-panel"><h2>{t('Inventory alerts')}</h2>{inventory.flatMap((product) => product.product_variants.map((variant) => ({ product: product.name, ...variant }))).filter((variant) => variant.stock_quantity < 3).slice(0, 5).map((variant) => <p key={variant.id}>{variant.product} · {variant.name}: <strong className="stock-low">{variant.stock_quantity}</strong></p>)}<button type="button" className="text-btn" onClick={() => setSection('catalogue')}>{t('Manage catalogue')}</button></section></div></> : <>
       <div className="crm-grid">
         <section className="crm-panel">
-          <h2>Orders</h2>
-          <div className="order-filters"><input placeholder="Search name, email or receipt" value={search} onChange={(event) => setSearch(event.target.value)} /><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'ALL' | OrderStatus)}><option value="ALL">All statuses</option>{statuses.map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ').toLowerCase()}</option>)}</select><input aria-label="Orders from date" type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /><input aria-label="Orders to date" type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} /></div>
-          {orders.length === 0 ? <p className="muted">No orders yet.</p> : visibleOrders.length === 0 ? <p className="muted">No orders match these filters.</p> : <ul className="admin-list">{visibleOrders.map((order) => (
+          <h2>{t('Orders')}</h2>
+          <div className="order-filters"><input placeholder={t('Search name, email or receipt')} value={search} onChange={(event) => setSearch(event.target.value)} /><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'ALL' | OrderStatus)}><option value="ALL">{t('All statuses')}</option>{statuses.map((status) => <option key={status} value={status}>{t(status)}</option>)}</select><input aria-label={t('Orders from date')} type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /><input aria-label={t('Orders to date')} type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} /></div>
+          {orders.length === 0 ? <p className="muted">{t('No orders yet.')}</p> : visibleOrders.length === 0 ? <p className="muted">{t('No orders match these filters.')}</p> : <ul className="admin-list">{visibleOrders.map((order) => (
             <li key={order.id}>
-              <div><strong>{order.customer_name}</strong><span>{order.customer_email} · {formatDate(order.created_at)} · {order.payment_method === 'CASH_ON_DELIVERY' ? 'payment on delivery' : 'online payment'}{order.nova_poshta_status ? ` · ${order.nova_poshta_status}` : ''}</span></div>
+              <div><strong>{order.customer_name}</strong><span>{order.customer_email} · {formatDate(order.created_at)} · {order.payment_method === 'CASH_ON_DELIVERY' ? t('Payment on delivery') : t('Online payment')}{order.nova_poshta_status ? ` · ${order.nova_poshta_status}` : ''}</span></div>
               <strong>{formatPrice(Number(order.total_price) / 100, order.currency)}</strong>
-              <label className="sr-only" htmlFor={`status-${order.id}`}>Order status</label>
+              <label className="sr-only" htmlFor={`status-${order.id}`}>{t('Order status')}</label>
               <select id={`status-${order.id}`} value={order.status} disabled={updatingId === order.id} onChange={(event) => void changeStatus(order.id, event.target.value as OrderStatus)}>
                 {statuses.map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ').toLowerCase()}</option>)}
               </select>
-              {order.status === 'PENDING' && order.payment_status !== 'PAID' ? <button type="button" className="text-btn" disabled={updatingId === order.id} onClick={() => void cancelAndRestoreStock(order.id)}>Cancel & restore stock</button> : <span />}
-              <button type="button" className="text-btn" disabled={!order.user_id} title={order.user_id ? 'Open customer card' : 'Guest checkout has no customer account'} onClick={() => setSelectedCustomer(order)}>Customer</button>
-              {order.nova_poshta_ttn ? <span className="ttn-actions"><a className="text-btn" href={`https://novaposhta.ua/tracking/?cargo_number=${encodeURIComponent(order.nova_poshta_ttn)}`} target="_blank" rel="noreferrer">TTN {order.nova_poshta_ttn}</a><button type="button" className="text-btn" disabled={trackingId === order.id} onClick={() => void refreshTracking(order.id)}>{trackingId === order.id ? 'Updating…' : 'Update status'}</button></span> : <button type="button" className="text-btn" disabled={creatingTtnId === order.id || order.status.startsWith('CANCELLED')} onClick={() => void createTtn(order.id)}>{creatingTtnId === order.id ? 'Creating TTN…' : 'Create TTN'}</button>}
+              {order.status === 'PENDING' && order.payment_status !== 'PAID' ? <button type="button" className="text-btn" disabled={updatingId === order.id} onClick={() => void cancelAndRestoreStock(order.id)}>{t('Cancel & restore stock')}</button> : <span />}
+              <button type="button" className="text-btn" disabled={!order.user_id} title={order.user_id ? t('Open customer card') : t('Guest checkout has no customer account')} onClick={() => setSelectedCustomer(order)}>{t('Customer')}</button>
+              {order.nova_poshta_ttn ? <span className="ttn-actions"><a className="text-btn" href={`https://novaposhta.ua/tracking/?cargo_number=${encodeURIComponent(order.nova_poshta_ttn)}`} target="_blank" rel="noreferrer">TTN {order.nova_poshta_ttn}</a><button type="button" className="text-btn" disabled={trackingId === order.id} onClick={() => void refreshTracking(order.id)}>{trackingId === order.id ? t('Updating…') : t('Update status')}</button></span> : <button type="button" className="text-btn" disabled={creatingTtnId === order.id || order.status.startsWith('CANCELLED')} onClick={() => void createTtn(order.id)}>{creatingTtnId === order.id ? t('Creating TTN…') : t('Create TTN')}</button>}
             </li>
           ))}</ul>}
         </section>
         <section className="crm-panel">
-          <h2>Stock</h2>
+          <h2>{t('Stock')}</h2>
           <ul className="stock-list">{inventory.flatMap((product) => product.product_variants.map((variant) => (
             <li key={variant.id}><span>{product.name} · {variant.name}</span><strong className={variant.stock_quantity < 3 ? 'stock-low' : ''}>{variant.stock_quantity}</strong></li>
           )))}</ul>
-          <Link className="text-btn" to="/">Open storefront</Link>
+          <Link className="text-btn" to="/">{t('Open storefront')}</Link>
         </section>
       </div>
       </>}

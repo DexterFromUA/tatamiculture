@@ -4,6 +4,7 @@ import { useCart } from '../context/CartContext'
 import { useStore } from '../context/StoreContext'
 import { useToast } from '../context/ToastContext'
 import { formatPrice, optionPrice } from '../lib/format'
+import { useTranslation } from 'react-i18next'
 
 export function ProductPage() {
   const { productId } = useParams()
@@ -14,6 +15,7 @@ export function ProductPage() {
   const [optionId, setOptionId] = useState(product?.productOptions[0]?.id ?? '')
   const [quantity, setQuantity] = useState(1)
   const [imageIndex, setImageIndex] = useState(0)
+  const { t } = useTranslation()
 
   const option = useMemo(
     () => product?.productOptions.find((item) => item.id === optionId) ?? product?.productOptions[0],
@@ -25,8 +27,8 @@ export function ProductPage() {
   if (!product || !option) {
     return (
       <div className="page-status">
-        <h1>Product not found</h1>
-        <Link to="/">Back to shop</Link>
+        <h1>{t('Product not found')}</h1>
+        <Link to="/">{t('Back to shop')}</Link>
       </div>
     )
   }
@@ -40,7 +42,7 @@ export function ProductPage() {
 
   const addToCart = () => {
     addItem(product.id, option.id, quantity)
-    addToast('Added to cart')
+    addToast(t('Added to cart'))
   }
 
   return (
@@ -49,9 +51,9 @@ export function ProductPage() {
         <div className="product-view__image">
           <img src={activeImage} alt={product.name} />
           {images.length > 1 ? <div className="gallery-controls">
-            <button type="button" onClick={() => changeImage(-1)} aria-label="Previous image">←</button>
+            <button type="button" onClick={() => changeImage(-1)} aria-label={t('Previous image')}>←</button>
             <span>{imageIndex + 1} / {images.length}</span>
-            <button type="button" onClick={() => changeImage(1)} aria-label="Next image">→</button>
+            <button type="button" onClick={() => changeImage(1)} aria-label={t('Next image')}>→</button>
           </div> : null}
         </div>
         {images.length > 1 ? <div className="gallery-thumbnails">
@@ -73,19 +75,19 @@ export function ProductPage() {
           )}
         </p>
         <label className="field">
-          <span>Option</span>
+          <span>{t('Option')}</span>
           <select value={option.id} onChange={(event) => setOptionId(event.target.value)}>
             {product.productOptions.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name}
-                {item.isPreOrder ? ' · pre-order' : ''}
+                {item.isPreOrder ? ` · ${t('pre-order')}` : ''}
                 {item.isLimited ? ` · ${item.quantity} left` : ''}
               </option>
             ))}
           </select>
         </label>
         <label className="field">
-          <span>Quantity</span>
+          <span>{t('Quantity')}</span>
           <input
             type="number"
             min={1}
@@ -94,13 +96,13 @@ export function ProductPage() {
             onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))}
           />
         </label>
-        {option.isPreOrder ? <p className="note">This option is a pre-order. Production starts after checkout.</p> : null}
+        {option.isPreOrder ? <p className="note">{t('This option is a pre-order. Production starts after checkout.')}</p> : null}
         <div className="actions">
           <button type="button" className="btn" onClick={addToCart}>
-            Add to cart
+            {t('Add to cart')}
           </button>
           <Link to="/cart" className="btn btn--ghost">
-            View cart
+            {t('View cart')}
           </Link>
         </div>
       </div>

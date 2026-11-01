@@ -3,11 +3,13 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useCart } from '../context/CartContext'
 import { useStore } from '../context/StoreContext'
+import { useTranslation } from 'react-i18next'
 
 export function StoreLayout() {
   const { store, loading, notFound } = useStore()
   const { count } = useCart()
   const { isAuthenticated, user } = useAuth()
+  const { t, i18n } = useTranslation()
 
   useEffect(() => {
     if (!store) return
@@ -18,15 +20,15 @@ export function StoreLayout() {
   }, [store])
 
   if (loading) {
-    return <div className="page-status">Opening store…</div>
+    return <div className="page-status">{t('Opening store…')}</div>
   }
 
   if (notFound || !store) {
     return (
       <div className="page-status">
-        <h1>Store not found</h1>
-        <p>The storefront is unavailable right now.</p>
-        <NavLink to="/">Go to Tatami</NavLink>
+        <h1>{t('Store not found')}</h1>
+        <p>{t('The storefront is unavailable right now.')}</p>
+        <NavLink to="/">{t('Go to Tatami')}</NavLink>
       </div>
     )
   }
@@ -39,17 +41,20 @@ export function StoreLayout() {
         </NavLink>
         <nav className="nav">
           <NavLink to="/" end>
-            Shop
+            {t('Shop')}
           </NavLink>
-          <NavLink to="/cart">Cart{count > 0 ? ` (${count})` : ''}</NavLink>
+          <NavLink to="/cart">{t('Cart')}{count > 0 ? ` (${count})` : ''}</NavLink>
           {isAuthenticated ? (
             <>
               <NavLink to="/admin">CRM</NavLink>
-              <NavLink to="/account">{user?.name.split(' ')[0] ?? 'Account'}</NavLink>
+              <NavLink to="/account">{user?.name.split(' ')[0] ?? t('Account')}</NavLink>
             </>
           ) : (
-            <NavLink to="/login">Sign in</NavLink>
+            <NavLink to="/login">{t('Sign in')}</NavLink>
           )}
+          <button type="button" className="text-btn" onClick={() => void i18n.changeLanguage(i18n.language === 'uk' ? 'en' : 'uk')}>
+            {i18n.language === 'uk' ? t('English') : t('Ukrainian')}
+          </button>
         </nav>
       </header>
       <main className="main">
@@ -59,7 +64,7 @@ export function StoreLayout() {
         <span>
           {store.name} · {store.contactCity}
         </span>
-        <span>Mock payments only</span>
+        <span>{t('Mock payments only')}</span>
       </footer>
     </div>
   )

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { removeProductImage, supabaseConfigured, supabaseRequest, uploadProductImage } from '../lib/supabase'
@@ -54,6 +55,7 @@ function toDraft(product: CatalogProduct): Draft {
 }
 
 export function CatalogAdminPage({ embedded = false }: { embedded?: boolean }) {
+  const { t } = useTranslation()
   const { store } = useStore()
   const { token, user } = useAuth()
   const [member, setMember] = useState<boolean | null>(null)
@@ -186,49 +188,49 @@ export function CatalogAdminPage({ embedded = false }: { embedded?: boolean }) {
   }
 
   if (!store) return null
-  if (!supabaseConfigured) return <section className="page-status"><h1>CRM needs Supabase</h1></section>
-  if (loading && member === null) return <div className="page-status">Loading catalogue…</div>
-  if (member === false) return <section className="page-status"><h1>Manager access required</h1></section>
+  if (!supabaseConfigured) return <section className="page-status"><h1>{t('CRM needs Supabase')}</h1></section>
+  if (loading && member === null) return <div className="page-status">{t('Loading catalogue…')}</div>
+  if (member === false) return <section className="page-status"><h1>{t('Manager access required')}</h1></section>
 
   return (
     <section>
       <header className="page-head page-head--row">
-        {!embedded ? <div><p className="muted">{store.name} · management</p><h1>Catalogue</h1></div> : <div />}
-        <button type="button" className="btn" onClick={() => { setError(null); setDraft(blankDraft()) }}>Add product</button>
+        {!embedded ? <div><p className="muted">{store.name} · {t('management')}</p><h1>{t('Catalogue')}</h1></div> : <div />}
+        <button type="button" className="btn" onClick={() => { setError(null); setDraft(blankDraft()) }}>{t('Add product')}</button>
       </header>
       {error ? <p className="error">{error}</p> : null}
       <div className="catalog-admin">
         <ul className="catalog-admin__list">
           {products.map((product) => (
             <li key={product.id}>
-              <div><strong>{product.name}</strong><span>{product.is_active ? 'Published' : 'Hidden'} · {product.product_variants.length} variants</span></div>
-              <button type="button" className="text-btn" onClick={() => { setError(null); setDraft(toDraft(product)) }}>Edit</button>
+              <div><strong>{product.name}</strong><span>{product.is_active ? t('Published') : t('Hidden')} · {product.product_variants.length} {t('variants')}</span></div>
+              <button type="button" className="text-btn" onClick={() => { setError(null); setDraft(toDraft(product)) }}>{t('Edit')}</button>
             </li>
           ))}
         </ul>
         {draft ? <section className="product-editor">
-          <div className="product-editor__head"><h2>{draft.id ? 'Edit product' : 'New product'}</h2><button type="button" className="text-btn" onClick={() => setDraft(null)}>Close</button></div>
-          <label className="field"><span>Name</span><input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
-          <label className="field"><span>Description</span><textarea rows={3} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
-          <label className="field"><span>Category</span><select value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}><option value="">Uncategorized</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-          <label className="field"><span>Upload images</span><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => setDraft({ ...draft, newImageFiles: [...draft.newImageFiles, ...Array.from(event.target.files ?? [])] })} /><small>JPG, PNG or WebP · up to 5 MB per file</small></label>
+          <div className="product-editor__head"><h2>{draft.id ? t('Edit product') : t('New product')}</h2><button type="button" className="text-btn" onClick={() => setDraft(null)}>{t('Close')}</button></div>
+          <label className="field"><span>{t('Name')}</span><input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
+          <label className="field"><span>{t('Description')}</span><textarea rows={3} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
+          <label className="field"><span>{t('Category')}</span><select value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}><option value="">{t('Uncategorized')}</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+          <label className="field"><span>{t('Upload images')}</span><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => setDraft({ ...draft, newImageFiles: [...draft.newImageFiles, ...Array.from(event.target.files ?? [])] })} /><small>{t('JPG, PNG or WebP · up to 5 MB per file')}</small></label>
           {draft.images.length > 0 || draft.newImageFiles.length > 0 ? <div className="image-manager">
-            {draft.images.filter((image) => !draft.removedImageIds.includes(image.id)).map((image) => <figure key={image.id} className="image-manager__item"><img src={image.public_url} alt="Product" /><button type="button" className="text-btn" onClick={() => setDraft({ ...draft, removedImageIds: [...draft.removedImageIds, image.id] })}>Remove</button></figure>)}
-            {draft.newImageFiles.map((file, index) => <figure key={`${file.name}-${index}`} className="image-manager__item image-manager__file"><figcaption>{file.name}</figcaption><button type="button" className="text-btn" onClick={() => setDraft({ ...draft, newImageFiles: draft.newImageFiles.filter((_, fileIndex) => fileIndex !== index) })}>Remove</button></figure>)}
+            {draft.images.filter((image) => !draft.removedImageIds.includes(image.id)).map((image) => <figure key={image.id} className="image-manager__item"><img src={image.public_url} alt={t('Product')} /><button type="button" className="text-btn" onClick={() => setDraft({ ...draft, removedImageIds: [...draft.removedImageIds, image.id] })}>{t('Remove')}</button></figure>)}
+            {draft.newImageFiles.map((file, index) => <figure key={`${file.name}-${index}`} className="image-manager__item image-manager__file"><figcaption>{file.name}</figcaption><button type="button" className="text-btn" onClick={() => setDraft({ ...draft, newImageFiles: draft.newImageFiles.filter((_, fileIndex) => fileIndex !== index) })}>{t('Remove')}</button></figure>)}
           </div> : null}
-          <label className="check"><input type="checkbox" checked={draft.isActive} onChange={(event) => setDraft({ ...draft, isActive: event.target.checked })} /> Published in storefront</label>
-          <div className="variant-editor"><div className="product-editor__head"><h3>Sizes and stock</h3><button type="button" className="text-btn" onClick={() => setDraft({ ...draft, variants: [...draft.variants, blankVariant()] })}>Add size</button></div>
+          <label className="check"><input type="checkbox" checked={draft.isActive} onChange={(event) => setDraft({ ...draft, isActive: event.target.checked })} /> {t('Published in storefront')}</label>
+          <div className="variant-editor"><div className="product-editor__head"><h3>{t('Sizes and stock')}</h3><button type="button" className="text-btn" onClick={() => setDraft({ ...draft, variants: [...draft.variants, blankVariant()] })}>{t('Add size')}</button></div>
             {draft.variants.map((variant, index) => <div className="variant-editor__row" key={variant.id ?? `new-${index}`}>
-              <input aria-label="Size" value={variant.name} onChange={(event) => updateVariant(index, 'name', event.target.value)} />
-              <input aria-label="SKU" placeholder="SKU" value={variant.sku} onChange={(event) => updateVariant(index, 'sku', event.target.value)} />
-              <input aria-label="Price" type="number" min="0" value={variant.price} onChange={(event) => updateVariant(index, 'price', Number(event.target.value))} />
-              <input aria-label="Stock" type="number" min="0" value={variant.stock_quantity} onChange={(event) => updateVariant(index, 'stock_quantity', Number(event.target.value))} />
-              <label title="Pre-order"><input type="checkbox" checked={variant.is_preorder} onChange={(event) => updateVariant(index, 'is_preorder', event.target.checked)} /> Pre</label>
-              <button type="button" className="text-btn" disabled={draft.variants.length === 1} onClick={() => removeVariant(index)}>Remove</button>
+              <input aria-label={t('Size')} value={variant.name} onChange={(event) => updateVariant(index, 'name', event.target.value)} />
+              <input aria-label={t('SKU')} placeholder={t('SKU')} value={variant.sku} onChange={(event) => updateVariant(index, 'sku', event.target.value)} />
+              <input aria-label={t('Price')} type="number" min="0" value={variant.price} onChange={(event) => updateVariant(index, 'price', Number(event.target.value))} />
+              <input aria-label={t('Stock')} type="number" min="0" value={variant.stock_quantity} onChange={(event) => updateVariant(index, 'stock_quantity', Number(event.target.value))} />
+              <label title={t('Pre-order')}><input type="checkbox" checked={variant.is_preorder} onChange={(event) => updateVariant(index, 'is_preorder', event.target.checked)} /> {t('Pre-order')}</label>
+              <button type="button" className="text-btn" disabled={draft.variants.length === 1} onClick={() => removeVariant(index)}>{t('Remove')}</button>
             </div>)}
           </div>
-          <div className="actions"><button type="button" className="btn" disabled={saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save product'}</button><button type="button" className="btn btn--ghost" onClick={() => setDraft(null)}>Cancel</button></div>
-        </section> : <section className="catalog-admin__empty"><h2>Select a product</h2><p className="muted">Edit its sizes, prices, availability and main image.</p><Link to="/">Open storefront</Link></section>}
+          <div className="actions"><button type="button" className="btn" disabled={saving} onClick={() => void save()}>{saving ? t('Saving…') : t('Save product')}</button><button type="button" className="btn btn--ghost" onClick={() => setDraft(null)}>{t('Cancel')}</button></div>
+        </section> : <section className="catalog-admin__empty"><h2>{t('Select a product')}</h2><p className="muted">{t('Edit its sizes, prices, availability and main image.')}</p><Link to="/">{t('Open storefront')}</Link></section>}
       </div>
     </section>
   )

@@ -2,10 +2,12 @@ import { Link } from 'react-router-dom'
 import { useCart } from '../context/CartContext'
 import { useStore } from '../context/StoreContext'
 import { formatPrice, optionPrice } from '../lib/format'
+import { useTranslation } from 'react-i18next'
 
 export function CartPage() {
   const { store, products } = useStore()
   const { items, setQuantity, removeItem } = useCart()
+  const { t } = useTranslation()
 
   if (!store) return null
 
@@ -24,8 +26,8 @@ export function CartPage() {
   if (rows.length === 0) {
     return (
       <section className="page-status">
-        <h1>Cart is empty</h1>
-        <Link to="/">Continue shopping</Link>
+        <h1>{t('Cart is empty')}</h1>
+        <Link to="/">{t('Continue shopping')}</Link>
       </section>
     )
   }
@@ -33,7 +35,7 @@ export function CartPage() {
   return (
     <section>
       <header className="page-head">
-        <h1>Cart</h1>
+        <h1>{t('Cart')}</h1>
       </header>
       <ul className="line-list">
         {rows.map(({ item, product, option, unit, line }) => (
@@ -45,7 +47,7 @@ export function CartPage() {
               <p>{formatPrice(unit, store.currency)}</p>
             </div>
             <label className="qty">
-              <span className="sr-only">Quantity</span>
+              <span className="sr-only">{t('Quantity')}</span>
               <input
                 type="number"
                 min={1}
@@ -57,17 +59,17 @@ export function CartPage() {
             </label>
             <strong>{formatPrice(line, store.currency)}</strong>
             <button type="button" className="text-btn" onClick={() => removeItem(item.productId, item.optionId)}>
-              Remove
+              {t('Remove')}
             </button>
           </li>
         ))}
       </ul>
       <div className="summary">
         <p>
-          Total <strong>{formatPrice(total, store.currency)}</strong>
+          {t('Total')} <strong>{formatPrice(total, store.currency)}</strong>
         </p>
         <Link to="/checkout" className="btn">
-          Checkout
+          {t('Checkout')}
         </Link>
       </div>
     </section>
