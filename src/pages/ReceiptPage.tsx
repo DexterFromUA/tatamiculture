@@ -70,6 +70,7 @@ export function ReceiptPage() {
       <p className="muted">
         Deliver to {order.deliveryAddress}, {order.deliveryCity}
       </p>
+      <section className="receipt-delivery"><h2>Delivery</h2>{order.paymentMethod === 'CASH_ON_DELIVERY' ? <p className="muted">Payment on delivery</p> : null}{order.novaPoshtaTtn ? <><p><strong>Nova Poshta TTN: {order.novaPoshtaTtn}</strong></p>{order.novaPoshtaStatus ? <p className="muted">{order.novaPoshtaStatus}</p> : <p className="muted">TTN created — status will appear after dispatch.</p>}<a className="text-btn" href={`https://novaposhta.ua/tracking/?cargo_number=${encodeURIComponent(order.novaPoshtaTtn)}`} target="_blank" rel="noreferrer">Track shipment</a></> : <p className="muted">TTN will be added after dispatch.</p>}</section>
       <Link to="/">Continue shopping</Link>
     </section>
   )

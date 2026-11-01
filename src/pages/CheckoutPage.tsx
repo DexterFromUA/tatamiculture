@@ -17,11 +17,13 @@ export function CheckoutPage() {
   const { addToast } = useToast()
   const navigate = useNavigate()
   const [submitting, setSubmitting] = useState(false)
-  const [provider, setProvider] = useState<'LIQPAY' | 'MONOBANK'>(monobankEnabled ? 'MONOBANK' : 'LIQPAY')
+  const [provider, setProvider] = useState<'LIQPAY' | 'MONOBANK' | 'CASH_ON_DELIVERY'>(monobankEnabled ? 'MONOBANK' : liqPayEnabled ? 'LIQPAY' : 'CASH_ON_DELIVERY')
   const [error, setError] = useState<string | null>(null)
   const [cityRef, setCityRef] = useState<string | null>(null)
+  const [addressRef, setAddressRef] = useState<string | null>(null)
+  const [deliveryServiceType, setDeliveryServiceType] = useState<'WarehouseWarehouse' | 'WarehousePostomat'>('WarehouseWarehouse')
   const [cities, setCities] = useState<Array<{ ref: string; name: string; area: string }>>([])
-  const [warehouses, setWarehouses] = useState<Array<{ ref: string; name: string }>>([])
+  const [warehouses, setWarehouses] = useState<Array<{ ref: string; name: string; type: string }>>([])
   const [deliveryError, setDeliveryError] = useState<string | null>(null)
   const [form, setForm] = useState<CheckoutInput>({
     name: user?.name ?? '',
@@ -44,7 +46,7 @@ export function CheckoutPage() {
 
   useEffect(() => {
     if (!novaPoshtaEnabled || !cityRef) { setWarehouses([]); return }
-    void supabaseRequest<Array<{ ref: string; name: string }>>('/functions/v1/nova-poshta-directory', { method: 'POST', body: JSON.stringify({ action: 'warehouses', cityRef }) })
+    void supabaseRequest<Array<{ ref: string; name: string; type: string }>>('/functions/v1/nova-poshta-directory', { method: 'POST', body: JSON.stringify({ action: 'warehouses', cityRef }) })
       .then((result) => { setWarehouses(result); setDeliveryError(null) })
       .catch((cause) => { setWarehouses([]); setDeliveryError(cause instanceof Error ? cause.message : 'Could not load Nova Poshta branches') })
   }, [cityRef])
@@ -77,18 +79,19 @@ export function CheckoutPage() {
     setError(null)
     setSubmitting(true)
     try {
-      if (novaPoshtaEnabled && (!cityRef || !form.address)) throw new Error('Choose a city and Nova Poshta branch')
+      if (novaPoshtaEnabled && (!cityRef || !addressRef || !form.address)) throw new Error('Choose a city and Nova Poshta branch')
+      const checkout = novaPoshtaEnabled ? { ...form, cityRef: cityRef ?? undefined, addressRef: addressRef ?? undefined, deliveryServiceType } : form
       if (provider === 'MONOBANK' && monobankEnabled) {
-        const { pageUrl } = await startMonobankCheckout({ store, items, checkout: form, token })
+        const { pageUrl } = await startMonobankCheckout({ store, items, checkout, token })
         window.location.assign(pageUrl)
         return
       }
       if (provider === 'LIQPAY' && liqPayEnabled) {
-        const { data, signature } = await startLiqPayCheckout({ store, items, checkout: form, token })
+        const { data, signature } = await startLiqPayCheckout({ store, items, checkout, token })
         redirectToLiqPay(data, signature)
         return
       }
-      const order = await api.createOrder({ store, items, checkout: form, token })
+      const order = await api.createOrder({ store, items, checkout, token })
       clear()
       addToast('Order placed')
       navigate(`/receipt/${order.receiptCode}`)
@@ -120,16 +123,17 @@ export function CheckoutPage() {
           <span>Phone</span>
           <input required value={form.phone} onChange={setField('phone')} />
         </label>
-        <div className="field"><span>City</span><input required placeholder="Start typing your city" value={form.city} onChange={(event) => { setCityRef(null); setForm((current) => ({ ...current, city: event.target.value, address: '' })) }} />{novaPoshtaEnabled && cities.length > 0 ? <div className="city-results" role="listbox">{cities.map((city) => <button type="button" role="option" key={city.ref} onClick={() => { setCityRef(city.ref); setForm((current) => ({ ...current, city: city.name, address: '' })); setCities([]) }}><strong>{city.name}</strong>{city.area ? <small>{city.area}</small> : null}</button>)}</div> : null}{novaPoshtaEnabled && deliveryError ? <small className="error">Nova Poshta: {deliveryError}</small> : null}</div>
-        {novaPoshtaEnabled && cityRef ? <label className="field"><span>Nova Poshta branch or parcel locker</span><select required disabled={warehouses.length === 0} value={warehouses.some((warehouse) => warehouse.name === form.address) ? form.address : ''} onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))}><option value="">{warehouses.length ? 'Choose branch' : 'Loading branches…'}</option>{warehouses.map((warehouse) => <option key={warehouse.ref} value={warehouse.name}>{warehouse.name}</option>)}</select></label> : null}
+        <div className="field"><span>City</span><input required placeholder="Start typing your city" value={form.city} onChange={(event) => { setCityRef(null); setAddressRef(null); setForm((current) => ({ ...current, city: event.target.value, address: '' })) }} />{novaPoshtaEnabled && cities.length > 0 ? <div className="city-results" role="listbox">{cities.map((city) => <button type="button" role="option" key={city.ref} onClick={() => { setCityRef(city.ref); setAddressRef(null); setForm((current) => ({ ...current, city: city.name, address: '' })); setCities([]) }}><strong>{city.name}</strong>{city.area ? <small>{city.area}</small> : null}</button>)}</div> : null}{novaPoshtaEnabled && deliveryError ? <small className="error">Nova Poshta: {deliveryError}</small> : null}</div>
+        {novaPoshtaEnabled && cityRef ? <label className="field"><span>Nova Poshta branch or parcel locker</span><select required disabled={warehouses.length === 0} value={addressRef ?? ''} onChange={(event) => { const warehouse = warehouses.find((item) => item.ref === event.target.value); setAddressRef(warehouse?.ref ?? null); setDeliveryServiceType(/поштомат|postomat/i.test(warehouse?.type ?? '') || /поштомат/i.test(warehouse?.name ?? '') ? 'WarehousePostomat' : 'WarehouseWarehouse'); setForm((current) => ({ ...current, address: warehouse?.name ?? '' })) }}><option value="">{warehouses.length ? 'Choose branch' : 'Loading branches…'}</option>{warehouses.map((warehouse) => <option key={warehouse.ref} value={warehouse.ref}>{warehouse.name}</option>)}</select></label> : null}
         {!novaPoshtaEnabled ? <label className="field"><span>Address</span><input required value={form.address} onChange={setField('address')} /></label> : null}
         <label className="field">
           <span>Note</span>
           <textarea value={form.note} onChange={setField('note')} rows={3} />
         </label>
-        {liqPayEnabled || monobankEnabled ? <fieldset className="payment-methods"><legend>Payment method</legend>
+        {liqPayEnabled || monobankEnabled || novaPoshtaEnabled ? <fieldset className="payment-methods"><legend>Payment method</legend>
           {monobankEnabled ? <label className="payment-method"><input type="radio" name="provider" value="MONOBANK" checked={provider === 'MONOBANK'} onChange={() => setProvider('MONOBANK')} /><span className="payment-method__radio" aria-hidden="true" /><span><strong>monobank</strong><small>Secure payment page</small></span></label> : null}
           {liqPayEnabled ? <label className="payment-method"><input type="radio" name="provider" value="LIQPAY" checked={provider === 'LIQPAY'} onChange={() => setProvider('LIQPAY')} /><span className="payment-method__radio" aria-hidden="true" /><span><strong>LiqPay</strong><small>Secure payment page</small></span></label> : null}
+          {novaPoshtaEnabled ? <label className="payment-method"><input type="radio" name="provider" value="CASH_ON_DELIVERY" checked={provider === 'CASH_ON_DELIVERY'} onChange={() => setProvider('CASH_ON_DELIVERY')} /><span className="payment-method__radio" aria-hidden="true" /><span><strong>Payment on delivery</strong><small>Pay when receiving at Nova Poshta</small></span></label> : null}
         </fieldset> : null}
         <button type="submit" className="btn" disabled={submitting}>
           {submitting ? 'Placing order…' : `Pay ${formatPrice(total, store.currency)}`}
@@ -140,7 +144,7 @@ export function CheckoutPage() {
         <ul className="checkout-lines">{cartLines.map((line) => <li key={line.id}><div><strong>{line.name}</strong><span>{line.option} · {line.quantity} pc.</span></div><b>{formatPrice(line.total, store.currency)}</b></li>)}</ul>
         <div className="checkout-delivery"><span>Delivery</span><strong>{novaPoshtaEnabled ? 'Nova Poshta branch / parcel locker' : 'Details at checkout'}</strong><small>Shipping cost is confirmed after dispatch.</small></div>
         <div className="checkout-total"><span>Total</span><strong>{formatPrice(total, store.currency)}</strong></div>
-        <p className="checkout-summary__note">Payment is processed on the secure page of {provider === 'MONOBANK' ? 'monobank' : 'LiqPay'}.</p>
+        <p className="checkout-summary__note">{provider === 'CASH_ON_DELIVERY' ? 'Pay for the order when receiving it at Nova Poshta.' : `Payment is processed on the secure page of ${provider === 'MONOBANK' ? 'monobank' : 'LiqPay'}.`}</p>
       </aside>
     </section>
   )

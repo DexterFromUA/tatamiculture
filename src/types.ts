@@ -89,6 +89,9 @@ export type Order = {
   note: string
   createdAt: string
   shortLinkId?: string
+  paymentMethod?: 'ONLINE' | 'CASH_ON_DELIVERY'
+  novaPoshtaTtn?: string
+  novaPoshtaStatus?: string
 }
 
 export type ShortLink = {
@@ -105,6 +108,9 @@ export type CheckoutInput = {
   city: string
   address: string
   note: string
+  cityRef?: string
+  addressRef?: string
+  deliveryServiceType?: 'WarehouseWarehouse' | 'WarehousePostomat'
 }
 
 export type AuthSession = {

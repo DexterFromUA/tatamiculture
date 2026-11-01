@@ -4,7 +4,7 @@ type CheckoutBody = {
   diagnostic?: boolean
   storeId: string
   items: Array<{ optionId: string; quantity: number }>
-  checkout: { name: string; email: string; phone: string; city: string; address: string; note: string }
+  checkout: { name: string; email: string; phone: string; city: string; address: string; note: string; cityRef?: string; addressRef?: string; deliveryServiceType?: string }
 }
 
 function toBase64(bytes: Uint8Array) {
@@ -157,8 +157,12 @@ Deno.serve(async (request) => {
       p_delivery_city: body.checkout.city,
       p_delivery_address: body.checkout.address,
       p_note: body.checkout.note,
+      p_delivery_city_ref: body.checkout.cityRef ?? null,
+      p_delivery_address_ref: body.checkout.addressRef ?? null,
+      p_delivery_service_type: body.checkout.deliveryServiceType ?? null,
     })
     if (orderError || !order) throw new Error(orderError?.message ?? 'Order could not be created')
+    await serviceClient.from('orders').update({ payment_method: 'ONLINE' }).eq('id', order.id)
 
     const { data: items, error: itemsError } = await serviceClient
       .from('order_items')

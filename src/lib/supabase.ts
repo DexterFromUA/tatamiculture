@@ -32,7 +32,11 @@ export async function supabaseRequest<T>(path: string, options: RequestOptions =
     throw new SupabaseError(body?.message ?? body?.error ?? 'Supabase request failed', response.status)
   }
   if (response.status === 204) return undefined as T
-  return response.json() as Promise<T>
+  // PostgREST returns 201 Created with an empty body for successful writes
+  // unless `return=representation` was requested.  Do not treat that as a
+  // failed save merely because there is no JSON document to decode.
+  const body = await response.text()
+  return (body ? JSON.parse(body) : undefined) as T
 }
 
 function encodedStoragePath(path: string) {

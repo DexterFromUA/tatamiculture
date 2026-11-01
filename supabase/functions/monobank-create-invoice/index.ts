@@ -3,7 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 type Body = {
   storeId: string
   items: Array<{ optionId: string; quantity: number }>
-  checkout: { name: string; email: string; phone: string; city: string; address: string; note: string }
+  checkout: { name: string; email: string; phone: string; city: string; address: string; note: string; cityRef?: string; addressRef?: string; deliveryServiceType?: string }
 }
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, apikey, content-type' } })
@@ -28,8 +28,10 @@ Deno.serve(async (request) => {
       p_items: body.items.map((item) => ({ variantId: item.optionId, quantity: item.quantity })),
       p_customer_name: body.checkout.name, p_customer_email: body.checkout.email, p_customer_phone: body.checkout.phone,
       p_delivery_city: body.checkout.city, p_delivery_address: body.checkout.address, p_note: body.checkout.note,
+      p_delivery_city_ref: body.checkout.cityRef ?? null, p_delivery_address_ref: body.checkout.addressRef ?? null, p_delivery_service_type: body.checkout.deliveryServiceType ?? null,
     })
     if (orderError || !order) throw new Error(orderError?.message ?? 'Order could not be created')
+    await serviceClient.from('orders').update({ payment_method: 'ONLINE' }).eq('id', order.id)
     const { data: items, error: itemsError } = await serviceClient.from('order_items').select('product_name,variant_name,quantity,unit_price').eq('order_id', order.id)
     if (itemsError || !items?.length) throw new Error(itemsError?.message ?? 'Order has no items')
 

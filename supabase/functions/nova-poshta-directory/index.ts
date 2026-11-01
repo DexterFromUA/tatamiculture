@@ -20,11 +20,11 @@ Deno.serve(async (request) => {
       const query = body.query?.trim() ?? ''
       if (query.length < 2) return json([])
       const data = await novaPost({ modelName: 'Address', calledMethod: 'getCities', methodProperties: { FindByString: query, Limit: '20', Page: '1' } }, apiKey)
-      return json(data.map((city: any) => ({ ref: city.Ref, name: city.Description, area: city.AreaDescription ?? '' })))
+      return json(data.map((city) => ({ ref: String(city.Ref ?? ''), name: String(city.Description ?? ''), area: String(city.AreaDescription ?? '') })))
     }
     if (body.action === 'warehouses' && body.cityRef) {
       const data = await novaPost({ modelName: 'AddressGeneral', calledMethod: 'getWarehouses', methodProperties: { CityRef: body.cityRef, Limit: '100', Page: '1', Language: 'UA' } }, apiKey)
-      return json(data.map((warehouse: any) => ({ ref: warehouse.Ref, name: warehouse.Description })))
+      return json(data.map((warehouse) => ({ ref: String(warehouse.Ref ?? ''), name: String(warehouse.Description ?? ''), type: String(warehouse.CategoryOfWarehouse ?? '') })))
     }
     return json({ error: 'Invalid directory request' }, 400)
   } catch (error) { return json({ error: error instanceof Error ? error.message : 'Nova Poshta directory failed' }, 400) }

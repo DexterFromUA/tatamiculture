@@ -62,6 +62,9 @@ function mapOrder(row: Row): Order {
     customerName: text(row.customer_name), customerEmail: text(row.customer_email), customerPhone: text(row.customer_phone),
     deliveryCity: text(row.delivery_city), deliveryAddress: text(row.delivery_address), note: text(row.note),
     createdAt: text(row.created_at),
+    paymentMethod: row.payment_method === 'ONLINE' ? 'ONLINE' : 'CASH_ON_DELIVERY',
+    novaPoshtaTtn: row.nova_poshta_ttn ? text(row.nova_poshta_ttn) : undefined,
+    novaPoshtaStatus: row.nova_poshta_status ? text(row.nova_poshta_status) : undefined,
   }
 }
 
@@ -123,6 +126,9 @@ export const supabaseApi = {
         p_customer_name: input.checkout.name, p_customer_email: input.checkout.email,
         p_customer_phone: input.checkout.phone, p_delivery_city: input.checkout.city,
         p_delivery_address: input.checkout.address, p_note: input.checkout.note,
+        p_delivery_city_ref: input.checkout.cityRef ?? null,
+        p_delivery_address_ref: input.checkout.addressRef ?? null,
+        p_delivery_service_type: input.checkout.deliveryServiceType ?? null,
       }),
     })
     return mapOrder(row)
