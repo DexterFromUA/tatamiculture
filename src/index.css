@@ -482,7 +482,7 @@ textarea {
 }
 
 .auth-card {
-  width: min(100%, 450px);
+  width: min(100%, 560px);
   padding: clamp(28px, 5vw, 48px);
   border: 1px solid var(--line);
   background: var(--card);
@@ -587,6 +587,7 @@ textarea {
 .crm-grid {
   grid-template-columns: minmax(0, 1.3fr) minmax(260px, 0.7fr);
 }
+.crm-grid--orders { grid-template-columns: minmax(0, 1fr); }
 
 .admin-list,
 .stock-list {
@@ -640,6 +641,8 @@ textarea {
 }
 
 .stock-low { color: var(--danger); }
+
+.crm-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 16px; margin: 16px 0; }
 
 .order-filters {
   display: grid;
@@ -704,6 +707,28 @@ textarea {
   align-items: start;
 }
 
+.catalog-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0 0 18px; }
+.catalog-summary button { text-align: left; padding: 14px 16px; border: 1px solid var(--line); background: var(--card); color: inherit; cursor: pointer; }
+.catalog-summary button.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.catalog-summary span { display: block; color: var(--muted); font-size: .85rem; }
+.catalog-summary strong { display: block; margin-top: 6px; font: 1.6rem/1 var(--sans); }
+.catalog-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(170px, 240px); gap: 10px; }
+.catalog-toolbar input, .catalog-toolbar select { width: 100%; padding: 10px 12px; border: 1px solid var(--line); background: var(--card); color: inherit; }
+.catalog-header-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.category-picker { display: flex; align-items: end; gap: 12px; margin-bottom: 16px; }
+.category-picker .field { flex: 1; min-width: 0; margin: 0; }
+.category-picker button { flex: 0 0 auto; margin-bottom: 10px; }
+.category-manager { padding: 18px; margin: 0 0 20px; border: 1px solid var(--line); background: var(--paper); }
+.category-manager h3 { margin: 0; }
+.category-manager__form { display: flex; align-items: end; gap: 10px; margin: 16px 0; }
+.category-manager__form .field { flex: 1; min-width: 0; margin: 0; }
+.category-manager__form .btn { flex: 0 0 auto; }
+.category-manager__list { list-style: none; padding: 0; margin: 0; }
+.category-manager__list li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.category-manager__list li div { min-width: 0; flex: 1; }
+.category-manager__list li strong, .category-manager__list li span { display: block; overflow-wrap: anywhere; }
+.category-manager__list li span { color: var(--muted); font-size: .8rem; }
+
 .catalog-admin__list,
 .variant-editor {
   list-style: none;
@@ -715,11 +740,18 @@ textarea {
 
 .catalog-admin__list li {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
   gap: 10px;
   padding: 14px;
   border-bottom: 1px solid var(--line);
 }
+.catalog-admin__list li.active { background: var(--paper); }
+.catalog-admin__list li:last-child { border-bottom: 0; }
+.catalog-admin__thumb { width: 52px; height: 52px; flex: 0 0 52px; object-fit: cover; background: var(--paper); }
+.catalog-admin__item { min-width: 0; flex: 1; }
+.catalog-admin__item strong { display: block; overflow-wrap: anywhere; }
+.catalog-admin__item span.stock-low { color: var(--danger); }
+.catalog-admin__no-results { color: var(--muted); }
 
 .catalog-admin__list span {
   display: block;
@@ -745,14 +777,16 @@ textarea {
 .variant-editor > .product-editor__head { padding: 14px; border-bottom: 1px solid var(--line); }
 .variant-editor__row {
   display: grid;
-  grid-template-columns: 72px minmax(90px, 1fr) 100px 70px auto auto;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
-  align-items: center;
+  align-items: end;
   padding: 10px 14px;
   border-bottom: 1px solid var(--line);
 }
 .variant-editor__row input:not([type="checkbox"]) { width: 100%; padding: 8px; border: 1px solid var(--line); background: var(--card); color: inherit; }
 .variant-editor__row label { font-size: .85rem; white-space: nowrap; }
+.variant-field { display: block; min-width: 0; }
+.variant-field span { display: block; margin-bottom: 5px; color: var(--muted); font-size: .75rem; }
 
 .image-manager {
   display: grid;
@@ -820,6 +854,9 @@ textarea {
   }
 
   .crm-stats { grid-template-columns: 1fr; }
+  .catalog-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .catalog-toolbar { grid-template-columns: 1fr; }
+  .category-picker, .category-manager__form { flex-wrap: wrap; }
 
   .admin-list li { grid-template-columns: 1fr; }
 

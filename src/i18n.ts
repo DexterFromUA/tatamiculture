@@ -2,6 +2,15 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 const uk = {
+  'Latest 50 notifications': 'Останні 50 сповіщень',
+  System: 'Система', Currency: 'Валюта', Created: 'Створено',
+  'Search products': 'Пошук товарів за назвою або артикулом',
+  'Order activity': 'Історія подій замовлення', 'No events yet': 'Подій поки немає', event_status: 'Статус замовлення', event_payment_status: 'Статус оплати', event_cost: 'Собівартість', event_return: 'Повернення',
+  Notifications: 'Сповіщення', 'No notifications yet': 'Сповіщень поки немає', 'Mark as read': 'Позначити прочитаним', 'Action failed': 'Не вдалося виконати дію',
+  'Forgot password': 'Забули пароль?', 'New password': 'Новий пароль', 'Recovery requires Supabase': 'Відновлення пароля доступне після підключення Supabase.', 'Recovery link invalid': 'Посилання відновлення недійсне. Запросіть нове.', 'Passwords do not match': 'Паролі не збігаються', 'Password updated': 'Пароль змінено. Увійдіть із новим паролем.', 'Recovery email sent': 'Якщо акаунт існує, лист із посиланням надіслано на вашу пошту.', 'Confirm password': 'Підтвердіть пароль', 'Save password': 'Зберегти пароль', 'Send recovery email': 'Надіслати посилання',
+  'Order operations': 'Події та фінанси', 'Order cost': 'Собівартість замовлення', Save: 'Зберегти', Returns: 'Повернення', 'Return accounting only': 'Облік підтвердженого повернення. Не виконує банківське відшкодування й не змінює залишки.', 'Return amount': 'Сума повернення', Reason: 'Причина', 'Record return': 'Записати повернення', 'Invalid amount': 'Вкажіть коректну суму',
+  'Financial analytics': 'Фінансова аналітика', 'Repeat customers': 'Повторні покупці', 'Net delivered revenue': 'Виручка за доставленими після повернень', 'Gross margin': 'Валова маржа', 'Cost coverage': 'Замовлення з відомою собівартістю', 'Margin explanation': 'Маржа лише за доставленими замовленнями з введеною собівартістю, мінус повернення. Без комісій, податків та операційних витрат. Повторні покупці — за нескансованими замовленнями.',
+  'Export CSV': 'Експорт CSV', Previous: 'Назад', Next: 'Далі', 'Search customers': 'Пошук клієнтів за іменем або телефоном',
   Shop: 'Магазин', Cart: 'Кошик', 'Sign in': 'Увійти', 'Sign out': 'Вийти', Account: 'Кабінет',
   'Opening store…': 'Відкриваємо магазин…', 'Store not found': 'Магазин не знайдено',
   'The storefront is unavailable right now.': 'Вітрина наразі недоступна.', 'Go to Tatami': 'До Tatami',
@@ -37,6 +46,8 @@ const uk = {
   'Orders from date': 'Замовлення від дати', 'Orders to date': 'Замовлення до дати', 'Online payment': 'Онлайн-оплата', 'Open customer card': 'Відкрити картку клієнта', 'Guest checkout has no customer account': 'Гостьове оформлення не має акаунта клієнта',
   Registered: 'Зареєстровані', 'New, 30 days': 'Нові за 30 днів', 'No orders yet': 'Ще без замовлень', 'Registered customers': 'Зареєстровані клієнти', joined: 'зареєструвався', orders: 'замовлень',
   'Loading catalogue…': 'Завантаження каталогу…', 'Add product': 'Додати товар', Published: 'Опубліковано', Hidden: 'Приховано', variants: 'варіантів', Edit: 'Редагувати', 'Edit product': 'Редагувати товар', 'New product': 'Новий товар', Close: 'Закрити', Description: 'Опис', Category: 'Категорія', Uncategorized: 'Без категорії', 'Upload images': 'Завантажити зображення', 'Published in storefront': 'Опубліковано у вітрині', 'Sizes and stock': 'Розміри та залишки', 'Add size': 'Додати розмір', Size: 'Розмір', Price: 'Ціна', 'Pre-order': 'Передзамовлення', 'Saving…': 'Збереження…', 'Save product': 'Зберегти товар', Cancel: 'Скасувати',
+  Products: 'Товари', 'Stock units': 'Одиниць на складі', 'Low stock': 'Мало в наявності', 'Out of stock': 'Немає в наявності', 'out of stock': 'без залишку', 'in stock': 'шт. в наявності', 'All categories': 'Усі категорії', 'Stock filter': 'Фільтр залишків', 'All stock': 'Усі залишки', 'No SKU': 'Без артикулу', 'No products match these filters.': 'За цими фільтрами товарів немає.', 'Price, UAH': 'Ціна, грн', 'Stock, units': 'Залишок, шт.',
+  'Manage categories': 'Керувати категоріями', 'Create category': 'Створити категорію', 'New category': 'Нова категорія', 'Rename category': 'Перейменувати категорію', Rename: 'Перейменувати', Delete: 'Видалити', 'Enter a category name.': 'Введіть назву категорії.', 'This category already exists.': 'Така категорія вже існує.', 'Could not create category.': 'Не вдалося створити категорію.', 'Could not save category.': 'Не вдалося зберегти категорію.', 'Could not delete category.': 'Не вдалося видалити категорію.', 'Move products to another category first.': 'Спочатку перемістіть товари до іншої категорії.', 'Delete category "{{name}}"?': 'Видалити категорію «{{name}}»?',
   SKU: 'Артикул', 'JPG, PNG or WebP · up to 5 MB per file': 'JPG, PNG або WebP · до 5 МБ на файл', Product: 'Товар', 'Select a product': 'Оберіть товар', 'Edit its sizes, prices, availability and main image.': 'Редагуйте розміри, ціни, доступність і головне зображення.',
   'Nova Poshta settings': 'Налаштування Нової пошти', 'TTN environment': 'Середовище ТТН', 'Sender name or company': 'Ім’я відправника або компанія', 'Sender phone': 'Телефон відправника', 'Dispatch city': 'Місто відправлення', 'Dispatch branch': 'Відділення відправлення', 'Parcel defaults': 'Параметри посилки', 'Weight, g': 'Вага, г', 'Length, cm': 'Довжина, см', 'Width, cm': 'Ширина, см', 'Height, cm': 'Висота, см', 'Declared value, UAH': 'Оціночна вартість, грн', 'Delivery payer': 'Платник доставки',
   PENDING: 'Очікує', PAID: 'Оплачено', IN_PROGRESS: 'В обробці', READY_FOR_PICKUP: 'Готово до видачі', DELIVERED: 'Доставлено', CANCELLED_BY_USER: 'Скасовано клієнтом', CANCELLED_BY_STORE: 'Скасовано магазином',
@@ -50,7 +61,13 @@ const savedLanguage = typeof window === 'undefined' ? null : window.localStorage
 void i18n
   .use(initReactI18next)
   .init({
-    resources: { en: { translation: {} }, uk: { translation: uk } },
+    resources: { en: { translation: {
+      event_status: 'Order status', event_payment_status: 'Payment status', event_cost: 'Cost', event_return: 'Return',
+      PENDING: 'Pending', PAID: 'Paid', IN_PROGRESS: 'In progress', READY_FOR_PICKUP: 'Ready for pickup', DELIVERED: 'Delivered', CANCELLED_BY_USER: 'Cancelled by customer', CANCELLED_BY_STORE: 'Cancelled by store',
+      'Return accounting only': 'Records a confirmed return only. Does not issue a bank refund or restock inventory.',
+      'Margin explanation': 'Delivered orders with a known cost only, less recorded returns. Excludes fees, taxes and operating costs. Repeat customers are based on non-cancelled orders.',
+      'Recovery email sent': 'If the account exists, a recovery link has been sent.', 'Recovery link invalid': 'The recovery link is invalid. Request a new one.',
+    } }, uk: { translation: uk } },
     lng: savedLanguage === 'en' || savedLanguage === 'uk' ? savedLanguage : 'uk',
     fallbackLng: 'en',
     returnNull: false,

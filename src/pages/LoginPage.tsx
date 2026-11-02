@@ -49,6 +49,7 @@ export function LoginPage() {
           {loading ? t('Signing in…') : t('Sign in')}
         </button>
         </form>
+        <p><Link to="/forgot-password">{t('Forgot password')}</Link></p>
         <p className="auth-card__footer">{t('New here?')} <Link to="/register">{t('Create an account')}</Link></p>
         <p className="auth-card__demo">Demo: anna@example.com / {DEMO_PASSWORD}</p>
       </div>

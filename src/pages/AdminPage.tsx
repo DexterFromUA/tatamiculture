@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { CustomerPanel, type CustomerOrder } from '../components/CustomerPanel'
 import { AdminTabs } from '../components/AdminTabs'
 import type { AdminSection } from '../components/AdminTabs'
@@ -13,6 +12,8 @@ import { formatDate, formatPrice } from '../lib/format'
 import { supabaseConfigured, supabaseRequest } from '../lib/supabase'
 import type { OrderStatus } from '../types'
 import { useTranslation } from 'react-i18next'
+import { downloadCsv, fetchAll } from '../lib/crm'
+import { FinancialAnalytics, OrderOperations } from '../components/OrderOperations'
 
 type AdminOrder = CustomerOrder & {
   nova_poshta_ttn: string | null
@@ -46,6 +47,9 @@ export function AdminPage() {
   const [toDate, setToDate] = useState('')
   const [selectedCustomer, setSelectedCustomer] = useState<AdminOrder | null>(null)
   const [section, setSection] = useState<AdminSection>('overview')
+  const [catalogView, setCatalogView] = useState<'products' | 'stock'>('products')
+  const [page, setPage] = useState(1)
+  const [operations, setOperations] = useState<AdminOrder | null>(null)
   const { t } = useTranslation()
 
   useEffect(() => {
@@ -62,7 +66,7 @@ export function AdminPage() {
           return
         }
         const [nextOrders, nextInventory] = await Promise.all([
-          supabaseRequest<AdminOrder[]>(`/rest/v1/orders?store_id=eq.${encodeURIComponent(store.id)}&select=id,user_id,receipt_code,customer_name,customer_email,customer_phone,total_price,currency,status,payment_status,created_at,nova_poshta_ttn,nova_poshta_document_ref,nova_poshta_status,nova_poshta_status_code,payment_method&order=created_at.desc`, { token }),
+          fetchAll<AdminOrder>(`/rest/v1/orders?store_id=eq.${encodeURIComponent(store.id)}&select=id,user_id,receipt_code,customer_name,customer_email,customer_phone,total_price,currency,status,payment_status,created_at,nova_poshta_ttn,nova_poshta_document_ref,nova_poshta_status,nova_poshta_status_code,payment_method&order=created_at.desc,id.desc`, token),
           supabaseRequest<InventoryProduct[]>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=id,name,product_variants(id,name,stock_quantity)&order=position.asc`, { token }),
         ])
         if (!cancelled) {
@@ -90,6 +94,13 @@ export function AdminPage() {
       return matchesQuery && (statusFilter === 'ALL' || order.status === statusFilter) && (!fromDate || date >= fromDate) && (!toDate || date <= toDate)
     })
   }, [orders, search, statusFilter, fromDate, toDate])
+  const pages = Math.max(1, Math.ceil(visibleOrders.length / 20))
+  const currentPage = Math.min(page, pages)
+  const pageOrders = visibleOrders.slice((currentPage - 1) * 20, currentPage * 20)
+  const exportOrders = () => downloadCsv('tatami-orders.csv', [
+    [t('Receipt'), t('Name'), t('Email'), t('Phone'), t('Order status'), t('Total'), 'Currency', 'Created'],
+    ...visibleOrders.map(order => [order.receipt_code, order.customer_name, order.customer_email, order.customer_phone, t(order.status), Number(order.total_price) / 100, order.currency, order.created_at]),
+  ])
 
   const changeStatus = async (id: string, status: OrderStatus) => {
     if (!token) return
@@ -167,22 +178,24 @@ export function AdminPage() {
       <header className="page-head">
         <p className="muted">{store.name} · {t('management')}</p>
         <h1>{section === 'overview' ? t('CRM') : section === 'orders' ? t('Orders') : section === 'customers' ? t('Customers') : section === 'catalogue' ? t('Catalogue') : t('Settings')}</h1>
-        <AdminTabs active={section} onChange={setSection} />
+        <AdminTabs active={section} onChange={(next) => { if (next === 'catalogue') setCatalogView('products'); setSection(next) }} />
       </header>
-      {section === 'customers' ? <CustomersPage /> : section === 'catalogue' ? <CatalogAdminPage embedded /> : section === 'settings' ? <><NovaPostModeToggle /><DeliverySettingsPage embedded /></> : <>
+      {section === 'customers' ? <CustomersPage /> : section === 'catalogue' ? <CatalogAdminPage key={catalogView} embedded initialView={catalogView} /> : section === 'settings' ? <><NovaPostModeToggle /><DeliverySettingsPage embedded /></> : <>
       {section === 'overview' ? <><div className="crm-stats">
         <div><span>{t('Orders')}</span><strong>{orders.length}</strong></div>
         <div><span>{t('Customers')}</span><strong>{customerCount}</strong></div>
         <div><span>{t('Revenue')}</span><strong>{formatPrice(revenue, store.currency)}</strong></div><div><span>{t('Delivered revenue')}</span><strong>{formatPrice(deliveredRevenue, store.currency)}</strong></div><div><span>{t('Payment on delivery')}</span><strong>{codOrders.length}</strong></div>
-      </div><div className="overview-grid"><section className="crm-panel"><h2>{t('Needs attention')}</h2><p><strong>{orders.filter((order) => order.status === 'PENDING').length}</strong> {t('pending orders')}</p><p><strong>{orders.filter((order) => order.payment_status === 'FAILED').length}</strong> {t('failed payments')}</p><button type="button" className="text-btn" onClick={() => setSection('orders')}>{t('Open orders')}</button></section><section className="crm-panel"><h2>{t('Inventory alerts')}</h2>{inventory.flatMap((product) => product.product_variants.map((variant) => ({ product: product.name, ...variant }))).filter((variant) => variant.stock_quantity < 3).slice(0, 5).map((variant) => <p key={variant.id}>{variant.product} · {variant.name}: <strong className="stock-low">{variant.stock_quantity}</strong></p>)}<button type="button" className="text-btn" onClick={() => setSection('catalogue')}>{t('Manage catalogue')}</button></section></div></> : <>
-      <div className="crm-grid">
+      </div><div className="overview-grid"><section className="crm-panel"><h2>{t('Needs attention')}</h2><p><strong>{orders.filter((order) => order.status === 'PENDING').length}</strong> {t('pending orders')}</p><p><strong>{orders.filter((order) => order.payment_status === 'FAILED').length}</strong> {t('failed payments')}</p><button type="button" className="text-btn" onClick={() => setSection('orders')}>{t('Open orders')}</button></section><section className="crm-panel"><h2>{t('Inventory alerts')}</h2>{inventory.flatMap((product) => product.product_variants.map((variant) => ({ product: product.name, ...variant }))).filter((variant) => variant.stock_quantity < 3).slice(0, 5).map((variant) => <p key={variant.id}>{variant.product} · {variant.name}: <strong className="stock-low">{variant.stock_quantity}</strong></p>)}<button type="button" className="text-btn" onClick={() => { setCatalogView('stock'); setSection('catalogue') }}>{t('Manage catalogue')}</button></section></div></> : <>
+      <div className="crm-grid crm-grid--orders">
         <section className="crm-panel">
           <h2>{t('Orders')}</h2>
           <div className="order-filters"><input placeholder={t('Search name, email or receipt')} value={search} onChange={(event) => setSearch(event.target.value)} /><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'ALL' | OrderStatus)}><option value="ALL">{t('All statuses')}</option>{statuses.map((status) => <option key={status} value={status}>{t(status)}</option>)}</select><input aria-label={t('Orders from date')} type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /><input aria-label={t('Orders to date')} type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} /></div>
-          {orders.length === 0 ? <p className="muted">{t('No orders yet.')}</p> : visibleOrders.length === 0 ? <p className="muted">{t('No orders match these filters.')}</p> : <ul className="admin-list">{visibleOrders.map((order) => (
+          <button className="text-btn" disabled={!visibleOrders.length} onClick={exportOrders}>{t('Export CSV')} ({visibleOrders.length})</button>
+          <div className="crm-pagination"><button className="text-btn" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t('Previous')}</button><span>{currentPage} / {pages}</span><button className="text-btn" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>{t('Next')}</button></div>
+          {orders.length === 0 ? <p className="muted">{t('No orders yet.')}</p> : visibleOrders.length === 0 ? <p className="muted">{t('No orders match these filters.')}</p> : <ul className="admin-list">{pageOrders.map((order) => (
             <li key={order.id}>
               <div><strong>{order.customer_name}</strong><span>{order.customer_email} · {formatDate(order.created_at)} · {order.payment_method === 'CASH_ON_DELIVERY' ? t('Payment on delivery') : t('Online payment')}{order.nova_poshta_status ? ` · ${order.nova_poshta_status}` : ''}</span></div>
-              <strong>{formatPrice(Number(order.total_price) / 100, order.currency)}</strong>
+              <div><strong>{formatPrice(Number(order.total_price) / 100, order.currency)}</strong><br /><button className="text-btn" onClick={() => setOperations(order)}>{t('Order operations')}</button></div>
               <label className="sr-only" htmlFor={`status-${order.id}`}>{t('Order status')}</label>
               <select id={`status-${order.id}`} value={order.status} disabled={updatingId === order.id} onChange={(event) => void changeStatus(order.id, event.target.value as OrderStatus)}>
                 {statuses.map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ').toLowerCase()}</option>)}
@@ -193,17 +206,12 @@ export function AdminPage() {
             </li>
           ))}</ul>}
         </section>
-        <section className="crm-panel">
-          <h2>{t('Stock')}</h2>
-          <ul className="stock-list">{inventory.flatMap((product) => product.product_variants.map((variant) => (
-            <li key={variant.id}><span>{product.name} · {variant.name}</span><strong className={variant.stock_quantity < 3 ? 'stock-low' : ''}>{variant.stock_quantity}</strong></li>
-          )))}</ul>
-          <Link className="text-btn" to="/">{t('Open storefront')}</Link>
-        </section>
       </div>
       </>}
       {selectedCustomer && token && user ? <CustomerPanel order={selectedCustomer} storeId={store.id} token={token} managerId={user.id} onClose={() => setSelectedCustomer(null)} /> : null}
       </>}
+      {section === 'overview' && token && <FinancialAnalytics orders={orders} storeId={store.id} token={token} />}
+      {operations && token && <OrderOperations key={operations.id} order={operations} token={token} onClose={() => setOperations(null)} />}
     </section>
   )
 }

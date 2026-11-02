@@ -6,6 +6,7 @@ import { formatDate, formatPrice } from '../lib/format'
 import { api } from '../lib/api'
 import type { Order } from '../types'
 import { useTranslation } from 'react-i18next'
+import { Notifications } from '../components/Notifications'
 
 export function AccountPage() {
   const { user, token, logout } = useAuth()
@@ -42,6 +43,7 @@ export function AccountPage() {
         <h1>{t('Hi, {{name}}.', { name: user.name.split(' ')[0] || t('athlete') })}</h1>
         <p className="muted">{t('Your details and orders, kept together.')}</p>
       </header>
+      <Notifications />
       <div className="account-layout">
         <aside className="account-card">
           <div className="account-avatar" aria-hidden="true">{(user.name || user.email).trim().charAt(0).toUpperCase()}</div>

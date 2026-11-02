@@ -16,6 +16,7 @@ import { ProductPage } from './pages/ProductPage'
 import { QuickBuyPage } from './pages/QuickBuyPage'
 import { ReceiptPage } from './pages/ReceiptPage'
 import { RegisterPage } from './pages/RegisterPage'
+import { PasswordRecoveryPage } from './pages/PasswordRecoveryPage'
 
 function StoreTree() {
   return (
@@ -44,6 +45,8 @@ export default function App() {
           <Route path="checkout" element={<CheckoutPage />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
+          <Route path="forgot-password" element={<PasswordRecoveryPage />} />
+          <Route path="reset-password" element={<PasswordRecoveryPage reset />} />
           <Route path="receipt/:code" element={<ReceiptPage />} />
           <Route
             path="orders"

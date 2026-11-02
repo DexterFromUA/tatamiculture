@@ -5,6 +5,7 @@ import { formatDate, formatPrice } from '../lib/format'
 import { api } from '../lib/api'
 import type { Order } from '../types'
 import { useTranslation } from 'react-i18next'
+import { OrderActivity } from '../components/OrderActivity'
 
 export function ReceiptPage() {
   const { code } = useParams()
@@ -73,6 +74,7 @@ export function ReceiptPage() {
         {t('Deliver to')} {order.deliveryAddress}, {order.deliveryCity}
       </p>
       <section className="receipt-delivery"><h2>{t('Delivery')}</h2>{order.paymentMethod === 'CASH_ON_DELIVERY' ? <p className="muted">{t('Payment on delivery')}</p> : null}{order.novaPoshtaTtn ? <><p><strong>Nova Poshta TTN: {order.novaPoshtaTtn}</strong></p>{order.novaPoshtaStatus ? <p className="muted">{order.novaPoshtaStatus}</p> : <p className="muted">{t('TTN created — status will appear after dispatch.')}</p>}<a className="text-btn" href={`https://novaposhta.ua/tracking/?cargo_number=${encodeURIComponent(order.novaPoshtaTtn)}`} target="_blank" rel="noreferrer">{t('Track shipment')}</a></> : <p className="muted">{t('TTN will be added after dispatch.')}</p>}</section>
+      <OrderActivity receiptCode={order.receiptCode} currency={order.currency} />
       <Link to="/">{t('Continue shopping')}</Link>
     </section>
   )
