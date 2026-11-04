@@ -47,15 +47,13 @@ export function AccountPage() {
         <Notifications />
       </header>
       <div className="account-layout">
-        <aside className="account-card">
-          <div className="account-avatar" aria-hidden="true">{(user.name || user.email).trim().charAt(0).toUpperCase()}</div>
-          <h2>{user.name || t('Tatami customer')}</h2>
+        <aside className="account-card account-profile">
+          <div className="account-profile__head"><div className="account-avatar" aria-hidden="true">{(user.name || user.email).trim().charAt(0).toUpperCase()}</div><div><p className="eyebrow">{t('Tatami account')}</p><h2>{user.name || t('Tatami customer')}</h2></div><button type="button" className="text-btn account-signout" onClick={() => { logout(); navigate('/') }}>{t('Sign out')}</button></div>
           <dl className="account-details">
             <div><dt>{t('Email')}</dt><dd>{user.email}</dd></div>
             <div><dt>{t('Phone')}</dt><dd>{user.phone || '—'}</dd></div>
             <div><dt>{t('City')}</dt><dd>{user.city || '—'}</dd></div>
           </dl>
-          <button type="button" className="btn btn--ghost account-signout" onClick={() => { logout(); navigate('/') }}>{t('Sign out')}</button>
         </aside>
         <section className="account-orders account-card">
           <div className="account-orders__head"><div><p className="eyebrow">{t('Your purchases')}</p><h2>{t('Order history')}</h2></div><span className="account-orders__count">{orders.length}</span></div>

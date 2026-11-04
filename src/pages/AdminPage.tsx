@@ -175,7 +175,7 @@ export function AdminPage() {
   if (member === null) return <div className="page-status">{t('Loading CRM…')}</div>
 
   return (
-    <section>
+    <section className="crm-page">
       <header className="page-head">
         <p className="muted">{store.name} · {t('management')}</p>
         <h1>{section === 'overview' ? t('CRM') : section === 'orders' ? t('Orders') : section === 'customers' ? t('Customers') : section === 'catalogue' ? t('Catalogue') : t('Settings')}</h1>

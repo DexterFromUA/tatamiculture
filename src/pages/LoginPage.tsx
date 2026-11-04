@@ -31,11 +31,14 @@ export function LoginPage() {
   return (
     <section className="auth-page auth-page--login">
       <div className="auth-card auth-card--login">
-        <header className="auth-card__head">
+        <header className="auth-card__head login-intro">
           <p className="eyebrow">{t('Tatami account')}</p>
           <h1>{t('Welcome back')}</h1>
           <p className="muted">{t('Sign in to view your orders and manage your details.')}</p>
+          <span className="login-intro__mark" aria-hidden="true">T.</span>
         </header>
+        <div className="login-form-panel">
+        <p className="eyebrow">{t('Sign in')}</p>
         <form className="form auth-card__form" onSubmit={(event) => void onSubmit(event)}>
         {error ? <p className="error">{error}</p> : null}
         <label className="field">
@@ -53,6 +56,7 @@ export function LoginPage() {
         <p className="auth-card__recovery"><Link to="/forgot-password">{t('Forgot password')}</Link></p>
         <p className="auth-card__footer">{t('New here?')} <Link to="/register">{t('Create an account')}</Link></p>
         {!supabaseConfigured ? <p className="auth-card__demo">Demo: anna@example.com / {DEMO_PASSWORD}</p> : null}
+        </div>
       </div>
     </section>
   )

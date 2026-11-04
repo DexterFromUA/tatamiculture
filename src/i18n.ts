@@ -2,6 +2,8 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 const uk = {
+  'Order items': 'Товари в замовленні', 'Order details': 'Деталі замовлення', 'Payment status': 'Статус оплати', payment_PENDING: 'Очікує оплати', payment_PAID: 'Оплачено', payment_MOCK_PAID: 'Тестова оплата', payment_FAILED: 'Помилка оплати', payment_REFUNDED: 'Повернуто',
+  'Show image {{number}}': 'Показати зображення {{number}}', '{{count}} available_one': 'В наявності: {{count}}', '{{count}} available_few': 'В наявності: {{count}}', '{{count}} available_many': 'В наявності: {{count}}', '{{count}} available_other': 'В наявності: {{count}}', 'Items in order: {{quantity}}': 'Товарів у замовленні: {{quantity}}', '{{quantity}} units': '{{quantity}} шт.', 'Details at checkout': 'Уточнюється під час оформлення', 'Payment is processed on the secure page of {{provider}}.': 'Оплата здійснюється на захищеній сторінці {{provider}}.',
   'Homepage banner': 'Банер головної сторінки', 'Empty fields use the default text.': 'Порожні поля використовують стандартний текст.', 'Banner image': 'Зображення банера', 'Remove banner image': 'Прибрати зображення банера', 'Banner eyebrow': 'Надпис над заголовком', 'Banner heading': 'Заголовок', 'Banner description': 'Опис', 'Save banner': 'Зберегти банер', 'Could not load banner': 'Не вдалося завантажити банер', 'Could not save banner': 'Не вдалося зберегти банер',
   'Made for movement': 'Створено для руху', 'Everyday movement': 'Рух щодня', 'Explore collection': 'До колекції', 'The collection': 'Колекція', 'All products': 'Усі товари', 'Find your essentials': 'Обирайте речі для свого ритму',
   'From {{price}}': 'Від {{price}}',
@@ -65,6 +67,7 @@ void i18n
   .use(initReactI18next)
   .init({
     resources: { en: { translation: {
+      payment_PENDING: 'Awaiting payment', payment_PAID: 'Paid', payment_MOCK_PAID: 'Test payment', payment_FAILED: 'Payment failed', payment_REFUNDED: 'Refunded',
       event_status: 'Order status', event_payment_status: 'Payment status', event_cost: 'Cost', event_return: 'Return',
       PENDING: 'Pending', PAID: 'Paid', IN_PROGRESS: 'In progress', READY_FOR_PICKUP: 'Ready for pickup', DELIVERED: 'Delivered', CANCELLED_BY_USER: 'Cancelled by customer', CANCELLED_BY_STORE: 'Cancelled by store',
       'Return accounting only': 'Records a confirmed return only. Does not issue a bank refund or restock inventory.',

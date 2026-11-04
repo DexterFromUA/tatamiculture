@@ -46,7 +46,7 @@ export function ProductPage() {
   }
 
   return (
-    <article className="product-view">
+    <article className="product-view shop-detail">
       <div className="product-gallery">
         <div className="product-view__image">
           <img src={activeImage} alt={product.name} />
@@ -57,10 +57,11 @@ export function ProductPage() {
           </div> : null}
         </div>
         {images.length > 1 ? <div className="gallery-thumbnails">
-          {images.map((image, index) => <button type="button" className={index === imageIndex ? 'active' : ''} key={image} onClick={() => setImageIndex(index)} aria-label={`Show image ${index + 1}`}><img src={image} alt="" /></button>)}
+          {images.map((image, index) => <button type="button" className={index === imageIndex ? 'active' : ''} key={image} onClick={() => setImageIndex(index)} aria-label={t('Show image {{number}}', { number: index + 1 })}><img src={image} alt="" /></button>)}
         </div> : null}
       </div>
       <div className="product-view__body">
+        <Link className="shop-back" to="/">← {t('Back to shop')}</Link>
         <p className="muted">{product.category}</p>
         <h1>{product.name}</h1>
         <p className="lede">{product.description}</p>
@@ -81,7 +82,7 @@ export function ProductPage() {
               <option key={item.id} value={item.id}>
                 {item.name}
                 {item.isPreOrder ? ` · ${t('pre-order')}` : ''}
-                {item.isLimited ? ` · ${item.quantity} left` : ''}
+                {item.isLimited ? ` · ${t('{{count}} available', { count: item.quantity })}` : ''}
               </option>
             ))}
           </select>

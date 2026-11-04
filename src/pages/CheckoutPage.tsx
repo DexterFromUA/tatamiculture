@@ -142,11 +142,11 @@ export function CheckoutPage() {
         </button>
       </form>
       <aside className="checkout-summary">
-        <div className="checkout-summary__head"><p className="eyebrow">{t('Your order')}</p><h2>{items.reduce((sum, item) => sum + item.quantity, 0)} {t('items')}</h2></div>
-        <ul className="checkout-lines">{cartLines.map((line) => <li key={line.id}><div><strong>{line.name}</strong><span>{line.option} · {line.quantity} pc.</span></div><b>{formatPrice(line.total, store.currency)}</b></li>)}</ul>
-        <div className="checkout-delivery"><span>Delivery</span><strong>{novaPoshtaEnabled ? 'Nova Poshta branch / parcel locker' : 'Details at checkout'}</strong><small>Shipping cost is confirmed after dispatch.</small></div>
+        <div className="checkout-summary__head"><p className="eyebrow">{t('Your order')}</p><h2>{t('Items in order: {{quantity}}', { quantity: items.reduce((sum, item) => sum + item.quantity, 0) })}</h2></div>
+        <ul className="checkout-lines">{cartLines.map((line) => <li key={line.id}><div><strong>{line.name}</strong><span>{line.option} · {t('{{quantity}} units', { quantity: line.quantity })}</span></div><b>{formatPrice(line.total, store.currency)}</b></li>)}</ul>
+        <div className="checkout-delivery"><span>{t('Delivery')}</span><strong>{novaPoshtaEnabled ? t('Nova Poshta branch or parcel locker') : t('Details at checkout')}</strong><small>{t('Shipping cost is confirmed after dispatch.')}</small></div>
         <div className="checkout-total"><span>{t('Total')}</span><strong>{formatPrice(total, store.currency)}</strong></div>
-        <p className="checkout-summary__note">{provider === 'CASH_ON_DELIVERY' ? 'Pay for the order when receiving it at Nova Poshta.' : `Payment is processed on the secure page of ${provider === 'MONOBANK' ? 'monobank' : 'LiqPay'}.`}</p>
+        <p className="checkout-summary__note">{provider === 'CASH_ON_DELIVERY' ? t('Pay when receiving at Nova Poshta') : t('Payment is processed on the secure page of {{provider}}.', { provider: provider === 'MONOBANK' ? 'monobank' : 'LiqPay' })}</p>
       </aside>
     </section>
   )

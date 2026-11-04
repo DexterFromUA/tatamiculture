@@ -45,17 +45,17 @@ export function ReceiptPage() {
   }
 
   return (
-    <section className="receipt">
-      <header className="page-head">
-        <p className="muted">{t('Receipt')} {order.receiptCode}</p>
+    <section className="receipt-page">
+      <header className="receipt-hero">
+        <p className="eyebrow">{t('Receipt')} · {order.receiptCode}</p>
         <h1>{t('Thank you, {{name}}', { name: order.customerName })}</h1>
-        <p>
-          {formatDate(order.createdAt)} · {order.paymentStatus.replaceAll('_', ' ').toLowerCase()}
-        </p>
+        <p>{formatDate(order.createdAt)}</p>
       </header>
-      <ul className="line-list">
+      <div className="receipt-layout"><div className="receipt-content">
+      <section className="receipt-card"><div className="receipt-card__head"><div><p className="eyebrow">{t('Your order')}</p><h2>{t('Order items')}</h2></div><span className="receipt-count">{order.items.reduce((sum, item) => sum + item.quantity, 0)}</span></div>
+      <ul className="receipt-items">
         {order.items.map((item) => (
-          <li key={item.id} className="line line--plain">
+          <li key={item.id}>
             <div>
               <strong>{item.productName}</strong>
               <p className="muted">
@@ -67,15 +67,10 @@ export function ReceiptPage() {
           </li>
         ))}
       </ul>
-      <p className="summary">
-        {t('Total')} <strong>{formatPrice(order.totalPrice, order.currency)}</strong>
-      </p>
-      <p className="muted">
-        {t('Deliver to')} {order.deliveryAddress}, {order.deliveryCity}
-      </p>
-      <section className="receipt-delivery"><h2>{t('Delivery')}</h2>{order.paymentMethod === 'CASH_ON_DELIVERY' ? <p className="muted">{t('Payment on delivery')}</p> : null}{order.novaPoshtaTtn ? <><p><strong>Nova Poshta TTN: {order.novaPoshtaTtn}</strong></p>{order.novaPoshtaStatus ? <p className="muted">{order.novaPoshtaStatus}</p> : <p className="muted">{t('TTN created — status will appear after dispatch.')}</p>}<a className="text-btn" href={`https://novaposhta.ua/tracking/?cargo_number=${encodeURIComponent(order.novaPoshtaTtn)}`} target="_blank" rel="noreferrer">{t('Track shipment')}</a></> : <p className="muted">{t('TTN will be added after dispatch.')}</p>}</section>
+      <div className="receipt-total"><span>{t('Total')}</span><strong>{formatPrice(order.totalPrice, order.currency)}</strong></div></section>
+      <section className="receipt-card receipt-delivery"><p className="eyebrow">{t('Deliver to')}</p><h2>{t('Delivery')}</h2><p>{[order.deliveryCity, order.deliveryAddress].filter(Boolean).join(', ')}</p>{order.novaPoshtaTtn ? <><p><strong>ТТН: {order.novaPoshtaTtn}</strong></p>{order.novaPoshtaStatus ? <p className="muted">{order.novaPoshtaStatus}</p> : <p className="muted">{t('TTN created — status will appear after dispatch.')}</p>}<a className="receipt-link" href={`https://novaposhta.ua/tracking/?cargo_number=${encodeURIComponent(order.novaPoshtaTtn)}`} target="_blank" rel="noreferrer">{t('Track shipment')} ↗</a></> : <p className="muted">{t('TTN will be added after dispatch.')}</p>}</section>
       <OrderActivity receiptCode={order.receiptCode} currency={order.currency} />
-      <Link to="/">{t('Continue shopping')}</Link>
+      </div><aside className="receipt-card receipt-summary"><p className="eyebrow">{t('Receipt')} · {order.receiptCode}</p><h2>{t('Order details')}</h2><dl><div><dt>{t('Order status')}</dt><dd>{t(order.status)}</dd></div><div><dt>{t('Payment status')}</dt><dd>{t(`payment_${order.paymentStatus}`)}</dd></div>{order.paymentMethod ? <div><dt>{t('Payment method')}</dt><dd>{t(order.paymentMethod === 'CASH_ON_DELIVERY' ? 'Payment on delivery' : 'Online payment')}</dd></div> : null}</dl><Link to="/" className="btn">{t('Continue shopping')} ↗</Link></aside></div>
     </section>
   )
 }

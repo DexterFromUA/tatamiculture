@@ -33,10 +33,13 @@ export function CartPage() {
   }
 
   return (
-    <section>
-      <header className="page-head">
+    <section className="cart-page">
+      <header className="page-head cart-page__head">
+        <p className="eyebrow">{t('Your order')}</p>
         <h1>{t('Cart')}</h1>
+        <Link className="shop-back" to="/">← {t('Continue shopping')}</Link>
       </header>
+      <div className="cart-page__layout"><div>
       <ul className="line-list">
         {rows.map(({ item, product, option, unit, line }) => (
           <li key={`${item.productId}-${item.optionId}`} className="line">
@@ -64,14 +67,13 @@ export function CartPage() {
           </li>
         ))}
       </ul>
-      <div className="summary">
-        <p>
-          {t('Total')} <strong>{formatPrice(total, store.currency)}</strong>
-        </p>
+      </div><aside className="cart-summary">
+        <p className="eyebrow">{t('Your order')}</p>
+        <div className="summary"><span>{t('Total')}</span><strong>{formatPrice(total, store.currency)}</strong></div>
         <Link to="/checkout" className="btn">
           {t('Checkout')}
         </Link>
-      </div>
+      </aside></div>
     </section>
   )
 }
