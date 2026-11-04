@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { formatPrice, optionPrice } from '../lib/format'
 import { api } from '../lib/api'
 import type { Product, Store } from '../types'
 
 export function QuickBuyPage() {
   const { code } = useParams()
+  const { t } = useTranslation()
   const [loading, setLoading] = useState(true)
   const [payload, setPayload] = useState<{ store: Store; product: Product } | null>(null)
 
@@ -34,7 +36,7 @@ export function QuickBuyPage() {
       <section className="page-status">
         <h1>Link expired</h1>
         <p>This short link is unavailable.</p>
-        <Link to="/">Go to Tatami</Link>
+        <Link to="/">{t('Go to Tatami.Culture')}</Link>
       </section>
     )
   }

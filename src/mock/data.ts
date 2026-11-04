@@ -6,7 +6,7 @@ export const stores: Store[] = [
   {
     id: 'store_tatami',
     slug: 'tatami',
-    name: 'Tatami',
+    name: 'Tatami.Culture',
     description: 'Спортивний одяг для тренувань, руху та щоденного ритму.',
     contactEmail: 'hello@tatami.store',
     contactPhone: '+380 50 123 4567',

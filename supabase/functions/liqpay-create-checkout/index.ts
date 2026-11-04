@@ -176,7 +176,7 @@ Deno.serve(async (request) => {
       action: 'pay',
       amount: Number(order.total_price) / 100,
       currency: String(order.currency),
-      description: `Tatami order ${order.receipt_code}`,
+      description: `Tatami.Culture order ${order.receipt_code}`,
       order_id: order.id,
       // LiqPay does not need a return URL to complete the payment: the webhook
       // below is authoritative. A browser-local URL is not reachable by LiqPay,

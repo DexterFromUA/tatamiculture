@@ -51,7 +51,7 @@ export function CustomersPage({ initialCustomerId }: { initialCustomerId?: strin
       <div className="customers-toolbar">
         <input aria-label={t('Search customers')} placeholder={t('Search customers')} value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} />
         <label className="check"><input type="checkbox" checked={duplicatesOnly} onChange={event => { setDuplicatesOnly(event.target.checked); setPage(1) }} />{t('Matching phone numbers')}</label>
-        <button className="text-btn" onClick={() => downloadCsv('tatami-customers.csv', [[t('Name'), t('Phone'), t('Email'), t('Orders'), t('Total')], ...rows.map(row => [row.name, row.phone, row.email, row.count, row.total])])}>{t('Export CSV')}</button>
+        <button className="text-btn" onClick={() => downloadCsv('Tatami.Culture-customers.csv', [[t('Name'), t('Phone'), t('Email'), t('Orders'), t('Total')], ...rows.map(row => [row.name, row.phone, row.email, row.count, row.total])])}>{t('Export CSV')}</button>
       </div>
       <ul className="customers-list">{rows.slice((current - 1) * 20, current * 20).map(customer => <li key={customer.id}>
         <div><button className="text-btn" onClick={() => setSelectedId(customer.id)}>{customer.name}</button><span>{customer.phone || customer.email} · {customer.tags.join(' · ')}</span></div>

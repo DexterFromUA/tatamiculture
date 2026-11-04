@@ -80,7 +80,7 @@ Deno.serve(async (request) => {
     const document = (await novaPost(apiKey, 'InternetDocument', 'save', {
       PayerType: settings.delivery_payer === 'SENDER' ? 'Sender' : 'Recipient', PaymentMethod: 'Cash',
       DateTime: dateForNovaPost(), CargoType: 'Parcel', Weight: String(weightKg), SeatsAmount: '1',
-      Description: `Tatami order ${order.receipt_code}`, Cost: String(Math.max(1, Math.round(Number(settings.declared_value)))),
+      Description: `Tatami.Culture order ${order.receipt_code}`, Cost: String(Math.max(1, Math.round(Number(settings.declared_value)))),
       CitySender: settings.city_ref, Sender: sender.Ref, SenderAddress: settings.warehouse_ref, ContactSender: contactSender,
       SendersPhone: String(settings.sender_phone).replace(/\D/g, ''), CityRecipient: order.delivery_city_ref,
       Recipient: recipient.Ref, RecipientAddress: order.delivery_address_ref, ContactRecipient: recipientContact,

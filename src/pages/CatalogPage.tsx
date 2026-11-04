@@ -27,7 +27,7 @@ export function CatalogPage() {
       <header className="storefront-hero">
         <div className="storefront-hero__copy">
           <span className="storefront-kicker">{banner?.[`kicker_${language}`] || t('Made for movement')}</span>
-          <h1>{store.name}<span> / {banner?.[`title_${language}`] || t('Everyday movement')}</span></h1>
+          <h1><span className="storefront-hero__brand">{store.name}</span><span> / {banner?.[`title_${language}`] || t('Everyday movement')}</span></h1>
           <p>{banner?.[`description_${language}`] || store.description}</p>
           <a href="#collection" className="storefront-hero__link">{t('Explore collection')} <span aria-hidden="true">↗</span></a>
         </div>

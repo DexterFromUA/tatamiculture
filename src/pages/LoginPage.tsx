@@ -32,7 +32,7 @@ export function LoginPage() {
     <section className="auth-page auth-page--login">
       <div className="auth-card auth-card--login">
         <header className="auth-card__head login-intro">
-          <p className="eyebrow">{t('Tatami account')}</p>
+          <p className="eyebrow">{t('Tatami.Culture account')}</p>
           <h1>{t('Welcome back')}</h1>
           <p className="muted">{t('Sign in to view your orders and manage your details.')}</p>
           <span className="login-intro__mark" aria-hidden="true">T.</span>

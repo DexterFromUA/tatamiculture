@@ -15,7 +15,7 @@ export function StoreLayout() {
     if (!store) return
     document.title = store.name
     return () => {
-      document.title = 'Store'
+      document.title = 'Tatami.Culture'
     }
   }, [store])
 
@@ -28,7 +28,7 @@ export function StoreLayout() {
       <div className="page-status">
         <h1>{t('Store not found')}</h1>
         <p>{t('The storefront is unavailable right now.')}</p>
-        <NavLink to="/">{t('Go to Tatami')}</NavLink>
+        <NavLink to="/">{t('Go to Tatami.Culture')}</NavLink>
       </div>
     )
   }

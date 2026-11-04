@@ -96,7 +96,7 @@ export function AdminPage() {
   const pages = Math.max(1, Math.ceil(visibleOrders.length / 20))
   const currentPage = Math.min(page, pages)
   const pageOrders = visibleOrders.slice((currentPage - 1) * 20, currentPage * 20)
-  const exportOrders = () => downloadCsv('tatami-orders.csv', [
+  const exportOrders = () => downloadCsv('Tatami.Culture-orders.csv', [
     [t('Receipt'), t('Name'), t('Email'), t('Phone'), t('Order status'), t('Total'), 'Currency', 'Created'],
     ...visibleOrders.map(order => [order.receipt_code, order.customer_name, order.customer_email, order.customer_phone, t(order.status), Number(order.total_price) / 100, order.currency, order.created_at]),
   ])

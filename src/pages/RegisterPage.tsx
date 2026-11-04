@@ -34,7 +34,7 @@ export function RegisterPage() {
     <section className="auth-page">
       <div className="auth-card">
         <header className="auth-card__head">
-          <p className="eyebrow">{t('Tatami account')}</p>
+          <p className="eyebrow">{t('Tatami.Culture account')}</p>
           <h1>{t('Create account')}</h1>
           <p className="muted">{t('Keep track of your training gear and every order in one place.')}</p>
         </header>

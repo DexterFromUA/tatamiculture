@@ -38,7 +38,7 @@ Deno.serve(async (request) => {
     const invoiceRequest = {
       amount: Number(order.total_price), ccy: 980, validity: 3600, paymentType: 'debit',
       merchantPaymInfo: {
-        reference: order.id, destination: `Tatami order ${order.receipt_code}`, comment: body.checkout.note || `Tatami order ${order.receipt_code}`,
+        reference: order.id, destination: `Tatami.Culture order ${order.receipt_code}`, comment: body.checkout.note || `Tatami.Culture order ${order.receipt_code}`,
         customerEmails: [body.checkout.email],
         basketOrder: items.map((item) => ({ name: `${item.product_name} (${item.variant_name})`, qty: item.quantity, sum: Number(item.unit_price), total: Number(item.unit_price) * item.quantity, unit: 'pcs' })),
       },
