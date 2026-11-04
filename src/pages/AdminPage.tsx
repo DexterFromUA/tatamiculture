@@ -3,10 +3,8 @@ import { CustomerPanel, type CustomerOrder } from '../components/CustomerPanel'
 import { AdminTabs } from '../components/AdminTabs'
 import type { AdminSection } from '../components/AdminTabs'
 import { CatalogAdminPage } from './CatalogAdminPage'
-import { DeliverySettingsPage } from './DeliverySettingsPage'
-import { BannerSettings } from '../components/BannerSettings'
+import { SettingsWorkspace } from '../components/SettingsWorkspace'
 import { CustomersPage } from './CustomersPage'
-import { NovaPostModeToggle } from '../components/NovaPostModeToggle'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { formatDate, formatPrice } from '../lib/format'
@@ -182,7 +180,7 @@ export function AdminPage() {
       </header>
       {error ? <div className="crm-error" role="alert"><span>{error}</span><button type="button" className="text-btn" onClick={() => setError(null)}>{t('Close')}</button></div> : null}
       <div className="crm-section-head"><div><span className="crm-section-head__label">{store.name} / CRM</span><h2>{section === 'overview' ? t('Overview') : section === 'orders' ? t('Orders') : section === 'customers' ? t('Customers') : section === 'catalogue' ? t('Catalogue') : t('Settings')}</h2></div></div>
-      {section === 'customers' ? <CustomersPage /> : section === 'catalogue' ? <CatalogAdminPage key={catalogView} embedded initialView={catalogView} /> : section === 'settings' ? <><BannerSettings /><NovaPostModeToggle /><DeliverySettingsPage embedded /></> : <>
+      {section === 'customers' ? <CustomersPage /> : section === 'catalogue' ? <CatalogAdminPage key={catalogView} embedded initialView={catalogView} /> : section === 'settings' ? <SettingsWorkspace /> : <>
       {section === 'overview' ? <><div className="crm-stats">
         <div><span>{t('Orders')}</span><strong>{orders.length}</strong></div>
         <div><span>{t('Customers')}</span><strong>{customerCount}</strong></div>

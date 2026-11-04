@@ -2,6 +2,7 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 const uk = {
+  'Settings sections': 'Розділи налаштувань', Storefront: 'Вітрина',
   'Your store, in one place.': 'Усе для керування магазином — в одному місці.', 'No low stock alerts.': 'Товарів із низьким залишком немає.', 'No customers match this search.': 'Клієнтів за цим запитом не знайдено.',
   'Order items': 'Товари в замовленні', 'Order details': 'Деталі замовлення', 'Payment status': 'Статус оплати', payment_PENDING: 'Очікує оплати', payment_PAID: 'Оплачено', payment_MOCK_PAID: 'Тестова оплата', payment_FAILED: 'Помилка оплати', payment_REFUNDED: 'Повернуто',
   'Show image {{number}}': 'Показати зображення {{number}}', '{{count}} available_one': 'В наявності: {{count}}', '{{count}} available_few': 'В наявності: {{count}}', '{{count}} available_many': 'В наявності: {{count}}', '{{count}} available_other': 'В наявності: {{count}}', 'Items in order: {{quantity}}': 'Товарів у замовленні: {{quantity}}', '{{quantity}} units': '{{quantity}} шт.', 'Details at checkout': 'Уточнюється під час оформлення', 'Payment is processed on the secure page of {{provider}}.': 'Оплата здійснюється на захищеній сторінці {{provider}}.',
