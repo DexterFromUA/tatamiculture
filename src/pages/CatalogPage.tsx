@@ -8,7 +8,6 @@ export function CatalogPage() {
   return (
     <section>
       <header className="page-head">
-        <p className="muted">{store.contactCity}</p>
         <h1>{store.name}</h1>
         <p className="lede">{store.description}</p>
       </header>

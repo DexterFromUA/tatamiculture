@@ -39,11 +39,13 @@ export function AccountPage() {
   return (
     <section className="account-page">
       <header className="account-hero">
-        <p className="eyebrow">{t('Tatami account')}</p>
-        <h1>{t('Hi, {{name}}.', { name: user.name.split(' ')[0] || t('athlete') })}</h1>
-        <p className="muted">{t('Your details and orders, kept together.')}</p>
+        <div>
+          <p className="eyebrow">{t('Tatami account')}</p>
+          <h1>{t('Hi, {{name}}.', { name: user.name.split(' ')[0] || t('athlete') })}</h1>
+          <p className="muted">{t('Your details and orders, kept together.')}</p>
+        </div>
+        <Notifications />
       </header>
-      <Notifications />
       <div className="account-layout">
         <aside className="account-card">
           <div className="account-avatar" aria-hidden="true">{(user.name || user.email).trim().charAt(0).toUpperCase()}</div>

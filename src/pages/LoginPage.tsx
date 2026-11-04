@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { DEMO_PASSWORD } from '../mock/data'
+import { supabaseConfigured } from '../lib/supabase'
 import { useTranslation } from 'react-i18next'
 
 export function LoginPage() {
@@ -28,8 +29,8 @@ export function LoginPage() {
   }
 
   return (
-    <section className="auth-page">
-      <div className="auth-card">
+    <section className="auth-page auth-page--login">
+      <div className="auth-card auth-card--login">
         <header className="auth-card__head">
           <p className="eyebrow">{t('Tatami account')}</p>
           <h1>{t('Welcome back')}</h1>
@@ -49,9 +50,9 @@ export function LoginPage() {
           {loading ? t('Signing in…') : t('Sign in')}
         </button>
         </form>
-        <p><Link to="/forgot-password">{t('Forgot password')}</Link></p>
+        <p className="auth-card__recovery"><Link to="/forgot-password">{t('Forgot password')}</Link></p>
         <p className="auth-card__footer">{t('New here?')} <Link to="/register">{t('Create an account')}</Link></p>
-        <p className="auth-card__demo">Demo: anna@example.com / {DEMO_PASSWORD}</p>
+        {!supabaseConfigured ? <p className="auth-card__demo">Demo: anna@example.com / {DEMO_PASSWORD}</p> : null}
       </div>
     </section>
   )

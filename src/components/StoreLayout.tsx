@@ -62,7 +62,7 @@ export function StoreLayout() {
       </main>
       <footer className="footer">
         <span>
-          {store.name} · {store.contactCity}
+          {store.name}
         </span>
         <span>{t('Mock payments only')}</span>
       </footer>
