@@ -171,39 +171,42 @@ export function AdminPage() {
   if (member === false) {
     return <section className="page-status"><h1>{t('Manager access required')}</h1><p>{t('Ask the store owner to add your account to this store.')}</p></section>
   }
-  if (error) return <section className="page-status error">{error}</section>
+  if (error && member === null) return <section className="page-status error">{error}</section>
   if (member === null) return <div className="page-status">{t('Loading CRM…')}</div>
 
   return (
     <section className="crm-page">
-      <header className="page-head">
-        <p className="muted">{store.name} · {t('management')}</p>
-        <h1>{section === 'overview' ? t('CRM') : section === 'orders' ? t('Orders') : section === 'customers' ? t('Customers') : section === 'catalogue' ? t('Catalogue') : t('Settings')}</h1>
+      <header className="crm-header">
+        <div className="crm-masthead"><div><p className="eyebrow">{store.name} / {t('management')}</p><h1>{t('CRM')}</h1><p>{t('Your store, in one place.')}</p></div><span className="crm-masthead__mark" aria-hidden="true">T.</span></div>
         <AdminTabs active={section} onChange={(next) => { if (next === 'catalogue') setCatalogView('products'); setSection(next) }} />
       </header>
+      {error ? <div className="crm-error" role="alert"><span>{error}</span><button type="button" className="text-btn" onClick={() => setError(null)}>{t('Close')}</button></div> : null}
+      <div className="crm-section-head"><div><span className="crm-section-head__label">{store.name} / CRM</span><h2>{section === 'overview' ? t('Overview') : section === 'orders' ? t('Orders') : section === 'customers' ? t('Customers') : section === 'catalogue' ? t('Catalogue') : t('Settings')}</h2></div></div>
       {section === 'customers' ? <CustomersPage /> : section === 'catalogue' ? <CatalogAdminPage key={catalogView} embedded initialView={catalogView} /> : section === 'settings' ? <><BannerSettings /><NovaPostModeToggle /><DeliverySettingsPage embedded /></> : <>
       {section === 'overview' ? <><div className="crm-stats">
         <div><span>{t('Orders')}</span><strong>{orders.length}</strong></div>
         <div><span>{t('Customers')}</span><strong>{customerCount}</strong></div>
         <div><span>{t('Revenue')}</span><strong>{formatPrice(revenue, store.currency)}</strong></div><div><span>{t('Delivered revenue')}</span><strong>{formatPrice(deliveredRevenue, store.currency)}</strong></div><div><span>{t('Payment on delivery')}</span><strong>{codOrders.length}</strong></div>
-      </div><div className="overview-grid"><section className="crm-panel"><h2>{t('Needs attention')}</h2><p><strong>{orders.filter((order) => order.status === 'PENDING').length}</strong> {t('pending orders')}</p><p><strong>{orders.filter((order) => order.payment_status === 'FAILED').length}</strong> {t('failed payments')}</p><button type="button" className="text-btn" onClick={() => setSection('orders')}>{t('Open orders')}</button></section><section className="crm-panel"><h2>{t('Inventory alerts')}</h2>{inventory.flatMap((product) => product.product_variants.map((variant) => ({ product: product.name, ...variant }))).filter((variant) => variant.stock_quantity < 3).slice(0, 5).map((variant) => <p key={variant.id}>{variant.product} · {variant.name}: <strong className="stock-low">{variant.stock_quantity}</strong></p>)}<button type="button" className="text-btn" onClick={() => { setCatalogView('stock'); setSection('catalogue') }}>{t('Manage catalogue')}</button></section></div></> : <>
+      </div><div className="overview-grid"><section className="crm-panel crm-attention"><div className="crm-panel__heading"><div><p className="eyebrow">01 / {t('Overview')}</p><h2>{t('Needs attention')}</h2></div><span className="crm-panel__symbol" aria-hidden="true">↗</span></div><div className="crm-attention__row"><span>{t('pending orders')}</span><strong>{orders.filter((order) => order.status === 'PENDING').length}</strong></div><div className="crm-attention__row"><span>{t('failed payments')}</span><strong>{orders.filter((order) => order.payment_status === 'FAILED').length}</strong></div><button type="button" className="crm-inline-link" onClick={() => setSection('orders')}>{t('Open orders')} ↗</button></section><section className="crm-panel crm-inventory"><div className="crm-panel__heading"><div><p className="eyebrow">02 / {t('Catalogue')}</p><h2>{t('Inventory alerts')}</h2></div><span className="crm-panel__symbol" aria-hidden="true">↗</span></div>{inventory.flatMap((product) => product.product_variants.map((variant) => ({ product: product.name, ...variant }))).filter((variant) => variant.stock_quantity < 3).slice(0, 5).map((variant) => <div className="crm-attention__row" key={variant.id}><span>{variant.product} · {variant.name}</span><strong className="stock-low">{variant.stock_quantity}</strong></div>)}{!inventory.some(product => product.product_variants.some(variant => variant.stock_quantity < 3)) ? <p className="muted">{t('No low stock alerts.')}</p> : null}<button type="button" className="crm-inline-link" onClick={() => { setCatalogView('stock'); setSection('catalogue') }}>{t('Manage catalogue')} ↗</button></section></div></> : <>
       <div className="crm-grid crm-grid--orders">
         <section className="crm-panel">
-          <h2>{t('Orders')}</h2>
           <div className="order-filters"><input placeholder={t('Search name, email or receipt')} value={search} onChange={(event) => setSearch(event.target.value)} /><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'ALL' | OrderStatus)}><option value="ALL">{t('All statuses')}</option>{statuses.map((status) => <option key={status} value={status}>{t(status)}</option>)}</select><input aria-label={t('Orders from date')} type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /><input aria-label={t('Orders to date')} type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} /></div>
           <button className="text-btn" disabled={!visibleOrders.length} onClick={exportOrders}>{t('Export CSV')} ({visibleOrders.length})</button>
           <div className="crm-pagination"><button className="text-btn" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t('Previous')}</button><span>{currentPage} / {pages}</span><button className="text-btn" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>{t('Next')}</button></div>
           {orders.length === 0 ? <p className="muted">{t('No orders yet.')}</p> : visibleOrders.length === 0 ? <p className="muted">{t('No orders match these filters.')}</p> : <ul className="admin-list">{pageOrders.map((order) => (
-            <li key={order.id}>
-              <div><strong>{order.customer_name}</strong><span>{order.customer_email} · {formatDate(order.created_at)} · {order.payment_method === 'CASH_ON_DELIVERY' ? t('Payment on delivery') : t('Online payment')}{order.nova_poshta_status ? ` · ${order.nova_poshta_status}` : ''}</span></div>
-              <div><strong>{formatPrice(Number(order.total_price) / 100, order.currency)}</strong><br /><button className="text-btn" onClick={() => setOperations(order)}>{t('Order operations')}</button></div>
+            <li key={order.id} className="crm-order">
+              <div className="crm-order__identity"><span className="crm-order__reference">#{order.receipt_code} · {formatDate(order.created_at)}</span><strong>{order.customer_name}</strong><span>{order.customer_email} {order.customer_phone ? `· ${order.customer_phone}` : ''}</span></div>
+              <div className="crm-order__amount"><strong>{formatPrice(Number(order.total_price) / 100, order.currency)}</strong><span>{order.payment_method === 'CASH_ON_DELIVERY' ? t('Payment on delivery') : t('Online payment')}</span></div>
+              <div className="crm-order__status"><span>{t('Order status')}</span>
               <label className="sr-only" htmlFor={`status-${order.id}`}>{t('Order status')}</label>
               <select id={`status-${order.id}`} value={order.status} disabled={updatingId === order.id} onChange={(event) => void changeStatus(order.id, event.target.value as OrderStatus)}>
-                {statuses.map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ').toLowerCase()}</option>)}
-              </select>
-              {order.status === 'PENDING' && order.payment_status !== 'PAID' ? <button type="button" className="text-btn" disabled={updatingId === order.id} onClick={() => void cancelAndRestoreStock(order.id)}>{t('Cancel & restore stock')}</button> : <span />}
+                {statuses.map((status) => <option key={status} value={status}>{t(status)}</option>)}
+              </select></div>
+              {order.nova_poshta_status ? <p className="crm-order__delivery">{order.nova_poshta_status}</p> : null}
+              <div className="crm-order__actions"><button type="button" className="text-btn" onClick={() => setOperations(order)}>{t('Order operations')}</button>
               <button type="button" className="text-btn" disabled={!order.user_id} title={order.user_id ? t('Open customer card') : t('Guest checkout has no customer account')} onClick={() => setSelectedCustomer(order)}>{t('Customer')}</button>
               {order.nova_poshta_ttn ? <span className="ttn-actions"><a className="text-btn" href={`https://novaposhta.ua/tracking/?cargo_number=${encodeURIComponent(order.nova_poshta_ttn)}`} target="_blank" rel="noreferrer">TTN {order.nova_poshta_ttn}</a><button type="button" className="text-btn" disabled={trackingId === order.id} onClick={() => void refreshTracking(order.id)}>{trackingId === order.id ? t('Updating…') : t('Update status')}</button></span> : <button type="button" className="text-btn" disabled={creatingTtnId === order.id || order.status.startsWith('CANCELLED')} onClick={() => void createTtn(order.id)}>{creatingTtnId === order.id ? t('Creating TTN…') : t('Create TTN')}</button>}
+              {order.status === 'PENDING' && order.payment_status !== 'PAID' ? <button type="button" className="text-btn crm-order__cancel" disabled={updatingId === order.id} onClick={() => void cancelAndRestoreStock(order.id)}>{t('Cancel & restore stock')}</button> : null}</div>
             </li>
           ))}</ul>}
         </section>

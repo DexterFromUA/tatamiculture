@@ -60,12 +60,12 @@ export function FinancialAnalytics({ orders, storeId, token }: { orders: MetricO
     return () => abort.abort()
   }, [storeId, token])
   const metrics = calculateAnalytics(orders, costs, returns)
-  return <section className="crm-panel"><h2>{t('Financial analytics')}</h2>{error ? <p className="error">{error}</p> : loading ? <p>{t('Loading…')}</p> : <>
-    <p>{t('Repeat customers')}: {metrics.repeat} / {metrics.customers} ({metrics.customers ? Math.round(metrics.repeat / metrics.customers * 100) : 0}%)</p>
-    {metrics.currencies.map(row => <div key={row.currency}><h3>{row.currency}</h3>
-      <p>{t('Net delivered revenue')}: {formatPrice(row.netRevenue / 100, row.currency)}</p>
-      <p>{t('Returns')}: {formatPrice(row.returned / 100, row.currency)} ({row.delivered ? Math.round(row.returnedOrders / row.delivered * 100) : 0}%)</p>
-      <p>{t('Gross margin')}: {formatPrice(row.margin / 100, row.currency)}</p>
-      <p>{t('Cost coverage')}: {row.known} / {row.delivered}</p>
-    </div>)}<small>{t('Margin explanation')}</small></>}</section>
+  return <section className="crm-panel crm-analytics"><div className="crm-panel__heading"><div><p className="eyebrow">03 / {t('Overview')}</p><h2>{t('Financial analytics')}</h2></div></div>{error ? <p className="error">{error}</p> : loading ? <p>{t('Loading…')}</p> : <>
+    <div className="crm-analytics__repeat"><span>{t('Repeat customers')}</span><strong>{metrics.repeat} / {metrics.customers}</strong><span>{metrics.customers ? Math.round(metrics.repeat / metrics.customers * 100) : 0}%</span></div>
+    {metrics.currencies.map(row => <div className="crm-analytics__currency" key={row.currency}><h3>{row.currency}</h3><div className="crm-analytics__metrics">
+      <div><span>{t('Net delivered revenue')}</span><strong>{formatPrice(row.netRevenue / 100, row.currency)}</strong></div>
+      <div><span>{t('Returns')}</span><strong>{formatPrice(row.returned / 100, row.currency)}</strong><small>{row.delivered ? Math.round(row.returnedOrders / row.delivered * 100) : 0}%</small></div>
+      <div><span>{t('Gross margin')}</span><strong>{formatPrice(row.margin / 100, row.currency)}</strong></div>
+      <div><span>{t('Cost coverage')}</span><strong>{row.known} / {row.delivered}</strong></div>
+    </div></div>)}<small className="crm-analytics__note">{t('Margin explanation')}</small></>}</section>
 }
