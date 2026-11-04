@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react'
+import { ItemReturns } from './ItemReturns'
+import { SalesBreakdown } from './SalesBreakdown'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { supabaseRequest } from '../lib/supabase'
 import { fetchAll } from '../lib/crm'
@@ -10,11 +12,15 @@ export type MetricOrder = { id: string; user_id: string | null; customer_phone: 
 type Cost = { order_id: string; cost_amount: number }
 type Return = { id: string; order_id: string; amount: number; reason: string }
 
-export function OrderOperations({ order, token, onClose }: { order: MetricOrder; token: string; onClose: () => void }) {
+export function OrderOperations({ order, token, onClose }: { order: MetricOrder & { receipt_code: string }; token: string; onClose: () => void }) {
   const { t } = useTranslation()
+  const dialog = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    const panel = dialog.current
+    panel?.showModal()
+    return () => panel?.close()
+  }, [])
   const [cost, setCost] = useState('')
-  const [amount, setAmount] = useState('')
-  const [reason, setReason] = useState('')
   const [returns, setReturns] = useState<Return[]>([])
   const [revision, setRevision] = useState(0)
   const [busy, setBusy] = useState(false)
@@ -27,22 +33,46 @@ export function OrderOperations({ order, token, onClose }: { order: MetricOrder;
     ]).then(([costs, items]) => { setCost(costs[0] ? String(costs[0].cost_amount / 100) : ''); setReturns(items) }).catch(cause => { if (!abort.signal.aborted) setError(cause.message) })
     return () => abort.abort()
   }, [order.id, token, revision])
-  const save = async (kind: 'cost' | 'return') => {
-    const raw = kind === 'cost' ? cost : amount
+  const save = async () => {
+    const raw = cost
     const minor = Math.round(Number(raw) * 100)
-    if (!raw.trim() || !Number.isFinite(minor) || minor < (kind === 'cost' ? 0 : 1)) { setError(t('Invalid amount')); return }
+    if (!raw.trim() || !Number.isFinite(minor) || minor < 0) { setError(t('Invalid amount')); return }
     setBusy(true); setError('')
     try {
-      await supabaseRequest(`/rest/v1/rpc/${kind === 'cost' ? 'set_order_cost' : 'record_order_return'}`, { method: 'POST', token, body: JSON.stringify({ p_order_id: order.id, p_amount: minor, ...(kind === 'return' ? { p_reason: reason } : {}) }) })
-      setRevision(value => value + 1); setAmount(''); setReason('')
+      await supabaseRequest('/rest/v1/rpc/set_order_cost', { method: 'POST', token, body: JSON.stringify({ p_order_id: order.id, p_amount: minor }) })
+      setRevision(value => value + 1)
     } catch (cause) { setError(cause instanceof Error ? cause.message : t('Action failed')) } finally { setBusy(false) }
   }
-  return <aside className="customer-panel"><button className="text-btn" onClick={onClose}>{t('Close')}</button><h2>{t('Order operations')}</h2>{error && <p className="error">{error}</p>}
-    <form className="form" onSubmit={event => { event.preventDefault(); void save('cost') }}><label className="field">{t('Order cost')} ({order.currency})<input required type="number" min="0" step="0.01" value={cost} onChange={event => setCost(event.target.value)} /></label><button className="btn" disabled={busy}>{t('Save')}</button></form>
-    <h3>{t('Returns')}</h3><p>{t('Return accounting only')}</p><ul>{returns.map(item => <li key={item.id}>{formatPrice(item.amount / 100, order.currency)} · {item.reason}</li>)}</ul>
-    {order.status === 'DELIVERED' && <form className="form" onSubmit={event => { event.preventDefault(); void save('return') }}><label className="field">{t('Return amount')} ({order.currency})<input required type="number" min="0.01" step="0.01" max={(Number(order.total_price) - returns.reduce((sum, item) => sum + item.amount, 0)) / 100} value={amount} onChange={event => setAmount(event.target.value)} /></label><label className="field">{t('Reason')}<textarea required maxLength={1000} value={reason} onChange={event => setReason(event.target.value)} /></label><button className="btn" disabled={busy}>{t('Record return')}</button></form>}
-    <OrderActivity key={revision} orderId={order.id} token={token} currency={order.currency} />
-  </aside>
+  return <dialog ref={dialog} className="order-drawer" aria-labelledby="order-drawer-title"
+    onCancel={event => { event.preventDefault(); onClose() }}
+    onClick={event => { if (event.target === event.currentTarget) onClose() }}>
+    <header className="order-drawer__header">
+      <div className="order-drawer__identity">
+        <span className="order-drawer__eyebrow">CRM / {t("Orders")}</span>
+        <h2 id="order-drawer-title">{t('Order operations')}</h2>
+        <div className="order-drawer__meta"><span>#{order.receipt_code}</span><span>{t(order.status)}</span></div>
+      </div>
+      <button type="button" className="btn btn--ghost" onClick={onClose}>{t('Close')}</button>
+    </header>
+    <div className="order-drawer__body">
+      {error && <p className="error" role="alert">{error}</p>}
+      <section className="order-drawer__card order-drawer__card--cost">
+        <div className="order-drawer__section-heading"><span className="order-drawer__section-number">01</span><h3>{t('Order cost')}</h3></div>
+        <form className="order-drawer__cost" onSubmit={event => { event.preventDefault(); void save() }}>
+          <label className="field">{t('Order cost')} ({order.currency})
+            <input required type="number" min="0" step="0.01" value={cost} onChange={event => setCost(event.target.value)} />
+          </label>
+          <button className="btn" disabled={busy}>{t(busy ? 'Saving…' : 'Save')}</button>
+        </form>
+      </section>
+      {order.status === 'DELIVERED' && <ItemReturns key={order.id} orderId={order.id} token={token} currency={order.currency} onChange={() => setRevision(value => value + 1)} />}
+      <section className="order-drawer__card">
+        <div className="order-drawer__section-heading"><span className="order-drawer__section-number">03</span><h3>{t('Confirmed refunds')}</h3></div>
+        {returns.length ? <ul className="note-list">{returns.map(item => <li key={item.id}><strong>{formatPrice(item.amount / 100, order.currency)}</strong><p>{item.reason}</p></li>)}</ul> : <p className="muted">{t('No confirmed refunds yet')}</p>}
+      </section>
+      <OrderActivity key={revision} orderId={order.id} token={token} currency={order.currency} />
+    </div>
+  </dialog>
 }
 
 export function FinancialAnalytics({ orders, storeId, token }: { orders: MetricOrder[]; storeId: string; token: string }) {
@@ -60,12 +90,12 @@ export function FinancialAnalytics({ orders, storeId, token }: { orders: MetricO
     return () => abort.abort()
   }, [storeId, token])
   const metrics = calculateAnalytics(orders, costs, returns)
-  return <section className="crm-panel crm-analytics"><div className="crm-panel__heading"><div><p className="eyebrow">03 / {t('Overview')}</p><h2>{t('Financial analytics')}</h2></div></div>{error ? <p className="error">{error}</p> : loading ? <p>{t('Loading…')}</p> : <>
+  return <><SalesBreakdown storeId={storeId} token={token} /><section className="crm-panel crm-analytics"><div className="crm-panel__heading"><div><p className="eyebrow">03 / {t('Overview')}</p><h2>{t('Financial analytics')}</h2></div></div>{error ? <p className="error">{error}</p> : loading ? <p>{t('Loading…')}</p> : <>
     <div className="crm-analytics__repeat"><span>{t('Repeat customers')}</span><strong>{metrics.repeat} / {metrics.customers}</strong><span>{metrics.customers ? Math.round(metrics.repeat / metrics.customers * 100) : 0}%</span></div>
     {metrics.currencies.map(row => <div className="crm-analytics__currency" key={row.currency}><h3>{row.currency}</h3><div className="crm-analytics__metrics">
       <div><span>{t('Net delivered revenue')}</span><strong>{formatPrice(row.netRevenue / 100, row.currency)}</strong></div>
       <div><span>{t('Returns')}</span><strong>{formatPrice(row.returned / 100, row.currency)}</strong><small>{row.delivered ? Math.round(row.returnedOrders / row.delivered * 100) : 0}%</small></div>
       <div><span>{t('Gross margin')}</span><strong>{formatPrice(row.margin / 100, row.currency)}</strong></div>
       <div><span>{t('Cost coverage')}</span><strong>{row.known} / {row.delivered}</strong></div>
-    </div></div>)}<small className="crm-analytics__note">{t('Margin explanation')}</small></>}</section>
+    </div></div>)}<small className="crm-analytics__note">{t('Margin explanation')}</small></>}</section></>
 }

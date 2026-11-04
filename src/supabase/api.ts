@@ -20,6 +20,7 @@ function mapProduct(row: Row): Product {
   const variants = (row.product_variants as Row[] | undefined) ?? []
   return {
     id: text(row.id), storeId: text(row.store_id), name: text(row.name), description: text(row.description),
+    sizeGuide: text(row.size_guide), composition: text(row.composition), careInstructions: text(row.care_instructions),
     category: text(category?.name ?? 'Uncategorized'), isActive: Boolean(row.is_active),
     imgUrls: images.sort((a, b) => Number(a.position) - Number(b.position)).map((image) => text(image.public_url)),
     productOptions: variants.sort((a, b) => Number(a.position) - Number(b.position)).map((variant): ProductOption => {

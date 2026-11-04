@@ -24,3 +24,8 @@ export function downloadCsv(filename: string, rows: unknown[][]) {
   link.click()
   window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
+
+export const customerPhone = (value: string) => {
+  const digits = value.replace(/\D/g, '')
+  return digits.length === 10 && digits.startsWith('0') ? `38${digits}` : digits
+}

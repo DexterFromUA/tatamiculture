@@ -18,6 +18,6 @@ export function OrderActivity({ orderId, token, receiptCode, currency = 'UAH' }:
     return () => abort.abort()
   }, [orderId, token, receiptCode])
   if (!supabaseConfigured) return null
-  const value = (event: Event, raw: string) => event.kind === 'cost' || event.kind === 'return' ? formatPrice(Number(raw) / 100, currency) : t(raw)
+  const value = (event: Event, raw: string) => event.kind === 'cost' || event.kind === 'return' ? formatPrice(Number(raw) / 100, currency) : event.kind === 'item_return' ? t(`return_${raw}`) : t(raw)
   return <section className="crm-panel"><h3>{t('Order activity')}</h3>{error ? <p className="error">{error}</p> : events.length === 0 ? <p>{t('No events yet')}</p> : <ul>{events.map(event => <li key={event.id}><time dateTime={event.created_at}>{formatDate(event.created_at)} {new Date(event.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time> · {t(`event_${event.kind}`)}: {event.old_value !== null && <>{value(event, event.old_value)} → </>}{value(event, event.new_value ?? '')}{!receiptCode && <small> · {event.author_id ?? t('System')}</small>}</li>)}</ul>}</section>
 }

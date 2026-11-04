@@ -1,43 +1,64 @@
 import { useEffect, useState } from 'react'
-import { formatDate, formatPrice } from '../lib/format'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
-import { useTranslation } from 'react-i18next'
-import { downloadCsv, fetchAll } from '../lib/crm'
+import { downloadCsv, fetchAll, customerPhone } from '../lib/crm'
+import { formatPrice } from '../lib/format'
+import { CrmCustomerCard, type CrmCustomer, type CrmOrder } from '../components/CrmCustomerCard'
 
-type Customer = { user_id: string; joined_at: string; profiles: { name: string; phone: string } | null }
-type Order = { id: string; user_id: string; total_price: number; currency: string; status: string }
-export function CustomersPage() {
+export function CustomersPage({ initialCustomerId }: { initialCustomerId?: string }) {
   const { store } = useStore()
   const { token } = useAuth()
   const { t } = useTranslation()
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [orders, setOrders] = useState<Order[]>([])
+  const [customers, setCustomers] = useState<CrmCustomer[]>([])
+  const [orders, setOrders] = useState<CrmOrder[]>([])
+  const [selectedId, setSelectedId] = useState(initialCustomerId ?? '')
+  const [revision, setRevision] = useState(0)
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [duplicatesOnly, setDuplicatesOnly] = useState(false)
   const [page, setPage] = useState(1)
-  const [now] = useState(() => Date.now())
   useEffect(() => {
     if (!store || !token) return
     const abort = new AbortController()
-    void Promise.all([
-      fetchAll<Customer>(`/rest/v1/store_customers?store_id=eq.${store.id}&select=user_id,joined_at,profiles(name,phone)&order=joined_at.desc,user_id`, token, abort.signal),
-      fetchAll<Order>(`/rest/v1/orders?store_id=eq.${store.id}&select=id,user_id,total_price,currency,status&user_id=not.is.null&order=id`, token, abort.signal),
-    ]).then(([nextCustomers, nextOrders]) => { setCustomers(nextCustomers); setOrders(nextOrders) }).catch(cause => { if (!abort.signal.aborted) setError(cause.message) })
+    Promise.all([
+      fetchAll<CrmCustomer>(`/rest/v1/crm_customers?store_id=eq.${store.id}&select=*&order=created_at.desc,id`, token, abort.signal),
+      fetchAll<CrmOrder>(`/rest/v1/orders?store_id=eq.${store.id}&select=id,crm_customer_id,user_id,receipt_code,total_price,currency,status,created_at&order=created_at.desc,id`, token, abort.signal),
+    ]).then(([people, purchases]) => { setCustomers(people); setOrders(purchases); setError('') })
+      .catch(cause => { if (!abort.signal.aborted) setError(cause.message) })
+      .finally(() => { if (!abort.signal.aborted) setLoading(false) })
     return () => abort.abort()
-  }, [store, token])
-  const rows = customers.filter(customer => !search || `${customer.profiles?.name ?? ''} ${customer.profiles?.phone ?? ''}`.toLowerCase().includes(search.toLowerCase())).map(customer => {
-    const own = orders.filter(order => order.user_id === customer.user_id && !order.status.startsWith('CANCELLED'))
-    const amounts = [...new Set(own.map(order => order.currency))].map(currency => formatPrice(own.filter(order => order.currency === currency).reduce((sum, order) => sum + Number(order.total_price), 0) / 100, currency)).join(' · ')
-    return { ...customer, count: own.length, amounts }
+  }, [store, token, revision])
+  const selected = customers.find(customer => customer.id === selectedId)
+  const phoneCounts = new Map<string, number>()
+  for (const customer of customers) {
+    const phone = customerPhone(customer.phone)
+    if (phone.length >= 9) phoneCounts.set(phone, (phoneCounts.get(phone) ?? 0) + 1)
+  }
+  const rows = customers.filter(customer => `${customer.name} ${customer.phone} ${customer.email} ${customer.tags.join(' ')}`.toLowerCase().includes(search.toLowerCase()) && (!duplicatesOnly || (phoneCounts.get(customerPhone(customer.phone)) ?? 0) > 1)).map(customer => {
+    const own = orders.filter(order => order.crm_customer_id === customer.id && !order.status.startsWith('CANCELLED'))
+    const totals = new Map<string, number>()
+    for (const order of own) totals.set(order.currency, (totals.get(order.currency) ?? 0) + Number(order.total_price))
+    return { ...customer, count: own.length, total: [...totals].map(([currency, amount]) => formatPrice(amount / 100, currency)).join(' · ') }
   })
   const pages = Math.max(1, Math.ceil(rows.length / 20))
   const current = Math.min(page, pages)
-  return <section className="customers-page">{error && <p className="error">{error}</p>}<div className="crm-stats"><div><span>{t('Registered')}</span><strong>{customers.length}</strong></div><div><span>{t('New, 30 days')}</span><strong>{customers.filter(item => now - new Date(item.joined_at).getTime() < 30 * 864e5).length}</strong></div><div><span>{t('No orders yet')}</span><strong>{customers.filter(customer => !orders.some(order => order.user_id === customer.user_id)).length}</strong></div></div>
-    <section className="crm-panel"><h2>{t('Registered customers')}</h2><div className="customers-toolbar"><input aria-label={t('Search customers')} placeholder={t('Search customers')} value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} />
-      <button className="text-btn" disabled={!rows.length} onClick={() => downloadCsv('tatami-customers.csv', [[t('Name'), t('Phone'), t('joined'), t('Orders'), t('Total')], ...rows.map(row => [row.profiles?.name, row.profiles?.phone, row.joined_at, row.count, row.amounts])])}>{t('Export CSV')}</button></div>
-      <ul className="customers-list">{rows.slice((current - 1) * 20, current * 20).map(customer => <li key={customer.user_id}><div><strong>{customer.profiles?.name || t('Customer')}</strong><span>{customer.profiles?.phone || '—'} · {t('joined')} {formatDate(customer.joined_at)}</span></div><span>{customer.count} {t('orders')}</span><strong>{customer.amounts || '—'}</strong></li>)}</ul>
-      {!rows.length ? <p className="muted">{t('No customers match this search.')}</p> : null}
+  return <section className="customers-page">
+    {error && <p className="error">{error}</p>}
+    {loading ? <p>{t('Loading…')}</p> : selected && token ? <CrmCustomerCard key={selected.id} customer={selected} customers={customers} orders={orders} token={token} onSaved={() => setRevision(value => value + 1)} onClose={() => setSelectedId('')} /> : <section className="crm-panel">
+      <h2>{t('Customers')} · {customers.length}</h2>
+      <div className="customers-toolbar">
+        <input aria-label={t('Search customers')} placeholder={t('Search customers')} value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} />
+        <label className="check"><input type="checkbox" checked={duplicatesOnly} onChange={event => { setDuplicatesOnly(event.target.checked); setPage(1) }} />{t('Matching phone numbers')}</label>
+        <button className="text-btn" onClick={() => downloadCsv('tatami-customers.csv', [[t('Name'), t('Phone'), t('Email'), t('Orders'), t('Total')], ...rows.map(row => [row.name, row.phone, row.email, row.count, row.total])])}>{t('Export CSV')}</button>
+      </div>
+      <ul className="customers-list">{rows.slice((current - 1) * 20, current * 20).map(customer => <li key={customer.id}>
+        <div><button className="text-btn" onClick={() => setSelectedId(customer.id)}>{customer.name}</button><span>{customer.phone || customer.email} · {customer.tags.join(' · ')}</span></div>
+        <span>{customer.count} {t('orders')}</span><strong>{customer.total || '—'}</strong>
+      </li>)}</ul>
+      {!rows.length && <p>{t('No customers match this search.')}</p>}
       <div className="crm-pagination"><button className="text-btn" disabled={current === 1} onClick={() => setPage(current - 1)}>{t('Previous')}</button><span>{current} / {pages}</span><button className="text-btn" disabled={current === pages} onClick={() => setPage(current + 1)}>{t('Next')}</button></div>
-    </section></section>
+    </section>}
+  </section>
 }

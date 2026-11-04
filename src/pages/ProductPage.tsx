@@ -1,3 +1,5 @@
+import { RestockSubscription } from '../components/RestockSubscription'
+import { ProductCard } from '../components/ProductCard'
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useCart } from '../context/CartContext'
@@ -46,6 +48,7 @@ export function ProductPage() {
   }
 
   return (
+    <>
     <article className="product-view shop-detail">
       <div className="product-gallery">
         <div className="product-view__image">
@@ -65,6 +68,13 @@ export function ProductPage() {
         <p className="muted">{product.category}</p>
         <h1>{product.name}</h1>
         <p className="lede">{product.description}</p>
+        {[
+          [t('Size guide and measurements'), product.sizeGuide],
+          [t('Composition'), product.composition],
+          [t('Care instructions'), product.careInstructions],
+        ].filter(([, value]) => value).map(([label, value]) => <details key={label} className="customer-section">
+          <summary>{label}</summary><p style={{ whiteSpace: 'pre-wrap' }}>{value}</p>
+        </details>)}
         <p className="price">
           {option.isDiscount ? (
             <>
@@ -98,8 +108,9 @@ export function ProductPage() {
           />
         </label>
         {option.isPreOrder ? <p className="note">{t('This option is a pre-order. Production starts after checkout.')}</p> : null}
+        {!option.isPreOrder && option.quantity === 0 && <RestockSubscription key={option.id} variantId={option.id} />}
         <div className="actions">
-          <button type="button" className="btn" onClick={addToCart}>
+          <button type="button" className="btn" disabled={!option.isPreOrder && option.quantity < 1} onClick={addToCart}>
             {t('Add to cart')}
           </button>
           <Link to="/cart" className="btn btn--ghost">
@@ -108,5 +119,10 @@ export function ProductPage() {
         </div>
       </div>
     </article>
+    {products.some(item => item.id !== product.id && item.category === product.category) && <section className="page-section">
+      <h2>{t('Related products')}</h2>
+      <div className="product-grid">{products.filter(item => item.id !== product.id && item.category === product.category).slice(0, 4).map(item => <ProductCard key={item.id} product={item} store={store} />)}</div>
+    </section>}
+    </>
   )
 }

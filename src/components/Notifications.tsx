@@ -1,3 +1,4 @@
+import { RestockNotices } from './RestockNotices'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -9,8 +10,9 @@ import { formatDate, formatPrice } from '../lib/format'
 type Notice = { id: string; receipt_code: string; kind: string; value: string; read_at: string | null; created_at: string; orders: { currency: string } | null }
 export function Notifications() {
   const { t } = useTranslation()
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const { store } = useStore()
+  const [restockCount, setRestockCount] = useState(0)
   const [items, setItems] = useState<Notice[]>([])
   const [error, setError] = useState('')
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -28,7 +30,7 @@ export function Notifications() {
       setItems(current => current.map(item => item.id === id ? { ...item, read_at: new Date().toISOString() } : item))
     } catch (cause) { setError(cause instanceof Error ? cause.message : t('Action failed')) }
   }
-  const unread = items.filter(item => !item.read_at).length
+  const unread = items.filter(item => !item.read_at).length + restockCount
 
   return <>
     <button type="button" className="notification-bell" aria-label={`${t('Notifications')}: ${unread}`} title={t('Notifications')} onClick={() => dialogRef.current?.showModal()}>
@@ -38,6 +40,7 @@ export function Notifications() {
     <dialog ref={dialogRef} className="notification-dialog" aria-labelledby="notification-dialog-title">
       <div className="notification-dialog__head"><div><h2 id="notification-dialog-title">{t('Notifications')}</h2><small>{t('Latest 50 notifications')}</small></div><button type="button" className="text-btn" onClick={() => dialogRef.current?.close()}>{t('Close')}</button></div>
       {error ? <p className="error">{error}</p> : null}
+      {token && user && store && supabaseConfigured && <RestockNotices onCount={setRestockCount} onOpen={() => dialogRef.current?.close()} token={token} userId={user.id} storeId={store.id} />}
       {!items.length ? <p className="muted">{t('No notifications yet')}</p> : <ul className="notification-dialog__list">{items.map(item => <li key={item.id} className={item.read_at ? '' : 'notification-dialog__unread'}>
         <div><Link to={`/receipt/${item.receipt_code}`} onClick={() => dialogRef.current?.close()}>{item.receipt_code}</Link><small>{formatDate(item.created_at)}</small></div>
         <p>{t(`event_${item.kind}`)}: {item.kind === 'return' ? formatPrice(Number(item.value) / 100, item.orders?.currency ?? store?.currency ?? 'UAH') : t(item.value)}</p>

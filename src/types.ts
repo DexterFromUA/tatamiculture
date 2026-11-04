@@ -33,6 +33,9 @@ export type ProductOption = {
 }
 
 export type Product = {
+  sizeGuide?: string
+  composition?: string
+  careInstructions?: string
   id: string
   storeId: string
   name: string
