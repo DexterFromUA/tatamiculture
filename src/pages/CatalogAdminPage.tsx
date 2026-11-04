@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
@@ -88,6 +87,18 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
   const stockMatches = stockRows.filter(({ variant }) => stockFilter === 'all' || (!variant.is_preorder && (stockFilter === 'out' ? variant.stock_quantity === 0 : variant.stock_quantity < 3)))
   const pages = Math.max(1, Math.ceil((view === 'products' ? productMatches.length : stockMatches.length) / 20))
   const currentPage = Math.min(page, pages)
+  const editorHeading = useRef<HTMLHeadingElement>(null)
+  const editorOpen = draft !== null
+  useEffect(() => {
+    if (editorOpen) editorHeading.current?.focus()
+  }, [editorOpen])
+  const closeEditor = () => {
+    setDraft(null)
+    setShowCategories(false)
+    setEditingCategoryId(null)
+    setCategoryName('')
+    setError(null)
+  }
   const openProduct = (product: CatalogProduct) => { setError(null); setDraft(toDraft(product)) }
   const changeView = (next: CatalogView) => { setView(next); setPage(1); setDraft(null) }
 
@@ -159,7 +170,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
       }
       setCategoryName('')
       setEditingCategoryId(null)
-      setShowCategories(false)
+      if (draft) setShowCategories(false)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('Could not save category.'))
     } finally {
@@ -271,24 +282,26 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
   if (member === false) return <section className="page-status"><h1>{t('Manager access required')}</h1></section>
 
   const categoryManager = showCategories ? <section className="category-manager" aria-label={t('Manage categories')}>
-    <div className="product-editor__head"><h3>{t('Manage categories')}</h3><button type="button" className="text-btn" onClick={() => { setShowCategories(false); setEditingCategoryId(null); setCategoryName('') }}>{t('Close')}</button></div>
+    <div className="product-editor__head"><h3>{t(draft ? 'Create category' : 'Manage categories')}</h3>{draft && <button type="button" className="text-btn" disabled={categoryBusy} onClick={() => { setShowCategories(false); setCategoryName(''); setError(null) }}>{t('Cancel')}</button>}</div>
     <form className="category-manager__form" onSubmit={event => { event.preventDefault(); void saveCategory() }}>
       <label className="field"><span>{editingCategoryId ? t('Rename category') : t('New category')}</span><input value={categoryName} maxLength={100} onChange={event => setCategoryName(event.target.value)} /></label>
       <button type="submit" className="btn" disabled={categoryBusy}>{editingCategoryId ? t('Save') : t('Create category')}</button>
+      {editingCategoryId && <button type="button" className="text-btn" disabled={categoryBusy} onClick={() => { setEditingCategoryId(null); setCategoryName(''); setError(null) }}>{t('Cancel')}</button>}
     </form>
-    <ul className="category-manager__list">{categories.map(category => {
+    {!draft && <ul className="category-manager__list">{categories.map(category => {
       const used = products.filter(product => product.category_id === category.id).length
       return <li key={category.id}><div><strong>{category.name}</strong><span>{t('Products')}: {used}</span></div><button type="button" className="text-btn" disabled={categoryBusy} onClick={() => { setEditingCategoryId(category.id); setCategoryName(category.name) }}>{t('Rename')}</button><button type="button" className="text-btn" disabled={categoryBusy || used > 0} title={used > 0 ? t('Move products to another category first.') : undefined} onClick={() => void deleteCategory(category)}>{t('Delete')}</button></li>
-    })}</ul>
+    })}</ul>}
   </section> : null
 
   return (
     <section>
       <header className="page-head page-head--row">
         {!embedded ? <div><p className="muted">{store.name} · {t('management')}</p><h1>{t('Catalogue')}</h1></div> : <div />}
-        <div className="catalog-header-actions"><button type="button" className="btn btn--ghost" onClick={() => { setShowCategories(current => !current); setEditingCategoryId(null); setCategoryName('') }}>{t('Manage categories')}</button><button type="button" className="btn" onClick={() => { setError(null); setDraft(blankDraft()) }}>{t('Add product')}</button></div>
+        {!draft && <div className="catalog-header-actions"><button type="button" className="btn btn--ghost" disabled={categoryBusy} onClick={() => { setShowCategories(current => !current); setEditingCategoryId(null); setCategoryName(''); setError(null) }}>{t(showCategories ? 'Products' : 'Manage categories')}</button>{!showCategories && <button type="button" className="btn" onClick={() => { setError(null); setDraft(blankDraft()) }}>{t('Add product')}</button>}</div>}
       </header>
-      {error ? <p className="error">{error}</p> : null}
+      {error ? <p className="error" role="alert">{error}</p> : null}
+      {!draft && (showCategories ? categoryManager : <>
       <div className="catalog-summary">
         <button type="button" className={view === 'products' ? 'active' : ''} onClick={() => changeView('products')}><span>{t('Products')}</span><strong>{products.length}</strong></button>
         <button type="button" className={view === 'stock' && stockFilter === 'all' ? 'active' : ''} onClick={() => { changeView('stock'); setStockFilter('all') }}><span>{t('Stock units')}</span><strong>{products.reduce((sum, product) => sum + product.product_variants.reduce((count, variant) => count + (variant.is_preorder ? 0 : variant.stock_quantity), 0), 0)}</strong></button>
@@ -299,28 +312,28 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
         <input aria-label={t('Search products')} placeholder={t('Search products')} value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} />
         {view === 'products' ? <select aria-label={t('Category')} value={categoryFilter} onChange={event => { setCategoryFilter(event.target.value); setPage(1) }}><option value="all">{t('All categories')}</option>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select> : <select aria-label={t('Stock filter')} value={stockFilter} onChange={event => { setStockFilter(event.target.value as StockFilter); setPage(1) }}><option value="all">{t('All stock')}</option><option value="low">{t('Low stock')}</option><option value="out">{t('Out of stock')}</option></select>}
       </div>
-      <div className="crm-pagination"><button className="text-btn" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t('Previous')}</button><span>{currentPage} / {pages}</span><button className="text-btn" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>{t('Next')}</button></div>
-      <div className="catalog-admin">
         <ul className="catalog-admin__list">
           {view === 'products' ? productMatches.slice((currentPage - 1) * 20, currentPage * 20).map(product => {
             const unavailable = product.product_variants.filter(variant => !variant.is_preorder && variant.stock_quantity === 0).length
-            return <li key={product.id} className={draft?.id === product.id ? 'active' : ''}>
+            return <li key={product.id}>
               {product.product_images[0] ? <img className="catalog-admin__thumb" src={product.product_images[0].public_url} alt="" /> : <div className="catalog-admin__thumb catalog-admin__thumb--empty" aria-hidden="true" />}
               <div className="catalog-admin__item"><strong>{product.name}</strong><span>{categories.find(category => category.id === product.category_id)?.name ?? t('Uncategorized')} · {product.is_active ? t('Published') : t('Hidden')}</span><span>{product.product_variants.length} {t('variants')}{unavailable ? ` · ${unavailable} ${t('out of stock')}` : ''}</span></div>
               <button type="button" className="text-btn" onClick={() => openProduct(product)}>{t('Edit')}</button>
             </li>
-          }) : stockMatches.slice((currentPage - 1) * 20, currentPage * 20).map(({ product, variant }, index) => <li key={variant.id ?? `${product.id}-${index}`} className={draft?.id === product.id ? 'active' : ''}>
+          }) : stockMatches.slice((currentPage - 1) * 20, currentPage * 20).map(({ product, variant }, index) => <li key={variant.id ?? `${product.id}-${index}`}>
             {product.product_images[0] ? <img className="catalog-admin__thumb" src={product.product_images[0].public_url} alt="" /> : <div className="catalog-admin__thumb catalog-admin__thumb--empty" aria-hidden="true" />}
             <div className="catalog-admin__item"><strong>{product.name} · {variant.name}</strong><span>{variant.sku || t('No SKU')} · {product.is_active ? t('Published') : t('Hidden')}</span><span className={!variant.is_preorder && variant.stock_quantity < 3 ? 'stock-low' : ''}>{variant.is_preorder ? t('Pre-order') : `${variant.stock_quantity} ${t('in stock')}`}</span></div>
             <button type="button" className="text-btn" onClick={() => openProduct(product)}>{t('Edit')}</button>
           </li>)}
           {(view === 'products' ? productMatches.length : stockMatches.length) === 0 ? <li className="catalog-admin__no-results">{t('No products match these filters.')}</li> : null}
         </ul>
-        {draft ? <section className="product-editor">
-          <div className="product-editor__head"><h2>{draft.id ? t('Edit product') : t('New product')}</h2><button type="button" className="text-btn" onClick={() => setDraft(null)}>{t('Close')}</button></div>
+      {pages > 1 && <div className="crm-pagination"><button className="text-btn" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t('Previous')}</button><span>{currentPage} / {pages}</span><button className="text-btn" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>{t('Next')}</button></div>}
+      </>)}
+        {draft && <section className="product-editor catalog-product-workspace">
+          <div className="product-editor__head"><h2 ref={editorHeading} tabIndex={-1}>{draft.id ? t('Edit product') : t('New product')}</h2><button type="button" className="text-btn" disabled={saving || categoryBusy} onClick={closeEditor}>{t('Close')}</button></div>
           <label className="field"><span>{t('Name')}</span><input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
           <label className="field"><span>{t('Description')}</span><textarea rows={3} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
-          <div className="category-picker"><label className="field"><span>{t('Category')}</span><select value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}><option value="">{t('Uncategorized')}</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><button type="button" className="text-btn" onClick={() => { setEditingCategoryId(null); setCategoryName(''); setShowCategories(true) }}>{t('Create category')}</button></div>
+          <div className="category-picker"><label className="field"><span>{t('Category')}</span><select value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}><option value="">{t('Uncategorized')}</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>{!showCategories && <button type="button" className="text-btn" disabled={saving} onClick={() => { setEditingCategoryId(null); setCategoryName(''); setShowCategories(true) }}>{t('Create category')}</button>}</div>
           {categoryManager}
           <label className="field"><span>{t('Upload images')}</span><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => setDraft({ ...draft, newImageFiles: [...draft.newImageFiles, ...Array.from(event.target.files ?? [])] })} /><small>{t('JPG, PNG or WebP · up to 5 MB per file')}</small></label>
           {draft.images.length > 0 || draft.newImageFiles.length > 0 ? <div className="image-manager">
@@ -338,9 +351,8 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
               <button type="button" className="text-btn" disabled={draft.variants.length === 1} onClick={() => removeVariant(index)}>{t('Remove')}</button>
             </div>)}
           </div>
-          <div className="actions"><button type="button" className="btn" disabled={saving} onClick={() => void save()}>{saving ? t('Saving…') : t('Save product')}</button><button type="button" className="btn btn--ghost" onClick={() => setDraft(null)}>{t('Cancel')}</button></div>
-        </section> : categoryManager ?? <section className="catalog-admin__empty"><h2>{t('Select a product')}</h2><p className="muted">{t('Edit its sizes, prices, availability and main image.')}</p><Link to="/">{t('Open storefront')}</Link></section>}
-      </div>
+          <div className="actions"><button type="button" className="btn" disabled={saving || categoryBusy} onClick={() => void save()}>{saving ? t('Saving…') : t('Save product')}</button><button type="button" className="btn btn--ghost" disabled={saving || categoryBusy} onClick={closeEditor}>{t('Cancel')}</button></div>
+        </section>}
     </section>
   )
 }
