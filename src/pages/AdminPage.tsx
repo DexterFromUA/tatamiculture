@@ -4,6 +4,7 @@ import { AdminTabs } from '../components/AdminTabs'
 import type { AdminSection } from '../components/AdminTabs'
 import { CatalogAdminPage } from './CatalogAdminPage'
 import { DeliverySettingsPage } from './DeliverySettingsPage'
+import { BannerSettings } from '../components/BannerSettings'
 import { CustomersPage } from './CustomersPage'
 import { NovaPostModeToggle } from '../components/NovaPostModeToggle'
 import { useAuth } from '../context/AuthContext'
@@ -180,7 +181,7 @@ export function AdminPage() {
         <h1>{section === 'overview' ? t('CRM') : section === 'orders' ? t('Orders') : section === 'customers' ? t('Customers') : section === 'catalogue' ? t('Catalogue') : t('Settings')}</h1>
         <AdminTabs active={section} onChange={(next) => { if (next === 'catalogue') setCatalogView('products'); setSection(next) }} />
       </header>
-      {section === 'customers' ? <CustomersPage /> : section === 'catalogue' ? <CatalogAdminPage key={catalogView} embedded initialView={catalogView} /> : section === 'settings' ? <><NovaPostModeToggle /><DeliverySettingsPage embedded /></> : <>
+      {section === 'customers' ? <CustomersPage /> : section === 'catalogue' ? <CatalogAdminPage key={catalogView} embedded initialView={catalogView} /> : section === 'settings' ? <><BannerSettings /><NovaPostModeToggle /><DeliverySettingsPage embedded /></> : <>
       {section === 'overview' ? <><div className="crm-stats">
         <div><span>{t('Orders')}</span><strong>{orders.length}</strong></div>
         <div><span>{t('Customers')}</span><strong>{customerCount}</strong></div>

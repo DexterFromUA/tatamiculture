@@ -49,6 +49,22 @@ function safeFilename(name: string) {
   return `${crypto.randomUUID()}.${permittedExtension}`
 }
 
+export async function uploadBannerImage(storeId: string, file: File, token: string) {
+  if (!url || !anonKey) throw new Error('Supabase is not configured')
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('Use a JPG, PNG, or WebP image')
+  if (file.size > 5 * 1024 * 1024) throw new Error('Image must be 5 MB or smaller')
+  const path = `${storeId}/${safeFilename(file.name)}`
+  const response = await fetch(`${url}/storage/v1/object/storefront-banners/${encodedStoragePath(path)}`, { method: 'POST', headers: { apikey: anonKey, Authorization: `Bearer ${token}`, 'Content-Type': file.type }, body: file })
+  if (!response.ok) { const body = await response.json().catch(() => null) as { message?: string } | null; throw new Error(body?.message ?? 'Image upload failed') }
+  return { path, publicUrl: `${url}/storage/v1/object/public/storefront-banners/${encodedStoragePath(path)}` }
+}
+
+export async function removeBannerImage(path: string, token: string) {
+  if (!url || !anonKey || !path) return
+  const response = await fetch(`${url}/storage/v1/object/storefront-banners/${encodedStoragePath(path)}`, { method: 'DELETE', headers: { apikey: anonKey, Authorization: `Bearer ${token}` } })
+  if (!response.ok && response.status !== 404) throw new Error('Could not remove banner image')
+}
+
 export async function uploadProductImage(productId: string, file: File, token: string) {
   if (!url || !anonKey) throw new Error('Supabase is not configured')
   const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']

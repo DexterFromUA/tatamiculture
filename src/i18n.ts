@@ -2,6 +2,9 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 const uk = {
+  'Homepage banner': 'Банер головної сторінки', 'Empty fields use the default text.': 'Порожні поля використовують стандартний текст.', 'Banner image': 'Зображення банера', 'Remove banner image': 'Прибрати зображення банера', 'Banner eyebrow': 'Надпис над заголовком', 'Banner heading': 'Заголовок', 'Banner description': 'Опис', 'Save banner': 'Зберегти банер', 'Could not load banner': 'Не вдалося завантажити банер', 'Could not save banner': 'Не вдалося зберегти банер',
+  'Made for movement': 'Створено для руху', 'Everyday movement': 'Рух щодня', 'Explore collection': 'До колекції', 'The collection': 'Колекція', 'All products': 'Усі товари', 'Find your essentials': 'Обирайте речі для свого ритму',
+  'From {{price}}': 'Від {{price}}',
   'Latest 50 notifications': 'Останні 50 сповіщень',
   System: 'Система', Currency: 'Валюта', Created: 'Створено',
   'Search products': 'Пошук товарів за назвою або артикулом',
