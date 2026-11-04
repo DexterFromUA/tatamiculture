@@ -25,32 +25,36 @@ export function CartPage() {
 
   if (rows.length === 0) {
     return (
-      <section className="page-status">
+      <section className="cart-empty">
+        <p className="eyebrow">{t('Your order')}</p>
         <h1>{t('Cart is empty')}</h1>
-        <Link to="/">{t('Continue shopping')}</Link>
+        <p>{t('Your selected items will appear here.')}</p>
+        <Link className="cart-empty__link" to="/">{t('Continue shopping')} ↗</Link>
       </section>
     )
   }
 
   return (
     <section className="cart-page">
-      <header className="page-head cart-page__head">
+      <header className="cart-hero">
         <p className="eyebrow">{t('Your order')}</p>
         <h1>{t('Cart')}</h1>
-        <Link className="shop-back" to="/">← {t('Continue shopping')}</Link>
+        <div className="cart-hero__footer"><Link to="/">← {t('Continue shopping')}</Link><span>{t('Items in order: {{quantity}}', { quantity: rows.reduce((sum, row) => sum + row.item.quantity, 0) })}</span></div>
       </header>
       <div className="cart-page__layout"><div>
+      <div className="cart-list-heading"><div><p className="eyebrow">01 / {t('Your order')}</p><h2>{t('Your selection')}</h2></div><span>{rows.length}</span></div>
       <ul className="line-list">
         {rows.map(({ item, product, option, unit, line }) => (
-          <li key={`${item.productId}-${item.optionId}`} className="line">
-            <img src={product.imgUrls[0]} alt="" />
-            <div>
+          <li key={`${item.productId}-${item.optionId}`} className="line cart-line">
+            {product.imgUrls[0] ? <img src={product.imgUrls[0]} alt="" /> : <div className="cart-line__placeholder" aria-hidden="true" />}
+            <div className="cart-line__product">
+              <p className="cart-line__category">{product.category}</p>
               <Link to={`/product/${product.id}`}>{product.name}</Link>
-              <p className="muted">{option.name}</p>
+              <p className="muted">{t('Option')}: {option.name}{option.isPreOrder ? ` · ${t('pre-order')}` : ''}</p>
               <p>{formatPrice(unit, store.currency)}</p>
             </div>
-            <label className="qty">
-              <span className="sr-only">{t('Quantity')}</span>
+            <label className="qty cart-line__quantity">
+              <span>{t('Quantity')}</span>
               <input
                 type="number"
                 min={1}
@@ -60,18 +64,20 @@ export function CartPage() {
                 }
               />
             </label>
-            <strong>{formatPrice(line, store.currency)}</strong>
-            <button type="button" className="text-btn" onClick={() => removeItem(item.productId, item.optionId)}>
+            <strong className="cart-line__total">{formatPrice(line, store.currency)}</strong>
+            <button type="button" className="text-btn cart-line__remove" onClick={() => removeItem(item.productId, item.optionId)}>
               {t('Remove')}
             </button>
           </li>
         ))}
       </ul>
       </div><aside className="cart-summary">
-        <p className="eyebrow">{t('Your order')}</p>
+        <p className="eyebrow">02 / {t('Your order')}</p><h2>{t('Order summary')}</h2>
+        <div className="cart-summary__detail"><span>{t('Items in order: {{quantity}}', { quantity: rows.reduce((sum, row) => sum + row.item.quantity, 0) })}</span><strong>{formatPrice(total, store.currency)}</strong></div>
+        <div className="cart-summary__detail"><span>{t('Delivery')}</span><span>{t('Shipping cost is confirmed after dispatch.')}</span></div>
         <div className="summary"><span>{t('Total')}</span><strong>{formatPrice(total, store.currency)}</strong></div>
         <Link to="/checkout" className="btn">
-          {t('Checkout')}
+          {t('Checkout')} <span aria-hidden="true">↗</span>
         </Link>
       </aside></div>
     </section>

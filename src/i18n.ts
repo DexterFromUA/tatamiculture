@@ -2,6 +2,7 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 const uk = {
+  'Your selection': 'Обрані товари', 'Order summary': 'Підсумок замовлення', 'Back to cart': 'До кошика', 'Your selected items will appear here.': 'Тут з’являться товари, які ви оберете.', 'Place order': 'Оформити замовлення',
   'Settings sections': 'Розділи налаштувань', Storefront: 'Вітрина',
   'Your store, in one place.': 'Усе для керування магазином — в одному місці.', 'No low stock alerts.': 'Товарів із низьким залишком немає.', 'No customers match this search.': 'Клієнтів за цим запитом не знайдено.',
   'Order items': 'Товари в замовленні', 'Order details': 'Деталі замовлення', 'Payment status': 'Статус оплати', payment_PENDING: 'Очікує оплати', payment_PAID: 'Оплачено', payment_MOCK_PAID: 'Тестова оплата', payment_FAILED: 'Помилка оплати', payment_REFUNDED: 'Повернуто',
