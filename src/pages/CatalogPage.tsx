@@ -19,6 +19,9 @@ export function CatalogPage() {
   if (!store) return null
   const language = i18n.resolvedLanguage === 'en' ? 'en' : 'uk'
   const showBanner = !supabaseConfigured || (banner !== undefined && banner?.enabled !== false)
+  const kicker = banner?.[`kicker_${language}`]?.trim()
+  const title = banner?.[`title_${language}`]?.trim() || t('Everyday movement')
+  const description = banner?.[`description_${language}`]?.trim()
   const bannerImage = banner?.image_url || products[0]?.imgUrls[0]
   const categories = [...new Set(products.map(product => product.category).filter(Boolean))]
   const visibleProducts = category ? products.filter(product => product.category === category) : products
@@ -27,9 +30,9 @@ export function CatalogPage() {
     <section className="storefront">
       {showBanner && <header className="storefront-hero">
         <div className="storefront-hero__copy">
-          <span className="storefront-kicker">{banner?.[`kicker_${language}`] || t('Made for movement')}</span>
-          <h1><span className="storefront-hero__brand">{store.name}</span><span> / {banner?.[`title_${language}`] || t('Everyday movement')}</span></h1>
-          <p>{banner?.[`description_${language}`] || store.description}</p>
+          {kicker && <span className="storefront-kicker">{kicker}</span>}
+          <h1><span className="storefront-hero__brand">{store.name}</span><span> / {title}</span></h1>
+          {description && <p>{description}</p>}
           <a href="#collection" className="storefront-hero__link">{t('Explore collection')} <span aria-hidden="true">↗</span></a>
         </div>
         {bannerImage ? <div className="storefront-hero__image"><img src={bannerImage} alt="" />{!banner?.image_url && products[0] ? <span>{products[0].name}</span> : null}</div> : null}

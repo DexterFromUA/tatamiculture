@@ -5,14 +5,22 @@ import { useStore } from '../context/StoreContext'
 import { removeBannerImage, supabaseRequest, uploadBannerImage } from '../lib/supabase'
 
 export type Banner = { store_id: string; enabled: boolean; image_url: string; image_path: string; kicker_uk: string; kicker_en: string; title_uk: string; title_en: string; description_uk: string; description_en: string }
-type BannerControls = Pick<Banner, 'store_id' | 'enabled' | 'image_url' | 'image_path'>
-const empty = (id: string): BannerControls => ({ store_id: id, enabled: true, image_url: '', image_path: '' })
+const empty = (id: string): Banner => ({
+  store_id: id, enabled: true, image_url: '', image_path: '',
+  kicker_uk: '', kicker_en: '', title_uk: '', title_en: '', description_uk: '', description_en: '',
+})
+
+const textFields = [
+  { key: 'kicker', label: 'Banner eyebrow', maxLength: 80 },
+  { key: 'title', label: 'Banner heading', maxLength: 80 },
+  { key: 'description', label: 'Banner description', maxLength: 240 },
+] as const
 
 export function BannerSettings() {
   const { store } = useStore()
   const { token } = useAuth()
   const { t } = useTranslation()
-  const [banner, setBanner] = useState<BannerControls | null>(null)
+  const [banner, setBanner] = useState<Banner | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [removeImage, setRemoveImage] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -22,9 +30,9 @@ export function BannerSettings() {
   useEffect(() => {
     if (!store || !token) return
     let cancelled = false
-    void supabaseRequest<BannerControls[]>(`/rest/v1/storefront_banners?store_id=eq.${encodeURIComponent(store.id)}&select=store_id,enabled,image_url,image_path`, { token }).then(rows => { if (!cancelled) setBanner(rows[0] ?? empty(store.id)) }).catch(cause => { if (!cancelled) setError(cause instanceof Error ? cause.message : t('Could not load banner')) })
+    void supabaseRequest<Banner[]>(`/rest/v1/storefront_banners?store_id=eq.${encodeURIComponent(store.id)}&select=*`, { token }).then(rows => { if (!cancelled) setBanner(rows[0] ?? empty(store.id)) }).catch(cause => { if (!cancelled) setError(cause instanceof Error ? cause.message : 'Could not load banner') })
     return () => { cancelled = true }
-  }, [store, token, t])
+  }, [store, token])
   const save = async () => {
     if (!banner || !token || busy) return
     setBusy(true); setError(''); setSaved(false)
@@ -46,7 +54,7 @@ export function BannerSettings() {
       <p className="eyebrow">01 / {t('Storefront')}</p>
       <h2>{t('Homepage banner')}</h2>
     </div>
-    {error && <p className="error" role="alert">{error}</p>}
+    {error && <p className="error" role="alert">{t(error)}</p>}
     {banner && <>
       <label className="check banner-settings__visibility">
         <input type="checkbox" checked={banner.enabled} disabled={busy} onChange={event => {
@@ -75,6 +83,26 @@ export function BannerSettings() {
           }} />
           {t('Remove banner image')}
         </label>}
+      </div>
+      <div className="banner-settings__languages">
+        {(['uk', 'en'] as const).map(language => <fieldset className="banner-settings__language" key={language} disabled={busy}>
+          <legend>{language === 'uk' ? t('Ukrainian') : t('English')}</legend>
+          {textFields.map(field => {
+            const key = `${field.key}_${language}` as const
+            return <label className="field" key={key}>
+              <span>{t(field.label)}</span>
+              <input
+                maxLength={field.maxLength}
+                placeholder={field.key === 'title' ? t('Everyday movement', { lng: language }) : t('Hidden when empty')}
+                value={banner[key]}
+                onChange={event => {
+                  setBanner({ ...banner, [key]: event.target.value })
+                  setSaved(false)
+                }}
+              />
+            </label>
+          })}
+        </fieldset>)}
       </div>
       <div className="banner-settings__actions">
         <button type="button" className="btn" disabled={busy} onClick={() => void save()}>{busy ? t('Saving…') : t('Save banner')}</button>
