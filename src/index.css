@@ -1243,7 +1243,23 @@ textarea {
 .banner-settings__actions .success { margin: 0; }
 .settings-workspace .settings-grid { max-width: none; }
 .settings-workspace .nova-mode { flex-wrap: wrap; }
-@media (max-width: 850px) { .settings-workspace { grid-template-columns: 1fr; } .settings-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } .settings-nav button { border-bottom: 0; } .settings-nav button:first-child { border-right: 1px solid var(--crm-border); } }
+@media (max-width: 850px) { .settings-workspace { grid-template-columns: 1fr; } .settings-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); } .settings-nav button { border-bottom: 0; } .settings-nav button:not(:last-child) { border-right: 1px solid var(--crm-border); } }
+.payment-settings { padding: clamp(22px, 3vw, 32px); }
+.payment-settings__list { display: grid; }
+.payment-settings__row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; cursor: pointer; }
+.payment-settings__row + .payment-settings__row { border-top: 1px solid var(--crm-border); }
+.payment-settings__row strong, .payment-settings__row small { display: block; }
+.payment-settings__row small { margin-top: 4px; }
+.payment-settings__row input {
+  appearance: none; display: grid; place-items: center start; flex: none; width: 42px; height: 23px;
+  margin: 0; padding: 3px; border: 1px solid var(--line); background: var(--paper); cursor: pointer;
+}
+.payment-settings__row input::before { content: ''; width: 15px; height: 15px; background: var(--muted); }
+.payment-settings__row input:checked { justify-items: end; background: var(--accent); border-color: var(--accent); }
+.payment-settings__row input:checked::before { background: var(--card); }
+.payment-settings__row input:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.payment-settings__row input:disabled { opacity: .55; cursor: default; }
+@media (max-width: 460px) { .settings-nav button small, .settings-nav__index { display: none; } .settings-nav button { display: block; } }
 @media (max-width: 600px) { .settings-nav button { padding: 16px 12px; } .settings-nav__arrow { display: none; } .settings-nav button { grid-template-columns: auto minmax(0, 1fr); } }
 
 /* Cart and checkout */

@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { CheckoutOrderError, createOnlineOrder } from '../_shared/checkout-order.ts'
 
 type CheckoutBody = {
   diagnostic?: boolean
@@ -145,24 +146,8 @@ Deno.serve(async (request) => {
         legacySha1ProviderResponse: legacyProviderBody,
       })
     }
-    const authorization = request.headers.get('Authorization') ?? `Bearer ${anonKey}`
-    const orderClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authorization } } })
     const serviceClient = createClient(supabaseUrl, serviceRoleKey)
-    const { data: order, error: orderError } = await orderClient.rpc('create_store_order', {
-      p_store_id: body.storeId,
-      p_items: body.items.map((item) => ({ variantId: item.optionId, quantity: item.quantity })),
-      p_customer_name: body.checkout.name,
-      p_customer_email: body.checkout.email,
-      p_customer_phone: body.checkout.phone,
-      p_delivery_city: body.checkout.city,
-      p_delivery_address: body.checkout.address,
-      p_note: body.checkout.note,
-      p_delivery_city_ref: body.checkout.cityRef ?? null,
-      p_delivery_address_ref: body.checkout.addressRef ?? null,
-      p_delivery_service_type: body.checkout.deliveryServiceType ?? null,
-    })
-    if (orderError || !order) throw new Error(orderError?.message ?? 'Order could not be created')
-    await serviceClient.from('orders').update({ payment_method: 'ONLINE' }).eq('id', order.id)
+    const order = await createOnlineOrder(serviceClient, request, anonKey, 'LIQPAY', body)
 
     const { data: items, error: itemsError } = await serviceClient
       .from('order_items')
@@ -202,6 +187,6 @@ Deno.serve(async (request) => {
     if (paymentError) throw new Error(paymentError.message)
     return json({ data, signature })
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : 'Checkout could not be started' }, 400)
+    return json({ error: error instanceof Error ? error.message : 'Checkout could not be started' }, error instanceof CheckoutOrderError ? error.status : 400)
   }
 })

@@ -6,7 +6,8 @@ import { useStore } from '../context/StoreContext'
 import { useToast } from '../context/ToastContext'
 import { formatPrice, optionPrice } from '../lib/format'
 import { api } from '../lib/api'
-import { liqPayEnabled, monobankEnabled, novaPoshtaEnabled, redirectToLiqPay, startLiqPayCheckout, startMonobankCheckout } from '../lib/payments'
+import { novaPoshtaEnabled, redirectToLiqPay, startLiqPayCheckout, startMonobankCheckout } from '../lib/payments'
+import { getPaymentSettings, paymentMethods, paymentUnavailable, type PaymentProvider, type PaymentSettings } from '../lib/paymentMethods'
 import { supabaseRequest } from '../lib/supabase'
 import type { CheckoutInput } from '../types'
 import { useTranslation } from 'react-i18next'
@@ -19,7 +20,14 @@ export function CheckoutPage() {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const [submitting, setSubmitting] = useState(false)
-  const [provider, setProvider] = useState<'LIQPAY' | 'MONOBANK' | 'CASH_ON_DELIVERY'>(monobankEnabled ? 'MONOBANK' : liqPayEnabled ? 'LIQPAY' : 'CASH_ON_DELIVERY')
+  const storeId = store?.id
+  const [preferredProvider, setPreferredProvider] = useState<PaymentProvider | null>(null)
+  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null)
+  const [paymentSettingsFailed, setPaymentSettingsFailed] = useState(false)
+  const [paymentAttempt, setPaymentAttempt] = useState(0)
+  const availableMethods = paymentSettings ? paymentMethods.filter(method => method.configured && paymentSettings[method.field]) : []
+  const selectedMethod = availableMethods.find(method => method.id === preferredProvider) ?? availableMethods[0]
+  const provider = selectedMethod?.id
   const [error, setError] = useState<string | null>(null)
   const [cityRef, setCityRef] = useState<string | null>(null)
   const [addressRef, setAddressRef] = useState<string | null>(null)
@@ -35,6 +43,21 @@ export function CheckoutPage() {
     address: '',
     note: '',
   })
+
+  useEffect(() => {
+    if (!storeId) return
+    let cancelled = false
+    void getPaymentSettings(storeId)
+      .then(settings => { if (!cancelled) setPaymentSettings(settings) })
+      .catch(() => { if (!cancelled) setPaymentSettingsFailed(true) })
+    return () => { cancelled = true }
+  }, [storeId, paymentAttempt])
+
+  const refreshPaymentSettings = () => {
+    setPaymentSettings(null)
+    setPaymentSettingsFailed(false)
+    setPaymentAttempt(value => value + 1)
+  }
 
   useEffect(() => {
     if (!novaPoshtaEnabled || cityRef || form.city.trim().length < 2) { setCities([]); setDeliveryError(null); return }
@@ -79,17 +102,18 @@ export function CheckoutPage() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault()
+    if (!provider || submitting) return
     setError(null)
     setSubmitting(true)
     try {
       if (novaPoshtaEnabled && (!cityRef || !addressRef || !form.address)) throw new Error(t('Choose a city and Nova Poshta branch'))
       const checkout = novaPoshtaEnabled ? { ...form, cityRef: cityRef ?? undefined, addressRef: addressRef ?? undefined, deliveryServiceType } : form
-      if (provider === 'MONOBANK' && monobankEnabled) {
+      if (provider === 'MONOBANK') {
         const { pageUrl } = await startMonobankCheckout({ store, items, checkout, token })
         window.location.assign(pageUrl)
         return
       }
-      if (provider === 'LIQPAY' && liqPayEnabled) {
+      if (provider === 'LIQPAY') {
         const { data, signature } = await startLiqPayCheckout({ store, items, checkout, token })
         redirectToLiqPay(data, signature)
         return
@@ -99,7 +123,12 @@ export function CheckoutPage() {
       addToast(t('Order placed'))
       navigate(`/receipt/${order.receiptCode}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Checkout failed')
+      const message = err instanceof Error ? err.message : 'Checkout failed'
+      setError(message)
+      if (message === paymentUnavailable) {
+        setPreferredProvider(null)
+        refreshPaymentSettings()
+      }
     } finally {
       setSubmitting(false)
     }
@@ -119,7 +148,7 @@ export function CheckoutPage() {
           <h2>{t('Delivery details')}</h2>
           <p className="muted">{t('We will use these details only to prepare and send your order.')}</p>
         </header>
-        {error ? <p className="error" role="alert">{error}</p> : null}
+        {error ? <p className="error" role="alert">{t(error)}</p> : null}
         <div className="checkout-contact">
         <label className="field">
           <span>{t('Name')}</span>
@@ -137,13 +166,20 @@ export function CheckoutPage() {
           <span>{t('Note')}</span>
           <textarea value={form.note} onChange={setField('note')} rows={3} />
         </label>
-        {liqPayEnabled || monobankEnabled || novaPoshtaEnabled ? <fieldset className="payment-methods"><legend>{t('Payment method')}</legend>
-          {monobankEnabled ? <label className="payment-method"><input type="radio" name="provider" value="MONOBANK" checked={provider === 'MONOBANK'} onChange={() => setProvider('MONOBANK')} /><span className="payment-method__radio" aria-hidden="true" /><span><strong>monobank</strong><small>{t('Secure payment page')}</small></span></label> : null}
-          {liqPayEnabled ? <label className="payment-method"><input type="radio" name="provider" value="LIQPAY" checked={provider === 'LIQPAY'} onChange={() => setProvider('LIQPAY')} /><span className="payment-method__radio" aria-hidden="true" /><span><strong>LiqPay</strong><small>{t('Secure payment page')}</small></span></label> : null}
-          {novaPoshtaEnabled ? <label className="payment-method"><input type="radio" name="provider" value="CASH_ON_DELIVERY" checked={provider === 'CASH_ON_DELIVERY'} onChange={() => setProvider('CASH_ON_DELIVERY')} /><span className="payment-method__radio" aria-hidden="true" /><span><strong>{t('Payment on delivery')}</strong><small>{t('Pay when receiving at Nova Poshta')}</small></span></label> : null}
-        </fieldset> : null}
-        <button type="submit" className="btn" disabled={submitting}>
-          {submitting ? t('Placing order…') : provider === 'CASH_ON_DELIVERY' ? t('Place order') : `${t('Pay')} ${formatPrice(total, store.currency)}`}
+        <fieldset className="payment-methods" disabled={submitting}><legend>{t('Payment method')}</legend>
+          {availableMethods.map(method => <label className="payment-method" key={method.id}>
+            <input type="radio" name="provider" value={method.id} checked={provider === method.id} onChange={() => { setPreferredProvider(method.id); setError(null) }} />
+            <span className="payment-method__radio" aria-hidden="true" />
+            <span><strong>{t(method.name)}</strong><small>{t(method.description)}</small></span>
+          </label>)}
+          {paymentSettingsFailed ? <div role="alert">
+            <p className="error">{t('Could not load payment methods.')}</p>
+            <button type="button" className="text-btn" onClick={refreshPaymentSettings}>{t('Try again')}</button>
+          </div> : !paymentSettings ? <p className="muted" role="status">{t('Loading payment methods…')}</p>
+            : !provider ? <p className="muted" role="status">{t('No payment methods are currently available. Please try again later.')}</p> : null}
+        </fieldset>
+        <button type="submit" className="btn" disabled={submitting || !provider}>
+          {submitting ? t('Placing order…') : !provider || provider === 'CASH_ON_DELIVERY' ? t('Place order') : `${t('Pay')} ${formatPrice(total, store.currency)}`}
         </button>
       </form>
       <aside className="checkout-summary">
@@ -151,7 +187,7 @@ export function CheckoutPage() {
         <ul className="checkout-lines">{cartLines.map((line) => <li key={line.id}>{line.image ? <img src={line.image} alt="" /> : <span className="checkout-lines__placeholder" aria-hidden="true" />}<div><strong>{line.name}</strong><span>{line.option} · {t('{{quantity}} units', { quantity: line.quantity })}</span></div><b>{formatPrice(line.total, store.currency)}</b></li>)}</ul>
         <div className="checkout-delivery"><span>{t('Delivery')}</span><strong>{novaPoshtaEnabled ? t('Nova Poshta branch or parcel locker') : t('Details at checkout')}</strong><small>{t('Shipping cost is confirmed after dispatch.')}</small></div>
         <div className="checkout-total"><span>{t('Total')}</span><strong>{formatPrice(total, store.currency)}</strong></div>
-        <p className="checkout-summary__note">{provider === 'CASH_ON_DELIVERY' ? t(novaPoshtaEnabled ? 'Pay when receiving at Nova Poshta' : 'Mock payments only') : t('Payment is processed on the secure page of {{provider}}.', { provider: provider === 'MONOBANK' ? 'monobank' : 'LiqPay' })}</p>
+        {selectedMethod && <p className="checkout-summary__note">{provider === 'CASH_ON_DELIVERY' ? t(selectedMethod.description) : t('Payment is processed on the secure page of {{provider}}.', { provider: selectedMethod.name })}</p>}
       </aside></div>
     </section>
   )
