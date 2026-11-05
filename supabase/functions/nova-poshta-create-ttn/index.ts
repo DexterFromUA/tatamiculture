@@ -50,6 +50,10 @@ Deno.serve(async (request) => {
     if (order.nova_poshta_ttn) return json({ ttn: order.nova_poshta_ttn, documentRef: order.nova_poshta_document_ref, existing: true })
     if (!order.delivery_city_ref || !order.delivery_address_ref) throw new Error('This order lacks Nova Poshta branch references. Create a new order after enabling delivery, or set its destination again.')
 
+    if (order.currency !== 'UAH') throw new Error('Nova Poshta TTN requires an order in UAH')
+    // The order total is stored in kopiykas; keep the existing whole-UAH format for Cost.
+    const declaredValueUah = Math.max(1, Math.round(Number(order.total_price) / 100))
+
     const { data: settings, error: settingsError } = await db.from('delivery_settings').select('*').eq('store_id', order.store_id).maybeSingle()
     if (settingsError || !settings) throw new Error('Configure Nova Poshta sender settings first')
     if (!settings.sender_name || !settings.sender_phone || !settings.city_ref || !settings.warehouse_ref) throw new Error('Fill in sender name, phone, city and dispatch branch in Nova Poshta settings')
@@ -80,7 +84,7 @@ Deno.serve(async (request) => {
     const document = (await novaPost(apiKey, 'InternetDocument', 'save', {
       PayerType: settings.delivery_payer === 'SENDER' ? 'Sender' : 'Recipient', PaymentMethod: 'Cash',
       DateTime: dateForNovaPost(), CargoType: 'Parcel', Weight: String(weightKg), SeatsAmount: '1',
-      Description: `Tatami.Culture order ${order.receipt_code}`, Cost: String(Math.max(1, Math.round(Number(settings.declared_value)))),
+      Description: `Tatami.Culture order ${order.receipt_code}`, Cost: String(declaredValueUah),
       CitySender: settings.city_ref, Sender: sender.Ref, SenderAddress: settings.warehouse_ref, ContactSender: contactSender,
       SendersPhone: String(settings.sender_phone).replace(/\D/g, ''), CityRecipient: order.delivery_city_ref,
       Recipient: recipient.Ref, RecipientAddress: order.delivery_address_ref, ContactRecipient: recipientContact,
