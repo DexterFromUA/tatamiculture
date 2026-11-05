@@ -31,36 +31,40 @@ export function RegisterPage() {
   }
 
   return (
-    <section className="auth-page">
-      <div className="auth-card">
-        <header className="auth-card__head">
+    <section className="auth-page auth-page--login auth-page--register">
+      <div className="auth-card auth-card--login auth-card--register">
+        <header className="auth-card__head login-intro">
           <p className="eyebrow">{t('Tatami.Culture account')}</p>
           <h1>{t('Create account')}</h1>
           <p className="muted">{t('Keep track of your training gear and every order in one place.')}</p>
+          <span className="login-intro__mark" aria-hidden="true">T.</span>
         </header>
-        <form className="form auth-card__form" onSubmit={(event) => void onSubmit(event)}>
-        {error ? <p className="error">{error}</p> : null}
-        <label className="field">
-          <span>{t('Name')}</span>
-          <input value={name} onChange={(event) => setName(event.target.value)} required />
-        </label>
-        <label className="field">
-          <span>{t('Email')}</span>
-          <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
-        </label>
-        <label className="field">
-          <span>{t('Phone')}</span>
-          <input value={phone} onChange={(event) => setPhone(event.target.value)} required />
-        </label>
-        <label className="field">
-          <span>{t('Password')}</span>
-          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
-        </label>
-        <button type="submit" className="btn" disabled={loading}>
-          {loading ? t('Creating…') : t('Create account')}
-        </button>
-        </form>
-        <p className="auth-card__footer">{t('Already have an account?')} <Link to="/login">{t('Sign in')}</Link></p>
+        <div className="login-form-panel register-form-panel">
+          <p className="eyebrow">{t('Create account')}</p>
+          <form className="form auth-card__form register-form" onSubmit={(event) => void onSubmit(event)}>
+            {error && <p className="error register-form__error" role="alert">{error}</p>}
+            <label className="field">
+              <span>{t('Name')}</span>
+              <input autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} required />
+            </label>
+            <label className="field">
+              <span>{t('Phone')}</span>
+              <input type="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} required />
+            </label>
+            <label className="field register-form__wide">
+              <span>{t('Email')}</span>
+              <input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+            </label>
+            <label className="field register-form__wide">
+              <span>{t('Password')}</span>
+              <input type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+            </label>
+            <button type="submit" className="btn register-form__wide" disabled={loading}>
+              {loading ? t('Creating…') : t('Create account')}
+            </button>
+          </form>
+          <p className="auth-card__footer">{t('Already have an account?')} <Link to="/login">{t('Sign in')}</Link></p>
+        </div>
       </div>
     </section>
   )

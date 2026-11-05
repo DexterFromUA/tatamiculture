@@ -1,3 +1,4 @@
+import { CustomerAccountActions } from './CustomerAccountActions'
 import { customerPhone } from '../lib/crm'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -8,9 +9,9 @@ export type CrmCustomer = { id: string; name: string; phone: string; email: stri
 export type CrmOrder = { id: string; crm_customer_id: string | null; user_id: string | null; receipt_code: string; total_price: number; currency: string; status: string; created_at: string }
 
 
-export function CrmCustomerCard({ customer, customers, orders, token, onSaved, onClose, embedded = false }: {
-  customer: CrmCustomer; customers: CrmCustomer[]; orders: CrmOrder[]; token: string
-  onSaved: () => void; onClose: () => void; embedded?: boolean
+export function CrmCustomerCard({ customer, customers, orders, storeId, token, onSaved, onClose }: {
+  customer: CrmCustomer; customers: CrmCustomer[]; orders: CrmOrder[]; storeId: string; token: string
+  onSaved: () => void; onClose: () => void
 }) {
   const { t } = useTranslation()
   const [notes, setNotes] = useState(customer.notes)
@@ -23,9 +24,10 @@ export function CrmCustomerCard({ customer, customers, orders, token, onSaved, o
   const totals = new Map<string, number>()
   for (const order of own.filter(order => !order.status.startsWith('CANCELLED'))) totals.set(order.currency, (totals.get(order.currency) ?? 0) + Number(order.total_price))
   return <section className="crm-panel">
-    <div className="product-editor__head"><h2>{customer.name}</h2>{!embedded && <button className="text-btn" onClick={onClose}>{t('Close')}</button>}</div>
+    <div className="product-editor__head"><h2>{customer.name}</h2></div>
     <p>{customer.phone} · {customer.email}</p>
     <p>{own.length} {t('orders')} · {[...totals].map(([currency, amount]) => formatPrice(amount / 100, currency)).join(' · ')}</p>
+    <CustomerAccountActions storeId={storeId} customerId={customer.id} token={token} onDeleted={onSaved} />
     {error && <p className="error" role="alert">{error}</p>}
     <form className="form" onSubmit={async event => {
       event.preventDefault()

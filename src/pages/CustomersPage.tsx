@@ -4,16 +4,14 @@ import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { downloadCsv, fetchAll, customerPhone } from '../lib/crm'
 import { formatPrice } from '../lib/format'
-import { CrmCustomerCard, type CrmCustomer, type CrmOrder } from '../components/CrmCustomerCard'
+import type { CrmCustomer, CrmOrder } from '../components/CrmCustomerCard'
 
-export function CustomersPage({ initialCustomerId }: { initialCustomerId?: string }) {
+export function CustomersPage({ onOpenCustomer, revision }: { onOpenCustomer: (id: string) => void; revision: number }) {
   const { store } = useStore()
   const { token } = useAuth()
   const { t } = useTranslation()
   const [customers, setCustomers] = useState<CrmCustomer[]>([])
   const [orders, setOrders] = useState<CrmOrder[]>([])
-  const [selectedId, setSelectedId] = useState(initialCustomerId ?? '')
-  const [revision, setRevision] = useState(0)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -30,7 +28,6 @@ export function CustomersPage({ initialCustomerId }: { initialCustomerId?: strin
       .finally(() => { if (!abort.signal.aborted) setLoading(false) })
     return () => abort.abort()
   }, [store, token, revision])
-  const selected = customers.find(customer => customer.id === selectedId)
   const phoneCounts = new Map<string, number>()
   for (const customer of customers) {
     const phone = customerPhone(customer.phone)
@@ -46,7 +43,7 @@ export function CustomersPage({ initialCustomerId }: { initialCustomerId?: strin
   const current = Math.min(page, pages)
   return <section className="customers-page">
     {error && <p className="error">{error}</p>}
-    {loading ? <p>{t('Loading…')}</p> : selected && token ? <CrmCustomerCard key={selected.id} customer={selected} customers={customers} orders={orders} token={token} onSaved={() => setRevision(value => value + 1)} onClose={() => setSelectedId('')} /> : <section className="crm-panel">
+    {loading ? <p>{t('Loading…')}</p> : <section className="crm-panel">
       <h2>{t('Customers')} · {customers.length}</h2>
       <div className="customers-toolbar">
         <input aria-label={t('Search customers')} placeholder={t('Search customers')} value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} />
@@ -54,7 +51,7 @@ export function CustomersPage({ initialCustomerId }: { initialCustomerId?: strin
         <button className="text-btn" onClick={() => downloadCsv('Tatami.Culture-customers.csv', [[t('Name'), t('Phone'), t('Email'), t('Orders'), t('Total')], ...rows.map(row => [row.name, row.phone, row.email, row.count, row.total])])}>{t('Export CSV')}</button>
       </div>
       <ul className="customers-list">{rows.slice((current - 1) * 20, current * 20).map(customer => <li key={customer.id}>
-        <div><button className="text-btn" onClick={() => setSelectedId(customer.id)}>{customer.name}</button><span>{customer.phone || customer.email} · {customer.tags.join(' · ')}</span></div>
+        <div><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => onOpenCustomer(customer.id)}>{customer.name}</button><span>{customer.phone || customer.email} · {customer.tags.join(' · ')}</span></div>
         <span>{customer.count} {t('orders')}</span><strong>{customer.total || '—'}</strong>
       </li>)}</ul>
       {!rows.length && <p>{t('No customers match this search.')}</p>}

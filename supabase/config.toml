@@ -9,3 +9,7 @@ verify_jwt = true
 
 [functions.nova-poshta-track-ttn]
 verify_jwt = true
+
+[functions.crm-customer-email]
+# The function checks the signed-in user with Auth, then authorizes the store RPC.
+verify_jwt = false

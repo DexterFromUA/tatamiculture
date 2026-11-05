@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CustomerPanel, type CustomerOrder } from '../components/CustomerPanel'
+import { CustomerPanel, type CustomerOrder, type CustomerPanelTarget } from '../components/CustomerPanel'
 import { AdminTabs } from '../components/AdminTabs'
 import type { AdminSection } from '../components/AdminTabs'
 import { CatalogAdminPage } from './CatalogAdminPage'
@@ -11,7 +11,7 @@ import { formatDate, formatPrice } from '../lib/format'
 import { supabaseConfigured, supabaseRequest } from '../lib/supabase'
 import type { OrderStatus } from '../types'
 import { useTranslation } from 'react-i18next'
-import { downloadCsv, fetchAll } from '../lib/crm'
+import { downloadCsv, fetchAll, hasStoreMembership } from '../lib/crm'
 import { FinancialAnalytics, OrderOperations } from '../components/OrderOperations'
 
 type AdminOrder = CustomerOrder & {
@@ -44,7 +44,8 @@ export function AdminPage() {
   const [statusFilter, setStatusFilter] = useState<'ALL' | OrderStatus>('ALL')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
-  const [selectedCustomer, setSelectedCustomer] = useState<AdminOrder | null>(null)
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerPanelTarget | null>(null)
+  const [customerRevision, setCustomerRevision] = useState(0)
   const [section, setSection] = useState<AdminSection>('overview')
   const [catalogView, setCatalogView] = useState<'products' | 'stock'>('products')
   const [page, setPage] = useState(1)
@@ -56,11 +57,7 @@ export function AdminPage() {
     const load = async () => {
       if (!store || !token || !user || !supabaseConfigured) return
       try {
-        const memberships = await supabaseRequest<Array<{ role: string }>>(
-          `/rest/v1/store_members?store_id=eq.${encodeURIComponent(store.id)}&user_id=eq.${encodeURIComponent(user.id)}&select=role`,
-          { token },
-        )
-        if (!memberships[0]) {
+        if (!(await hasStoreMembership(store.id, user.id, token))) {
           if (!cancelled) setMember(false)
           return
         }
@@ -180,7 +177,7 @@ export function AdminPage() {
       </header>
       {error ? <div className="crm-error" role="alert"><span>{error}</span><button type="button" className="text-btn" onClick={() => setError(null)}>{t('Close')}</button></div> : null}
       <div className="crm-section-head"><div><span className="crm-section-head__label">{store.name} / CRM</span><h2>{section === 'overview' ? t('Overview') : section === 'orders' ? t('Orders') : section === 'customers' ? t('Customers') : section === 'catalogue' ? t('Catalogue') : t('Settings')}</h2></div></div>
-      {section === 'customers' ? <CustomersPage /> : section === 'catalogue' ? <CatalogAdminPage key={catalogView} embedded initialView={catalogView} /> : section === 'settings' ? <SettingsWorkspace /> : <>
+      {section === 'customers' ? <CustomersPage revision={customerRevision} onOpenCustomer={id => setSelectedCustomer({ kind: 'customer', id })} /> : section === 'catalogue' ? <CatalogAdminPage key={catalogView} embedded initialView={catalogView} /> : section === 'settings' ? <SettingsWorkspace /> : <>
       {section === 'overview' ? <><div className="crm-stats crm-stats--overview">
         <div><span>{t('Orders')}</span><strong>{orders.length}</strong></div>
         <div><span>{t('Customers')}</span><strong>{customerCount}</strong></div>
@@ -202,7 +199,7 @@ export function AdminPage() {
               </select></div>
               {order.nova_poshta_status ? <p className="crm-order__delivery">{order.nova_poshta_status}</p> : null}
               <div className="crm-order__actions"><button type="button" className="text-btn" onClick={() => setOperations(order)}>{t('Order operations')}</button>
-              <button type="button" className="text-btn"  title={t('Open customer card')} onClick={() => setSelectedCustomer(order)}>{t('Customer')}</button>
+              <button type="button" className="text-btn" aria-haspopup="dialog" title={t('Open customer card')} onClick={() => setSelectedCustomer({ kind: 'order', id: order.id })}>{t('Customer')}</button>
               {order.nova_poshta_ttn ? <span className="ttn-actions"><a className="text-btn" href={`https://novaposhta.ua/tracking/?cargo_number=${encodeURIComponent(order.nova_poshta_ttn)}`} target="_blank" rel="noreferrer">TTN {order.nova_poshta_ttn}</a><button type="button" className="text-btn" disabled={trackingId === order.id} onClick={() => void refreshTracking(order.id)}>{trackingId === order.id ? t('Updating…') : t('Update status')}</button></span> : <button type="button" className="text-btn" disabled={creatingTtnId === order.id || order.status.startsWith('CANCELLED')} onClick={() => void createTtn(order.id)}>{creatingTtnId === order.id ? t('Creating TTN…') : t('Create TTN')}</button>}
               {order.status === 'PENDING' && order.payment_status !== 'PAID' ? <button type="button" className="text-btn crm-order__cancel" disabled={updatingId === order.id} onClick={() => void cancelAndRestoreStock(order.id)}>{t('Cancel & restore stock')}</button> : null}</div>
             </li>
@@ -210,8 +207,10 @@ export function AdminPage() {
         </section>
       </div>
       </>}
-      {selectedCustomer && token && user ? <CustomerPanel key={selectedCustomer.id} order={selectedCustomer} storeId={store.id} token={token} managerId={user.id} onClose={() => setSelectedCustomer(null)} /> : null}
       </>}
+      {selectedCustomer && token && <CustomerPanel key={`${selectedCustomer.kind}:${selectedCustomer.id}`}
+        target={selectedCustomer} storeId={store.id} token={token}
+        onSaved={() => setCustomerRevision(value => value + 1)} onClose={() => setSelectedCustomer(null)} />}
       {section === 'overview' && token && <FinancialAnalytics orders={orders} storeId={store.id} token={token} />}
       {operations && token && <OrderOperations key={operations.id} order={operations} token={token} onClose={() => setOperations(null)} />}
     </section>

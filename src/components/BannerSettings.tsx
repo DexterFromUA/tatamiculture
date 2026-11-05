@@ -4,14 +4,15 @@ import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { removeBannerImage, supabaseRequest, uploadBannerImage } from '../lib/supabase'
 
-export type Banner = { store_id: string; image_url: string; image_path: string; kicker_uk: string; kicker_en: string; title_uk: string; title_en: string; description_uk: string; description_en: string }
-const empty = (id: string): Banner => ({ store_id: id, image_url: '', image_path: '', kicker_uk: '', kicker_en: '', title_uk: '', title_en: '', description_uk: '', description_en: '' })
+export type Banner = { store_id: string; enabled: boolean; image_url: string; image_path: string; kicker_uk: string; kicker_en: string; title_uk: string; title_en: string; description_uk: string; description_en: string }
+type BannerControls = Pick<Banner, 'store_id' | 'enabled' | 'image_url' | 'image_path'>
+const empty = (id: string): BannerControls => ({ store_id: id, enabled: true, image_url: '', image_path: '' })
 
 export function BannerSettings() {
   const { store } = useStore()
   const { token } = useAuth()
   const { t } = useTranslation()
-  const [banner, setBanner] = useState<Banner | null>(null)
+  const [banner, setBanner] = useState<BannerControls | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [removeImage, setRemoveImage] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -21,7 +22,7 @@ export function BannerSettings() {
   useEffect(() => {
     if (!store || !token) return
     let cancelled = false
-    void supabaseRequest<Banner[]>(`/rest/v1/storefront_banners?store_id=eq.${encodeURIComponent(store.id)}&select=*`, { token }).then(rows => { if (!cancelled) setBanner(rows[0] ?? empty(store.id)) }).catch(cause => { if (!cancelled) setError(cause instanceof Error ? cause.message : t('Could not load banner')) })
+    void supabaseRequest<BannerControls[]>(`/rest/v1/storefront_banners?store_id=eq.${encodeURIComponent(store.id)}&select=store_id,enabled,image_url,image_path`, { token }).then(rows => { if (!cancelled) setBanner(rows[0] ?? empty(store.id)) }).catch(cause => { if (!cancelled) setError(cause instanceof Error ? cause.message : t('Could not load banner')) })
     return () => { cancelled = true }
   }, [store, token, t])
   const save = async () => {
@@ -40,14 +41,45 @@ export function BannerSettings() {
       setError(cause instanceof Error ? cause.message : t('Could not save banner'))
     } finally { setBusy(false) }
   }
-  return <section className="settings-card banner-settings"><div className="banner-settings__header"><p className="eyebrow">01 / {t('Storefront')}</p><h2>{t('Homepage banner')}</h2><p className="muted">{t('Empty fields use the default text.')}</p></div>
-    {error ? <p className="error">{error}</p> : null}
-    {banner ? <>
-      <div className="banner-settings__image">{banner.image_url && !removeImage ? <img className="banner-settings__preview" src={banner.image_url} alt="" /> : null}
-      <label className="field"><span>{t('Banner image')}</span><input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" onChange={event => { setFile(event.target.files?.[0] ?? null); setRemoveImage(false); setSaved(false) }} /><small>{t('JPG, PNG or WebP · up to 5 MB per file')}</small></label>
-      {banner.image_url ? <label className="check"><input type="checkbox" checked={removeImage} onChange={event => { setRemoveImage(event.target.checked); setFile(null); if (fileInput.current) fileInput.current.value = '' }} /> {t('Remove banner image')}</label> : null}</div>
-      <div className="banner-settings__languages">{(['uk', 'en'] as const).map(language => <fieldset className="banner-settings__language" key={language}><legend>{language === 'uk' ? t('Ukrainian') : t('English')}</legend>{(['kicker', 'title', 'description'] as const).map(field => { const key = `${field}_${language}` as keyof Banner; return <label className="field" key={key}><span>{t(field === 'kicker' ? 'Banner eyebrow' : field === 'title' ? 'Banner heading' : 'Banner description')}</span><input maxLength={field === 'description' ? 240 : 80} value={banner[key]} onChange={event => { setBanner({ ...banner, [key]: event.target.value }); setSaved(false) }} /></label> })}</fieldset>)}</div>
-      <div className="banner-settings__actions"><button type="button" className="btn" disabled={busy} onClick={() => void save()}>{busy ? t('Saving…') : t('Save banner')}</button>{saved ? <p className="success" role="status">{t('Saved')}</p> : null}</div>
-    </> : null}
+  return <section className="settings-card banner-settings">
+    <div className="banner-settings__header">
+      <p className="eyebrow">01 / {t('Storefront')}</p>
+      <h2>{t('Homepage banner')}</h2>
+    </div>
+    {error && <p className="error" role="alert">{error}</p>}
+    {banner && <>
+      <label className="check banner-settings__visibility">
+        <input type="checkbox" checked={banner.enabled} disabled={busy} onChange={event => {
+          setBanner({ ...banner, enabled: event.target.checked })
+          setSaved(false)
+        }} />
+        {t('Show banner on homepage')}
+      </label>
+      <div className="banner-settings__image">
+        {banner.image_url && !removeImage && <img className="banner-settings__preview" src={banner.image_url} alt="" />}
+        <label className="field">
+          <span>{t('Banner image')}</span>
+          <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={event => {
+            setFile(event.target.files?.[0] ?? null)
+            setRemoveImage(false)
+            setSaved(false)
+          }} />
+          <small>{t('JPG, PNG or WebP · up to 5 MB per file')}</small>
+        </label>
+        {banner.image_url && <label className="check">
+          <input type="checkbox" checked={removeImage} disabled={busy} onChange={event => {
+            setRemoveImage(event.target.checked)
+            setFile(null)
+            setSaved(false)
+            if (fileInput.current) fileInput.current.value = ''
+          }} />
+          {t('Remove banner image')}
+        </label>}
+      </div>
+      <div className="banner-settings__actions">
+        <button type="button" className="btn" disabled={busy} onClick={() => void save()}>{busy ? t('Saving…') : t('Save banner')}</button>
+        {saved && <p className="success" role="status">{t('Saved')}</p>}
+      </div>
+    </>}
   </section>
 }

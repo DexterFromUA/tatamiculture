@@ -1,15 +1,37 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useCart } from '../context/CartContext'
 import { useStore } from '../context/StoreContext'
 import { useTranslation } from 'react-i18next'
+import { hasStoreMembership } from '../lib/crm'
+import { supabaseConfigured } from '../lib/supabase'
 
 export function StoreLayout() {
   const { store, loading, notFound } = useStore()
   const { count } = useCart()
-  const { isAuthenticated, user } = useAuth()
+  const { isAuthenticated, token, user } = useAuth()
   const { t, i18n } = useTranslation()
+  const storeId = store?.id
+  const userId = user?.id
+  const [crmAccess, setCrmAccess] = useState<{ storeId: string; userId: string; token: string } | null>(null)
+
+  useEffect(() => {
+    if (!supabaseConfigured || !storeId || !userId || !token) return
+
+    const abort = new AbortController()
+    void hasStoreMembership(storeId, userId, token, abort.signal)
+      .then(isMember => {
+        if (!abort.signal.aborted) setCrmAccess(isMember ? { storeId, userId, token } : null)
+      })
+      .catch(() => {
+        if (!abort.signal.aborted) setCrmAccess(null)
+      })
+    return () => abort.abort()
+  }, [storeId, userId, token])
+
+  const canOpenCrm = crmAccess !== null
+    && crmAccess.storeId === storeId && crmAccess.userId === userId && crmAccess.token === token
 
   useEffect(() => {
     if (!store) return
@@ -46,7 +68,7 @@ export function StoreLayout() {
           <NavLink to="/cart">{t('Cart')}{count > 0 ? ` (${count})` : ''}</NavLink>
           {isAuthenticated ? (
             <>
-              <NavLink to="/admin">CRM</NavLink>
+              {canOpenCrm && <NavLink to="/admin">CRM</NavLink>}
               <NavLink to="/account">{user?.name.split(' ')[0] ?? t('Account')}</NavLink>
             </>
           ) : (

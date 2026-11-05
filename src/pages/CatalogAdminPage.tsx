@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { useToast } from '../context/ToastContext'
 import { supabaseConfigured, supabaseRequest, uploadProductImage } from '../lib/supabase'
-import { fetchAll } from '../lib/crm'
+import { fetchAll, hasStoreMembership } from '../lib/crm'
 
 type Category = { id: string; name: string; position: number }
 type Variant = {
@@ -158,11 +158,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
     if (!store || !token || !user) return
     setLoading(true)
     try {
-      const memberships = await supabaseRequest<Array<{ role: string }>>(
-        `/rest/v1/store_members?store_id=eq.${encodeURIComponent(store.id)}&user_id=eq.${encodeURIComponent(user.id)}&select=role`,
-        { token },
-      )
-      if (!memberships[0]) {
+      if (!(await hasStoreMembership(store.id, user.id, token))) {
         setMember(false)
         return
       }
