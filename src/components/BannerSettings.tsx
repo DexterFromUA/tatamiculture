@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
-import { removeBannerImage, supabaseRequest, uploadBannerImage } from '../lib/supabase'
+import { bannerImages, type Banner, type BannerImage } from '../lib/banner'
+import { LocalImagePreview } from './LocalImagePreview'
+import { removeBannerImage, SupabaseError, supabaseRequest, uploadBannerImage } from '../lib/supabase'
 
-export type Banner = { store_id: string; enabled: boolean; image_url: string; image_path: string; kicker_uk: string; kicker_en: string; title_uk: string; title_en: string; description_uk: string; description_en: string }
 const empty = (id: string): Banner => ({
-  store_id: id, enabled: true, image_url: '', image_path: '',
+  store_id: id, enabled: true, image_url: '', image_path: '', images: [],
   kicker_uk: '', kicker_en: '', title_uk: '', title_en: '', description_uk: '', description_en: '',
 })
 
@@ -21,12 +22,13 @@ export function BannerSettings() {
   const { token } = useAuth()
   const { t } = useTranslation()
   const [banner, setBanner] = useState<Banner | null>(null)
-  const [file, setFile] = useState<File | null>(null)
-  const [removeImage, setRemoveImage] = useState(false)
+  const [files, setFiles] = useState<File[]>([])
+  const [removedUrls, setRemovedUrls] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
-  const fileInput = useRef<HTMLInputElement>(null)
+  const existingImages = bannerImages(banner)
+  const keptImages = existingImages.filter(image => !removedUrls.includes(image.url))
   useEffect(() => {
     if (!store || !token) return
     let cancelled = false
@@ -36,16 +38,35 @@ export function BannerSettings() {
   const save = async () => {
     if (!banner || !token || busy) return
     setBusy(true); setError(''); setSaved(false)
-    let uploaded: { path: string; publicUrl: string } | null = null
+    const uploaded: BannerImage[] = []
+    let savingRecord = false
     try {
-      if (file) uploaded = await uploadBannerImage(banner.store_id, file, token)
-      const next = { ...banner, image_url: uploaded?.publicUrl ?? (removeImage ? '' : banner.image_url), image_path: uploaded?.path ?? (removeImage ? '' : banner.image_path) }
-      await supabaseRequest('/rest/v1/storefront_banners?on_conflict=store_id', { method: 'POST', token, headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify(next) })
-      setBanner(next); setFile(null); setRemoveImage(false); setSaved(true)
-      if (fileInput.current) fileInput.current.value = ''
-      if (banner.image_path && (uploaded || removeImage)) await removeBannerImage(banner.image_path, token).catch(() => {})
+      for (const file of files) {
+        const image = await uploadBannerImage(banner.store_id, file, token)
+        uploaded.push({ url: image.publicUrl, path: image.path })
+      }
+      const images = [...keptImages, ...uploaded]
+      const next = {
+        ...banner, images,
+        image_url: images[0]?.url ?? '',
+        image_path: images[0]?.path ?? '',
+      }
+      savingRecord = true
+      await supabaseRequest('/rest/v1/storefront_banners?on_conflict=store_id', {
+        method: 'POST', token, headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify(next),
+      })
+      setBanner(next)
+      setFiles([])
+      setRemovedUrls([])
+      setSaved(true)
+      await Promise.allSettled(existingImages
+        .filter(image => removedUrls.includes(image.url) && image.path && !images.some(kept => kept.path === image.path))
+        .map(image => removeBannerImage(image.path, token)))
     } catch (cause) {
-      if (uploaded) await removeBannerImage(uploaded.path, token).catch(() => {})
+      // A lost response may mean the banner was saved. Keep files it might now reference.
+      if (!savingRecord || (cause instanceof SupabaseError && cause.status >= 400 && cause.status < 500)) {
+        await Promise.allSettled(uploaded.map(image => removeBannerImage(image.path, token)))
+      }
       setError(cause instanceof Error ? cause.message : t('Could not save banner'))
     } finally { setBusy(false) }
   }
@@ -64,25 +85,32 @@ export function BannerSettings() {
         {t('Show banner on homepage')}
       </label>
       <div className="banner-settings__image">
-        {banner.image_url && !removeImage && <img className="banner-settings__preview" src={banner.image_url} alt="" />}
         <label className="field">
-          <span>{t('Banner image')}</span>
-          <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={event => {
-            setFile(event.target.files?.[0] ?? null)
-            setRemoveImage(false)
+          <span>{t('Banner images')}</span>
+          <input type="file" multiple accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={event => {
+            const picked = Array.from(event.target.files ?? [])
+            setFiles(current => [...current, ...picked])
             setSaved(false)
+            event.target.value = ''
           }} />
           <small>{t('JPG, PNG or WebP · up to 5 MB per file')}</small>
         </label>
-        {banner.image_url && <label className="check">
-          <input type="checkbox" checked={removeImage} disabled={busy} onChange={event => {
-            setRemoveImage(event.target.checked)
-            setFile(null)
-            setSaved(false)
-            if (fileInput.current) fileInput.current.value = ''
-          }} />
-          {t('Remove banner image')}
-        </label>}
+        {(keptImages.length > 0 || files.length > 0) && <ol className="banner-settings__slides">
+          {keptImages.map(image => <li key={image.url}>
+            <img src={image.url} alt="" />
+            <button type="button" className="text-btn" disabled={busy} onClick={() => {
+              setRemovedUrls(current => [...current, image.url])
+              setSaved(false)
+            }}>{t('Remove')}</button>
+          </li>)}
+          {files.map((file, index) => <li key={`${file.name}-${index}`}>
+            <LocalImagePreview file={file} />
+            <button type="button" className="text-btn" disabled={busy} onClick={() => {
+              setFiles(current => current.filter((_, i) => i !== index))
+              setSaved(false)
+            }}>{t('Remove')}</button>
+          </li>)}
+        </ol>}
       </div>
       <div className="banner-settings__languages">
         {(['uk', 'en'] as const).map(language => <fieldset className="banner-settings__language" key={language} disabled={busy}>

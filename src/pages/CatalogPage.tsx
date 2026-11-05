@@ -3,7 +3,8 @@ import { useStore } from '../context/StoreContext'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { supabaseConfigured, supabaseRequest } from '../lib/supabase'
-import type { Banner } from '../components/BannerSettings'
+import { bannerImages, type Banner } from '../lib/banner'
+import { BannerCarousel } from '../components/BannerCarousel'
 
 export function CatalogPage() {
   const { store, products } = useStore()
@@ -22,7 +23,8 @@ export function CatalogPage() {
   const kicker = banner?.[`kicker_${language}`]?.trim()
   const title = banner?.[`title_${language}`]?.trim() || t('Everyday movement')
   const description = banner?.[`description_${language}`]?.trim()
-  const bannerImage = banner?.image_url || products[0]?.imgUrls[0]
+  const images = bannerImages(banner)
+  const fallbackImage = products[0]?.imgUrls[0]
   const categories = [...new Set(products.map(product => product.category).filter(Boolean))]
   const visibleProducts = category ? products.filter(product => product.category === category) : products
 
@@ -35,7 +37,9 @@ export function CatalogPage() {
           {description && <p>{description}</p>}
           <a href="#collection" className="storefront-hero__link">{t('Explore collection')} <span aria-hidden="true">↗</span></a>
         </div>
-        {bannerImage ? <div className="storefront-hero__image"><img src={bannerImage} alt="" />{!banner?.image_url && products[0] ? <span>{products[0].name}</span> : null}</div> : null}
+        {images.length > 0
+          ? <BannerCarousel images={images} />
+          : fallbackImage && <div className="storefront-hero__image"><img src={fallbackImage} alt="" /><span>{products[0].name}</span></div>}
       </header>}
       <div id="collection" className="collection-head"><div><span className="storefront-kicker">{t('The collection')}</span>{showBanner
         ? <h2>{t('All products')} <sup>{visibleProducts.length}</sup></h2>
