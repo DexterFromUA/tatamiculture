@@ -10,13 +10,11 @@ import { CatalogAdminPage } from './pages/CatalogAdminPage'
 import { DeliverySettingsPage } from './pages/DeliverySettingsPage'
 import { CatalogPage } from './pages/CatalogPage'
 import { CheckoutPage } from './pages/CheckoutPage'
-import { LoginPage } from './pages/LoginPage'
+import { PhoneAuthPage } from './pages/PhoneAuthPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { ProductPage } from './pages/ProductPage'
 import { QuickBuyPage } from './pages/QuickBuyPage'
 import { ReceiptPage } from './pages/ReceiptPage'
-import { RegisterPage } from './pages/RegisterPage'
-import { PasswordRecoveryPage } from './pages/PasswordRecoveryPage'
 
 function StoreTree() {
   return (
@@ -43,10 +41,10 @@ export default function App() {
           <Route path="product/:productId" element={<ProductPage />} />
           <Route path="cart" element={<CartPage />} />
           <Route path="checkout" element={<CheckoutPage />} />
-          <Route path="login" element={<LoginPage />} />
-          <Route path="register" element={<RegisterPage />} />
-          <Route path="forgot-password" element={<PasswordRecoveryPage />} />
-          <Route path="reset-password" element={<PasswordRecoveryPage reset />} />
+          <Route path="login" element={<PhoneAuthPage key="login" />} />
+          <Route path="register" element={<PhoneAuthPage key="register" register />} />
+          <Route path="forgot-password" element={<Navigate to="/login" replace />} />
+          <Route path="reset-password" element={<Navigate to="/login" replace />} />
           <Route path="receipt/:code" element={<ReceiptPage />} />
           <Route
             path="orders"

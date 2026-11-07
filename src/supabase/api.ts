@@ -1,3 +1,4 @@
+import { normalizePhone } from '../lib/phone'
 import { supabaseRequest } from '../lib/supabase'
 import type { AuthSession, CartItem, CheckoutInput, Order, OrderItem, Product, ProductOption, ShortLink, Store, User } from '../types'
 
@@ -39,7 +40,7 @@ function mapUser(user: Row, profile?: Row | null): User {
   const metadata = (user.user_metadata as Row | undefined) ?? {}
   return {
     id: text(user.id), name: text(profile?.name ?? metadata.name), email: text(user.email),
-    phone: text(profile?.phone ?? metadata.phone), city: profile?.city ? text(profile.city) : undefined,
+    phone: (user.phone ? normalizePhone('+' + text(user.phone).replace(/^\+/, '')) : null) ?? text(profile?.phone || metadata.phone), city: profile?.city ? text(profile.city) : undefined,
   }
 }
 
@@ -90,26 +91,39 @@ export const supabaseApi = {
     return rows[0] ? mapProduct(rows[0]) : null
   },
 
-  async login(email: string, password: string): Promise<AuthSession> {
-    const session = await supabaseRequest<Row>('/auth/v1/token?grant_type=password', {
-      method: 'POST', body: JSON.stringify({ email, password }),
+  async requestPhoneCode(phone: string, registration?: { name: string; storeId: string }) {
+    await supabaseRequest('/auth/v1/otp', {
+      method: 'POST',
+      body: JSON.stringify({
+        phone, channel: 'sms', create_user: Boolean(registration),
+        ...(registration && { data: { name: registration.name, phone, registration_store_id: registration.storeId } }),
+      }),
+    })
+  },
+
+  async verifyPhoneCode(phone: string, code: string, storeId: string): Promise<AuthSession> {
+    const session = await supabaseRequest<Row>('/auth/v1/verify', {
+      method: 'POST', body: JSON.stringify({ phone, token: code, type: 'sms' }),
     })
     const token = text(session.access_token)
     const user = session.user as Row
-    return { token, user: mapUser(user, await profileFor(user, token)) }
+    if (!token || !user?.id) throw new Error('Could not finish signing in. Try again.')
+    const metadata = user.user_metadata as Row | undefined
+    // The code is already consumed. A profile read failure should not discard the valid session.
+    const profile = await profileFor(user, token).catch(() => null)
+    return {
+      token,
+      user: mapUser(user, profile),
+      registrationStoreId: metadata?.registration_store_id === storeId ? storeId : undefined,
+    }
   },
 
-  async register(input: { name: string; email: string; phone: string; password: string }): Promise<AuthSession> {
-    const result = await supabaseRequest<Row>('/auth/v1/signup', {
-      method: 'POST', body: JSON.stringify({
-        email: input.email, password: input.password,
-        data: { name: input.name, phone: input.phone },
-      }),
+  async joinStore(storeId: string, session: AuthSession) {
+    await supabaseRequest('/rest/v1/store_customers?on_conflict=store_id,user_id', {
+      method: 'POST', token: session.token,
+      headers: { Prefer: 'resolution=ignore-duplicates' },
+      body: JSON.stringify({ store_id: storeId, user_id: session.user.id }),
     })
-    const token = text(result.access_token)
-    if (!token) throw new Error('Confirm your email, then sign in to continue')
-    const user = result.user as Row
-    return { token, user: mapUser(user, await profileFor(user, token)) }
   },
 
   async getCurrentUser(token: string): Promise<User> {
@@ -138,6 +152,13 @@ export const supabaseApi = {
   async getOrders(token: string, storeId: string): Promise<Order[]> {
     const rows = await supabaseRequest<Row[]>(`/rest/v1/orders?store_id=eq.${encodeURIComponent(storeId)}&select=*,order_items(*)&order=created_at.desc`, { token })
     return rows.map(mapOrder)
+  },
+
+  async claimGuestOrder(storeId: string, receiptCode: string, token: string): Promise<boolean> {
+    return supabaseRequest<boolean>('/rest/v1/rpc/claim_guest_order', {
+      method: 'POST', token,
+      body: JSON.stringify({ p_store_id: storeId, p_receipt_code: receiptCode }),
+    })
   },
 
   async getOrderByReceipt(code: string): Promise<Order | null> {

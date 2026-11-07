@@ -1,20 +1,21 @@
 import { optionPrice } from '../lib/format'
 import { readJson, writeJson } from '../lib/storage'
 import type { AuthSession, CartItem, CheckoutInput, Order, OrderItem, Product, Store, User } from '../types'
-import { demoUser, products, shortLinks, stores } from './data'
+import { normalizePhone } from '../lib/phone'
+import { DEMO_SMS_CODE, demoUser, products, shortLinks, stores } from './data'
 
 const USERS_KEY = 'shop.store.users'
 const ORDERS_KEY = 'shop.store.orders'
 const TOKEN_PREFIX = 'mock.'
 
-type StoredUser = User & { password: string }
+const pendingCodes = new Map<string, { registration?: { name: string; storeId: string } }>()
 
 function wait(ms = 280) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-function seedUsers(): StoredUser[] {
-  const existing = readJson<StoredUser[]>(USERS_KEY, [])
+function seedUsers(): User[] {
+  const existing = readJson<User[]>(USERS_KEY, [])
   if (existing.length > 0) return existing
   const seeded = [demoUser]
   writeJson(USERS_KEY, seeded)
@@ -25,7 +26,7 @@ function getUsers() {
   return seedUsers()
 }
 
-function saveUsers(users: StoredUser[]) {
+function saveUsers(users: User[]) {
   writeJson(USERS_KEY, users)
 }
 
@@ -41,7 +42,7 @@ function receiptCode() {
   return Math.random().toString(36).slice(2, 8).toUpperCase()
 }
 
-function toPublicUser(user: StoredUser): User {
+function toPublicUser(user: User): User {
   return { id: user.id, name: user.name, email: user.email, phone: user.phone, city: user.city }
 }
 
@@ -68,31 +69,30 @@ export const api = {
     return products.find((product) => product.storeId === storeId && product.id === productId) ?? null
   },
 
-  async login(email: string, password: string): Promise<AuthSession> {
-    await wait(400)
-    const user = getUsers().find((item) => item.email.toLowerCase() === email.trim().toLowerCase())
-    if (!user || user.password !== password) {
-      throw new Error('Invalid email or password')
+  async requestPhoneCode(phone: string, registration?: { name: string; storeId: string }) {
+    await wait()
+    if (!registration && !getUsers().some(user => normalizePhone(user.phone) === phone)) {
+      throw new Error('Could not send an SMS code. Check the number or try again later.')
     }
+    pendingCodes.set(phone, { registration })
+  },
+
+  async verifyPhoneCode(phone: string, code: string): Promise<AuthSession> {
+    await wait()
+    const pending = pendingCodes.get(phone)
+    if (!pending || code !== DEMO_SMS_CODE) throw new Error('The code is incorrect or has expired.')
+    const users = getUsers()
+    let user = users.find(entry => normalizePhone(entry.phone) === phone)
+    if (!user && pending.registration) {
+      user = { id: `user_${crypto.randomUUID().slice(0, 8)}`, name: pending.registration.name, email: '', phone }
+      saveUsers([...users, user])
+    }
+    if (!user) throw new Error('The code is incorrect or has expired.')
+    pendingCodes.delete(phone)
     return { token: `${TOKEN_PREFIX}${user.id}`, user: toPublicUser(user) }
   },
 
-  async register(input: { name: string; email: string; phone: string; password: string }): Promise<AuthSession> {
-    await wait(400)
-    const users = getUsers()
-    if (users.some((item) => item.email.toLowerCase() === input.email.trim().toLowerCase())) {
-      throw new Error('An account with this email already exists')
-    }
-    const user: StoredUser = {
-      id: `user_${crypto.randomUUID().slice(0, 8)}`,
-      name: input.name.trim(),
-      email: input.email.trim().toLowerCase(),
-      phone: input.phone.trim(),
-      password: input.password,
-    }
-    saveUsers([...users, user])
-    return { token: `${TOKEN_PREFIX}${user.id}`, user: toPublicUser(user) }
-  },
+  async joinStore() {},
 
   async getCurrentUser(token: string): Promise<User> {
     await wait(150)
@@ -166,6 +166,22 @@ export const api = {
     const user = userFromToken(token)
     if (!user) throw new Error('Sign in to view orders')
     return getOrders().filter((order) => order.userId === user.id && order.storeId === storeId)
+  },
+
+  async claimGuestOrder(storeId: string, code: string, token: string): Promise<boolean> {
+    await wait()
+    const user = userFromToken(token)
+    const phone = user && normalizePhone(user.phone)
+    if (!user || !phone) return false
+
+    const orders = getOrders()
+    const order = orders.find(entry => entry.storeId === storeId && entry.receiptCode.toLowerCase() === code.trim().toLowerCase())
+    if (!order) return false
+    if (order.userId === user.id) return true
+    if (order.userId !== 'guest' || normalizePhone(order.customerPhone) !== phone) return false
+
+    saveOrders(orders.map(entry => entry.id === order.id ? { ...entry, userId: user.id } : entry))
+    return true
   },
 
   async getOrderByReceipt(code: string): Promise<Order | null> {

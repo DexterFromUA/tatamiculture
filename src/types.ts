@@ -119,4 +119,5 @@ export type CheckoutInput = {
 export type AuthSession = {
   token: string
   user: User
+  registrationStoreId?: string
 }

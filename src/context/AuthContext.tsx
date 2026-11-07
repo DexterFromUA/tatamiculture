@@ -1,8 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api } from '../lib/api'
 import { removeKey, readJson, writeJson } from '../lib/storage'
-import type { User } from '../types'
-import type { AuthSession } from '../types'
+import type { AuthSession, User } from '../types'
 
 const TOKEN_KEY = 'shop.store.token'
 
@@ -11,9 +10,9 @@ type AuthContextValue = {
   token: string | null
   isAuthenticated: boolean
   initializing: boolean
-  loading: boolean
-  login: (email: string, password: string) => Promise<void>
-  register: (input: { name: string; email: string; phone: string; password: string }) => Promise<AuthSession>
+  requestPhoneCode: typeof api.requestPhoneCode
+  verifyPhoneCode: (phone: string, code: string, storeId: string) => Promise<AuthSession>
+  completePhoneSignIn: (session: AuthSession) => Promise<void>
   logout: () => void
 }
 
@@ -23,7 +22,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(() => readJson<string | null>(TOKEN_KEY, null))
   const [initializing, setInitializing] = useState(true)
-  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -56,29 +54,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const login = useCallback(async (email: string, password: string) => {
-    setLoading(true)
-    try {
-      const session = await api.login(email, password)
-      writeJson(TOKEN_KEY, session.token)
-      setToken(session.token)
-      setUser(session.user)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  const register = useCallback(async (input: { name: string; email: string; phone: string; password: string }) => {
-    setLoading(true)
-    try {
-      const session = await api.register(input)
-      writeJson(TOKEN_KEY, session.token)
-      setToken(session.token)
-      setUser(session.user)
-      return session
-    } finally {
-      setLoading(false)
-    }
+  const completePhoneSignIn = useCallback(async (session: AuthSession) => {
+    if (session.registrationStoreId) await api.joinStore(session.registrationStoreId, session)
+    writeJson(TOKEN_KEY, session.token)
+    setToken(session.token)
+    setUser(session.user)
   }, [])
 
   const logout = useCallback(() => {
@@ -93,12 +73,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token,
       isAuthenticated: Boolean(user),
       initializing,
-      loading,
-      login,
-      register,
+      requestPhoneCode: api.requestPhoneCode,
+      verifyPhoneCode: api.verifyPhoneCode,
+      completePhoneSignIn,
       logout,
     }),
-    [user, token, initializing, loading, login, register, logout],
+    [user, token, initializing, completePhoneSignIn, logout],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

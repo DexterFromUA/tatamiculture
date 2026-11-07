@@ -578,7 +578,7 @@ textarea {
 .auth-card--login .auth-card__head { margin-bottom: 12px; }
 .auth-card--login .auth-card__head h1 { font-size: clamp(2rem, 4vw, 2.75rem); }
 .auth-card--login .field { margin: 10px 0; }
-.auth-card__recovery { margin: 12px 0 0; }
+.auth-card__code-actions { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; }
 .auth-card--login .auth-card__footer { margin: 14px 0 0; }
 .auth-card--login .auth-card__demo { margin: 12px 0 0; padding-top: 10px; }
 .eyebrow { margin: 0 0 8px; color: var(--accent); font-size: .72rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
@@ -1111,6 +1111,8 @@ textarea {
 .receipt-summary dl div { display: grid; gap: 4px; padding: 14px 0; border-bottom: 1px solid var(--line); }
 .receipt-summary dt { color: var(--muted); font-size: .75rem; }
 .receipt-summary dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.receipt-claim { display: grid; gap: 10px; margin: 0 0 16px; }
+.receipt-claim p { margin: 0; font-size: .85rem; }
 .receipt-summary .btn { display: flex; width: 100%; min-height: 48px; font-size: .85rem; font-weight: 600; }
 .receipt-content .crm-panel { padding: clamp(24px, 3vw, 32px); }
 .receipt-content .crm-panel h3 { margin-bottom: 18px; }
@@ -1555,15 +1557,6 @@ input[type="date"] { color-scheme: light; }
 
 /* Registration follows the same centered account layout as sign in. */
 .auth-card--register .login-intro h1 { max-width: 10ch; }
-.register-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.auth-card--register .register-form .field { min-width: 0; margin: 0; }
-.register-form__wide, .register-form__error { grid-column: 1 / -1; }
-.register-form__error { margin: 0; }
-.auth-card--register .register-form .btn { margin-top: 4px; }
-@media (max-width: 400px) {
-  .register-form { grid-template-columns: 1fr; }
-  .register-form__wide, .register-form__error { grid-column: auto; }
-}
 
 .customer-account-actions {
   padding: 16px;

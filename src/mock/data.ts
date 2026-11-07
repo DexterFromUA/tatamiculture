@@ -1,6 +1,6 @@
 import type { Product, ShortLink, Store, User } from '../types'
 
-export const DEMO_PASSWORD = 'password'
+export const DEMO_SMS_CODE = '123456'
 
 export const stores: Store[] = [
   {
@@ -16,13 +16,12 @@ export const stores: Store[] = [
   },
 ]
 
-export const demoUser: User & { password: string } = {
+export const demoUser: User = {
   id: 'user_anna',
   name: 'Anna Koval',
   email: 'anna@example.com',
   phone: '+380501234567',
   city: 'Kyiv',
-  password: DEMO_PASSWORD,
 }
 
 export const products: Product[] = [
