@@ -10,6 +10,7 @@ import { Notifications } from '../components/Notifications'
 
 export function AccountPage() {
   const { user, token, logout } = useAuth()
+  const userId = user?.id
   const { store } = useStore()
   const navigate = useNavigate()
   const [orders, setOrders] = useState<Order[]>([])
@@ -20,9 +21,9 @@ export function AccountPage() {
   useEffect(() => {
     let cancelled = false
     const loadOrders = async () => {
-      if (!store || !token) return
+      if (!store || !token || !userId) return
       try {
-        const next = await api.getOrders(token, store.id)
+        const next = await api.getOrders(token, store.id, userId)
         if (!cancelled) setOrders(next)
       } catch (cause) {
         if (!cancelled) setOrdersError(cause instanceof Error ? cause.message : 'Could not load orders')
@@ -32,7 +33,7 @@ export function AccountPage() {
     }
     void loadOrders()
     return () => { cancelled = true }
-  }, [store, token])
+  }, [store, token, userId])
 
   if (!store || !user) return null
 

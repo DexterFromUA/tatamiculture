@@ -161,10 +161,10 @@ export const api = {
     return order
   },
 
-  async getOrders(token: string, storeId: string): Promise<Order[]> {
+  async getOrders(token: string, storeId: string, userId: string): Promise<Order[]> {
     await wait()
     const user = userFromToken(token)
-    if (!user) throw new Error('Sign in to view orders')
+    if (!user || user.id !== userId) throw new Error('Sign in to view orders')
     return getOrders().filter((order) => order.userId === user.id && order.storeId === storeId)
   },
 

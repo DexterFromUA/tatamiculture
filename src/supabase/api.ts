@@ -149,8 +149,8 @@ export const supabaseApi = {
     return mapOrder(row)
   },
 
-  async getOrders(token: string, storeId: string): Promise<Order[]> {
-    const rows = await supabaseRequest<Row[]>(`/rest/v1/orders?store_id=eq.${encodeURIComponent(storeId)}&select=*,order_items(*)&order=created_at.desc`, { token })
+  async getOrders(token: string, storeId: string, userId: string): Promise<Order[]> {
+    const rows = await supabaseRequest<Row[]>(`/rest/v1/orders?store_id=eq.${encodeURIComponent(storeId)}&user_id=eq.${encodeURIComponent(userId)}&select=*,order_items(*)&order=created_at.desc`, { token })
     return rows.map(mapOrder)
   },
 

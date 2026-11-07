@@ -14,11 +14,12 @@ export function PhoneAuthPage({ register = false }: { register?: boolean }) {
   const { store } = useStore()
   const { isAuthenticated, initializing, requestPhoneCode, verifyPhoneCode, completePhoneSignIn } = useAuth()
   const location = useLocation()
-  const intent = location.state as { from?: string; receiptToClaim?: string } | null
+  const intent = location.state as { from?: string; receiptToClaim?: string; orderPhone?: string } | null
   const from = intent?.from ?? '/'
   const receiptToClaim = intent?.receiptToClaim
   const claimOrder = receiptToClaim && from === `/receipt/${encodeURIComponent(receiptToClaim)}`
-  const [phone, setPhone] = useState('')
+  const orderPhone = claimOrder ? normalizePhone(intent?.orderPhone ?? '') : null
+  const [phone, setPhone] = useState(orderPhone ?? '')
   const [name, setName] = useState('')
   const [sentTo, setSentTo] = useState<string | null>(null)
   const [code, setCode] = useState('')
@@ -26,7 +27,7 @@ export function PhoneAuthPage({ register = false }: { register?: boolean }) {
   const [seconds, setSeconds] = useState(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [claimFailed, setClaimFailed] = useState(false)
+  const [claimError, setClaimError] = useState('')
 
   useEffect(() => {
     if (seconds <= 0) return
@@ -35,13 +36,17 @@ export function PhoneAuthPage({ register = false }: { register?: boolean }) {
   }, [seconds])
 
   if (initializing) return <div className="page-status">{t('Loading…')}</div>
-  if (isAuthenticated) return <Navigate to={from} replace state={claimFailed ? { claimFailed: true } : undefined} />
+  if (isAuthenticated) return <Navigate to={from} replace state={claimError ? { claimError } : undefined} />
 
   const sendCode = async () => {
     if (busy || !store) return
     const number = normalizePhone(phone)
     if (!number) {
       setError('Enter a valid phone number.')
+      return
+    }
+    if (orderPhone && number !== orderPhone) {
+      setError('Use the phone number from this order.')
       return
     }
     const customerName = name.trim()
@@ -83,8 +88,12 @@ export function PhoneAuthPage({ register = false }: { register?: boolean }) {
         setVerified(session)
       }
       if (claimOrder) {
-        const claimed = await api.claimGuestOrder(store.id, receiptToClaim, session.token).catch(() => false)
-        setClaimFailed(!claimed)
+        try {
+          const claimed = await api.claimGuestOrder(store.id, receiptToClaim, session.token)
+          setClaimError(claimed ? '' : 'This order could not be linked to this account.')
+        } catch {
+          setClaimError('Could not save this order. Try again.')
+        }
       }
       await completePhoneSignIn(session)
     } catch (cause) {
@@ -110,7 +119,7 @@ export function PhoneAuthPage({ register = false }: { register?: boolean }) {
         <div className="login-form-panel">
           <p className="eyebrow">{t(sentTo ? 'Verify your phone' : register ? 'Create account' : 'Sign in')}</p>
           <form className="form auth-card__form" onSubmit={event => void submit(event)}>
-            {claimOrder && !sentTo && <p className="muted">{t('Use the phone number from this order.')}</p>}
+            {claimOrder && !sentTo && !error && <p className="muted">{t('Use the phone number from this order.')}</p>}
             {error && <p className="error" role="alert">{t(error)}</p>}
             {sentTo ? <>
               <p className="muted" role="status">{t('Code sent to {{phone}}.', { phone: sentTo })}</p>

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { formatDate, formatPrice } from '../lib/format'
 import { api } from '../lib/api'
+import { normalizePhone } from '../lib/phone'
 import type { Order } from '../types'
 import { useTranslation } from 'react-i18next'
 import { OrderActivity } from '../components/OrderActivity'
@@ -11,9 +12,10 @@ import { OrderActivity } from '../components/OrderActivity'
 export function ReceiptPage() {
   const { code } = useParams()
   const { store } = useStore()
-  const { user, token, initializing } = useAuth()
+  const { user, token, initializing, logout } = useAuth()
   const location = useLocation()
-  const returnedWithError = (location.state as { claimFailed?: boolean } | null)?.claimFailed === true
+  const navigate = useNavigate()
+  const returnError = (location.state as { claimError?: string } | null)?.claimError
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
   const [claiming, setClaiming] = useState(false)
@@ -53,15 +55,19 @@ export function ReceiptPage() {
   const guestOrder = order.userId === 'guest' && order.storeId === store.id
   const ownOrder = user?.id === order.userId
   const receiptPath = `/receipt/${encodeURIComponent(order.receiptCode)}`
+  const orderPhone = normalizePhone(order.customerPhone)
+  const wrongAccount = Boolean(user && orderPhone && normalizePhone(user.phone) !== orderPhone)
+  const claimIntent = { from: receiptPath, receiptToClaim: order.receiptCode, orderPhone }
+  const visibleClaimError = !claiming && (claimError || returnError)
   const claimOrder = async () => {
-    if (!user || !token || !guestOrder || claiming) return
+    if (!user || !token || !guestOrder || !orderPhone || wrongAccount || claiming) return
     setClaiming(true)
     setClaimError('')
     try {
       if (await api.claimGuestOrder(store.id, order.receiptCode, token)) {
         setOrder(current => current?.id === order.id ? { ...current, userId: user.id } : current)
       } else {
-        setClaimError('Use an account with the verified phone number from this order.')
+        setClaimError('This order could not be linked to this account.')
       }
     } catch {
       setClaimError('Could not save this order. Try again.')
@@ -98,17 +104,33 @@ export function ReceiptPage() {
       <OrderActivity receiptCode={order.receiptCode} currency={order.currency} />
       </div><aside className="receipt-card receipt-summary"><p className="eyebrow">{t('Receipt')} · {order.receiptCode}</p><h2>{t('Order details')}</h2><dl><div><dt>{t('Order status')}</dt><dd>{t(order.status)}</dd></div><div><dt>{t('Payment status')}</dt><dd>{t(`payment_${order.paymentStatus}`)}</dd></div>{order.paymentMethod ? <div><dt>{t('Payment method')}</dt><dd>{t(order.paymentMethod === 'CASH_ON_DELIVERY' ? 'Payment on delivery' : 'Online payment')}</dd></div> : null}</dl>
         {!initializing && (guestOrder || ownOrder) && <div className="receipt-claim">
-          {ownOrder ? <Link to="/account" className="text-btn">{t('View in order history')} ↗</Link> : <>
-            <p className="muted">{t('Use the phone number from this order.')}</p>
-            {(claimError || returnedWithError) && <p className="error" role="alert">{t(claimError || 'Could not save this order. Check the phone number and try again.')}</p>}
-            {user && token
-              ? <button type="button" className="btn" disabled={claiming} onClick={() => void claimOrder()}>
-                  {t(claiming ? 'Saving…' : 'Save order to account')}
-                </button>
-              : <Link to="/login" state={{ from: receiptPath, receiptToClaim: order.receiptCode }} className="btn">
-                  {t('Save order to account')}
-                </Link>}
-          </>}
+          {ownOrder ? (
+            <Link to="/account" className="text-btn">{t('View in order history')} ↗</Link>
+          ) : !orderPhone ? (
+            <p className="muted">{t('This order cannot be saved because the checkout phone number is invalid.')}</p>
+          ) : wrongAccount ? (
+            <>
+              <p className="muted">{t('Your account uses a different phone number from this order.')}</p>
+              <button type="button" className="btn" onClick={() => {
+                logout()
+                navigate('/login', { state: claimIntent })
+              }}>
+                {t('Sign in with the order phone number')}
+              </button>
+            </>
+          ) : (
+            <>
+              {!user && <p className="muted">{t('Use the phone number from this order.')}</p>}
+              {visibleClaimError && <p className="error" role="alert">{t(visibleClaimError)}</p>}
+              {user && token
+                ? <button type="button" className="btn" disabled={claiming} onClick={() => void claimOrder()}>
+                    {t(claiming ? 'Saving…' : 'Save order to account')}
+                  </button>
+                : <Link to="/login" state={claimIntent} className="btn">
+                    {t('Save order to account')}
+                  </Link>}
+            </>
+          )}
         </div>}
         {guestOrder || ownOrder
           ? <Link to="/" className="text-btn">{t('Continue shopping')} ↗</Link>

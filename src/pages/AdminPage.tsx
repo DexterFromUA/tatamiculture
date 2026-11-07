@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { CustomerPanel, type CustomerOrder, type CustomerPanelTarget } from '../components/CustomerPanel'
 import { AdminTabs } from '../components/AdminTabs'
 import type { AdminSection } from '../components/AdminTabs'
@@ -7,6 +8,7 @@ import { SettingsWorkspace } from '../components/SettingsWorkspace'
 import { CustomersPage } from './CustomersPage'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
+import { useToast } from '../context/ToastContext'
 import { formatDate, formatPrice } from '../lib/format'
 import { supabaseConfigured, supabaseRequest } from '../lib/supabase'
 import type { OrderStatus } from '../types'
@@ -33,6 +35,7 @@ const statuses: OrderStatus[] = ['PENDING', 'PAID', 'IN_PROGRESS', 'READY_FOR_PI
 export function AdminPage() {
   const { store } = useStore()
   const { token, user } = useAuth()
+  const { addToast } = useToast()
   const [orders, setOrders] = useState<AdminOrder[]>([])
   const [inventory, setInventory] = useState<InventoryProduct[]>([])
   const [member, setMember] = useState<boolean | null>(null)
@@ -97,6 +100,15 @@ export function AdminPage() {
     [t('Receipt'), t('Name'), t('Email'), t('Phone'), t('Order status'), t('Total'), 'Currency', 'Created'],
     ...visibleOrders.map(order => [order.receipt_code, order.customer_name, order.customer_email, order.customer_phone, t(order.status), Number(order.total_price) / 100, order.currency, order.created_at]),
   ])
+
+  const copyReceiptLink = async (path: string) => {
+    try {
+      await navigator.clipboard.writeText(new URL(path, window.location.origin).href)
+      addToast(t('Receipt link copied'))
+    } catch {
+      addToast(t('Could not copy the link. Open the receipt using its number.'))
+    }
+  }
 
   const changeStatus = async (id: string, status: OrderStatus) => {
     if (!token) return
@@ -188,22 +200,30 @@ export function AdminPage() {
           <div className="order-filters"><input placeholder={t('Search name, email or receipt')} value={search} onChange={(event) => setSearch(event.target.value)} /><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'ALL' | OrderStatus)}><option value="ALL">{t('All statuses')}</option>{statuses.map((status) => <option key={status} value={status}>{t(status)}</option>)}</select><input aria-label={t('Orders from date')} type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /><input aria-label={t('Orders to date')} type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} /></div>
           <button className="text-btn" disabled={!visibleOrders.length} onClick={exportOrders}>{t('Export CSV')} ({visibleOrders.length})</button>
           <div className="crm-pagination"><button className="text-btn" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t('Previous')}</button><span>{currentPage} / {pages}</span><button className="text-btn" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>{t('Next')}</button></div>
-          {orders.length === 0 ? <p className="muted">{t('No orders yet.')}</p> : visibleOrders.length === 0 ? <p className="muted">{t('No orders match these filters.')}</p> : <ul className="admin-list">{pageOrders.map((order) => (
-            <li key={order.id} className="crm-order">
-              <div className="crm-order__identity"><span className="crm-order__reference">#{order.receipt_code} · {formatDate(order.created_at)}</span><strong>{order.customer_name}</strong><span>{order.customer_email} {order.customer_phone ? `· ${order.customer_phone}` : ''}</span></div>
-              <div className="crm-order__amount"><strong>{formatPrice(Number(order.total_price) / 100, order.currency)}</strong><span>{order.payment_method === 'CASH_ON_DELIVERY' ? t('Payment on delivery') : t('Online payment')}</span></div>
-              <div className="crm-order__status"><span>{t('Order status')}</span>
-              <label className="sr-only" htmlFor={`status-${order.id}`}>{t('Order status')}</label>
-              <select id={`status-${order.id}`} value={order.status} disabled={updatingId === order.id} onChange={(event) => void changeStatus(order.id, event.target.value as OrderStatus)}>
-                {statuses.map((status) => <option key={status} value={status}>{t(status)}</option>)}
-              </select></div>
-              {order.nova_poshta_status ? <p className="crm-order__delivery">{order.nova_poshta_status}</p> : null}
-              <div className="crm-order__actions"><button type="button" className="text-btn" onClick={() => setOperations(order)}>{t('Order operations')}</button>
-              <button type="button" className="text-btn" aria-haspopup="dialog" title={t('Open customer card')} onClick={() => setSelectedCustomer({ kind: 'order', id: order.id })}>{t('Customer')}</button>
-              {order.nova_poshta_ttn ? <span className="ttn-actions"><a className="text-btn" href={`https://novaposhta.ua/tracking/?cargo_number=${encodeURIComponent(order.nova_poshta_ttn)}`} target="_blank" rel="noreferrer">TTN {order.nova_poshta_ttn}</a><button type="button" className="text-btn" disabled={trackingId === order.id} onClick={() => void refreshTracking(order.id)}>{trackingId === order.id ? t('Updating…') : t('Update status')}</button></span> : <button type="button" className="text-btn" disabled={creatingTtnId === order.id || order.status.startsWith('CANCELLED')} onClick={() => void createTtn(order.id)}>{creatingTtnId === order.id ? t('Creating TTN…') : t('Create TTN')}</button>}
-              {order.status === 'PENDING' && order.payment_status !== 'PAID' ? <button type="button" className="text-btn crm-order__cancel" disabled={updatingId === order.id} onClick={() => void cancelAndRestoreStock(order.id)}>{t('Cancel & restore stock')}</button> : null}</div>
-            </li>
-          ))}</ul>}
+          {orders.length === 0 ? <p className="muted">{t('No orders yet.')}</p> : visibleOrders.length === 0 ? <p className="muted">{t('No orders match these filters.')}</p> : <ul className="admin-list">{pageOrders.map((order) => {
+            const receiptPath = `/receipt/${encodeURIComponent(order.receipt_code)}`
+            return (
+              <li key={order.id} className="crm-order">
+                <div className="crm-order__identity">
+                  <span className="crm-order__reference"><Link to={receiptPath} target="_blank" rel="noreferrer">#{order.receipt_code}</Link> · {formatDate(order.created_at)}</span>
+                  <strong>{order.customer_name}</strong>
+                  <span>{order.customer_email} {order.customer_phone ? `· ${order.customer_phone}` : ''}</span>
+                </div>
+                <div className="crm-order__amount"><strong>{formatPrice(Number(order.total_price) / 100, order.currency)}</strong><span>{order.payment_method === 'CASH_ON_DELIVERY' ? t('Payment on delivery') : t('Online payment')}</span></div>
+                <div className="crm-order__status"><span>{t('Order status')}</span>
+                <label className="sr-only" htmlFor={`status-${order.id}`}>{t('Order status')}</label>
+                <select id={`status-${order.id}`} value={order.status} disabled={updatingId === order.id} onChange={(event) => void changeStatus(order.id, event.target.value as OrderStatus)}>
+                  {statuses.map((status) => <option key={status} value={status}>{t(status)}</option>)}
+                </select></div>
+                {order.nova_poshta_status ? <p className="crm-order__delivery">{order.nova_poshta_status}</p> : null}
+                <div className="crm-order__actions"><button type="button" className="text-btn" onClick={() => setOperations(order)}>{t('Order operations')}</button>
+                <button type="button" className="text-btn" onClick={() => void copyReceiptLink(receiptPath)}>{t('Copy receipt link')}</button>
+                <button type="button" className="text-btn" aria-haspopup="dialog" title={t('Open customer card')} onClick={() => setSelectedCustomer({ kind: 'order', id: order.id })}>{t('Customer')}</button>
+                {order.nova_poshta_ttn ? <span className="ttn-actions"><a className="text-btn" href={`https://novaposhta.ua/tracking/?cargo_number=${encodeURIComponent(order.nova_poshta_ttn)}`} target="_blank" rel="noreferrer">TTN {order.nova_poshta_ttn}</a><button type="button" className="text-btn" disabled={trackingId === order.id} onClick={() => void refreshTracking(order.id)}>{trackingId === order.id ? t('Updating…') : t('Update status')}</button></span> : <button type="button" className="text-btn" disabled={creatingTtnId === order.id || order.status.startsWith('CANCELLED')} onClick={() => void createTtn(order.id)}>{creatingTtnId === order.id ? t('Creating TTN…') : t('Create TTN')}</button>}
+                {order.status === 'PENDING' && order.payment_status !== 'PAID' ? <button type="button" className="text-btn crm-order__cancel" disabled={updatingId === order.id} onClick={() => void cancelAndRestoreStock(order.id)}>{t('Cancel & restore stock')}</button> : null}</div>
+              </li>
+            )
+          })}</ul>}
         </section>
       </div>
       </>}

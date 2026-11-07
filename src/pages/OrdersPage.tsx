@@ -8,7 +8,8 @@ import type { Order } from '../types'
 
 export function OrdersPage() {
   const { store } = useStore()
-  const { token } = useAuth()
+  const { token, user } = useAuth()
+  const userId = user?.id
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -17,9 +18,9 @@ export function OrdersPage() {
     let cancelled = false
 
     const load = async () => {
-      if (!token || !store) return
+      if (!token || !store || !userId) return
       try {
-        const next = await api.getOrders(token, store.id)
+        const next = await api.getOrders(token, store.id, userId)
         if (!cancelled) setOrders(next)
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load orders')
@@ -32,7 +33,7 @@ export function OrdersPage() {
     return () => {
       cancelled = true
     }
-  }, [token, store])
+  }, [token, store, userId])
 
   if (!store) return null
 

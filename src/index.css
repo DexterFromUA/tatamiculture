@@ -1173,6 +1173,7 @@ textarea {
 .crm-page .crm-order__identity strong { display: block; margin: 4px 0; font-size: 1rem; }
 .crm-page .crm-order__identity span, .crm-page .crm-order__amount span, .crm-page .crm-order__status > span { color: var(--muted); font-size: .75rem; overflow-wrap: anywhere; }
 .crm-page .crm-order__reference { font-weight: 700; letter-spacing: .04em; }
+.crm-order__reference a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 .crm-order__amount strong { display: block; font-size: 1rem; white-space: nowrap; }
 .crm-order__status select { width: 100%; min-height: 40px; margin-top: 5px; padding: 8px; background: var(--paper); }
 .crm-order__delivery { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: .8rem; }
