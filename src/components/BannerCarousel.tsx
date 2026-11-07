@@ -1,8 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { BannerImage } from '../lib/banner'
 
-export function BannerCarousel({ images }: { images: BannerImage[] }) {
+export function BannerCarousel({ images, imageRef, ready, hideFirstImage }: {
+  images: BannerImage[]
+  imageRef: Ref<HTMLImageElement>
+  ready: boolean
+  hideFirstImage: boolean
+}) {
   const { t } = useTranslation()
   const [position, setPosition] = useState(0)
   const [paused, setPaused] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)
@@ -10,10 +15,10 @@ export function BannerCarousel({ images }: { images: BannerImage[] }) {
   const current = position % total
 
   useEffect(() => {
-    if (paused || total < 2) return
+    if (!ready || paused || total < 2) return
     const timer = window.setTimeout(() => setPosition((current + 1) % total), 5000)
     return () => window.clearTimeout(timer)
-  }, [current, paused, total])
+  }, [current, paused, ready, total])
 
   const move = (step: number) => {
     setPaused(true)
@@ -21,7 +26,7 @@ export function BannerCarousel({ images }: { images: BannerImage[] }) {
   }
 
   return <div className="storefront-hero__image">
-    <img src={images[current].url} alt="" />
+    <img ref={imageRef} src={images[current].url} alt="" hidden={hideFirstImage && current === 0} fetchPriority={current === 0 ? 'high' : 'auto'} />
     {total > 1 && <div className="banner-carousel__controls" role="group" aria-label={t('Banner images')}>
       <button type="button" onClick={() => setPaused(!paused)} aria-label={t(paused ? 'Play slideshow' : 'Pause slideshow')}>
         <span aria-hidden="true">{paused ? '▶' : 'Ⅱ'}</span>
