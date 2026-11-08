@@ -9,6 +9,7 @@ import { categoriesForProduct, categoryGroups, categoryLabel } from '../lib/cate
 import { optionPrice } from '../lib/format'
 
 const bannerTimeout = 5000
+const siteIcon = '/tatami-mark-transparent.png'
 
 export function CatalogPage() {
   const { store, products } = useStore()
@@ -45,7 +46,7 @@ export function CatalogPage() {
     .filter(product => product.isActive && product.isNew && product.imgUrls[0])
     .sort((a, b) => (Date.parse(b.createdAt || '') || 0) - (Date.parse(a.createdAt || '') || 0) || a.id.localeCompare(b.id))
     .map(product => ({ url: product.imgUrls[0], path: '', productId: product.id, productName: product.name }))
-  const firstImage = showBanner ? images[0]?.url : undefined
+  const firstImage = showBanner ? (images[0]?.url ?? siteIcon) : undefined
   const waitingForImage = Boolean(firstImage && imageResult?.url !== firstImage)
   const imageUnavailable = imageResult?.url === firstImage && imageResult?.loaded === false
   const loading = loadingBanner || waitingForImage
@@ -116,6 +117,11 @@ export function CatalogPage() {
           </div>
           {(images.length > 1 || (images.length === 1 && !imageUnavailable)) && (
             <BannerCarousel key={JSON.stringify(images.map(image => image.url))} images={images} imageRef={heroImage} ready={!loading} hideFirstImage={imageUnavailable} />
+          )}
+          {images.length === 0 && !imageUnavailable && (
+            <div className="storefront-hero__image storefront-hero__image--site-icon">
+              <img ref={heroImage} src={siteIcon} alt="" fetchPriority="high" />
+            </div>
           )}
         </header>}
         {!loading && (
