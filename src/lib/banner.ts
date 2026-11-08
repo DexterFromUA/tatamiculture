@@ -1,4 +1,4 @@
-export type BannerImage = { url: string; path: string }
+export type BannerImage = { url: string; path: string; productId?: string; productName?: string }
 
 export type Banner = {
   store_id: string

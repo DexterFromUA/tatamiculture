@@ -35,6 +35,7 @@ type CatalogProduct = {
   category_id: string | null
   product_categories: Array<{ category_id: string }>
   is_active: boolean
+  is_new: boolean
   product_images: ProductImage[]
   product_variants: Variant[]
 }
@@ -51,6 +52,7 @@ type Draft = {
   description: string
   categoryIds: string[]
   isActive: boolean
+  isNew: boolean
   images: ProductImage[]
   newImageFiles: File[]
   removedImageIds: string[]
@@ -59,7 +61,7 @@ type Draft = {
 
 const defaultLowStockThreshold = 3
 const blankVariant = (): DraftVariant => ({ key: crypto.randomUUID(), name: 'M', sku: '', price: 0, compare_at_price: null, stock_quantity: 0, low_stock_threshold: defaultLowStockThreshold, is_preorder: false })
-const blankDraft = (): Draft => ({ key: crypto.randomUUID(), newImagesFirst: false, sizeGuide: '', sizeGuideImageUrl: '', sizeGuideImageFile: null, composition: '', careInstructions: '', name: '', description: '', categoryIds: [], isActive: true, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
+const blankDraft = (): Draft => ({ key: crypto.randomUUID(), newImagesFirst: false, sizeGuide: '', sizeGuideImageUrl: '', sizeGuideImageFile: null, composition: '', careInstructions: '', name: '', description: '', categoryIds: [], isActive: true, isNew: false, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
 const categorySlug = (name: string) => `${name.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'category'}-${crypto.randomUUID().slice(0, 8)}`
 
 function assignedCategoryIds(product: CatalogProduct) {
@@ -86,6 +88,7 @@ function toDraft(product: CatalogProduct): Draft {
     description: product.description,
     categoryIds: assignedCategoryIds(product),
     isActive: product.is_active,
+    isNew: product.is_new === true,
     images: [...product.product_images].sort((a, b) => a.position - b.position),
     newImageFiles: [],
     removedImageIds: [],
@@ -378,6 +381,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
         description: draft.description,
         size_guide: draft.sizeGuide, composition: draft.composition, care_instructions: draft.careInstructions,
         is_active: draft.isActive,
+        is_new: draft.isNew,
       }
       const productId = draft.key
       const productPath = `/rest/v1/products?id=eq.${encodeURIComponent(productId)}&store_id=eq.${encodeURIComponent(store.id)}`
@@ -661,7 +665,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
             const unavailable = product.product_variants.filter(variant => !variant.is_preorder && variant.stock_quantity === 0).length
             return <li key={product.id} className={selected.includes(product.id) ? 'catalog-admin__selected' : undefined}>
               {product.product_images[0] && <img className="catalog-admin__thumb" src={product.product_images[0].public_url} alt="" />}
-              <div className="catalog-admin__item"><strong>{product.name}</strong><span>{categoryPaths(categories, assignedCategoryIds(product), language).join(' · ') || t('Uncategorized')} · {product.is_active ? t('Published') : t('Hidden')}</span><span>{product.product_variants.length} {t('variants')}{unavailable ? ` · ${unavailable} ${t('out of stock')}` : ''}</span></div>
+              <div className="catalog-admin__item"><strong>{product.name}</strong><span>{categoryPaths(categories, assignedCategoryIds(product), language).join(' · ') || t('Uncategorized')} · {product.is_active ? t('Published') : t('Hidden')}{product.is_new && ` · ${t('New arrival')}`}</span><span>{product.product_variants.length} {t('variants')}{unavailable ? ` · ${unavailable} ${t('out of stock')}` : ''}</span></div>
               <div className="actions">
                 <input type="checkbox" aria-label={`${t('Select product')} · ${product.name}`} checked={selected.includes(product.id)} disabled={saving} onChange={event => setSelected(current => event.target.checked ? [...current, product.id] : current.filter(id => id !== product.id))} />
                 <button type="button" className="text-btn" onClick={() => openProduct(product)}>{t('Edit')}</button>
@@ -761,6 +765,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
             </figure>)}
           </div> : null}
           <label className="check"><input type="checkbox" checked={draft.isActive} onChange={(event) => setDraft({ ...draft, isActive: event.target.checked })} /> {t('Published in storefront')}</label>
+          <label className="check"><input type="checkbox" checked={draft.isNew} onChange={event => setDraft({ ...draft, isNew: event.target.checked })} /> {t('Mark as new')}</label>
           <div className="variant-editor"><div className="product-editor__head"><h3>{t('Sizes and stock')}</h3><button type="button" className="text-btn" onClick={() => setDraft({ ...draft, variants: [...draft.variants, blankVariant()] })}>{t('Add size')}</button></div>
             {draft.variants.map((variant, index) => <div className="variant-editor__row" key={variant.key}>
               <label className="variant-field"><span>{t('Size')}</span><input value={variant.name} onChange={(event) => updateVariant(index, 'name', event.target.value)} /></label>

@@ -25,6 +25,7 @@ function mapProduct(row: Row): Product {
     id: text(row.id), storeId: text(row.store_id), name: text(row.name), description: text(row.description), createdAt: text(row.created_at),
     sizeGuide: text(row.size_guide), sizeGuideImageUrl: text(row.size_guide_image_url), composition: text(row.composition), careInstructions: text(row.care_instructions),
     primaryCategory: category ?? undefined, isActive: Boolean(row.is_active),
+    isNew: row.is_new === true,
     categories: assignments?.flatMap(link => link.categories ? [link.categories] : []),
     imgUrls: images.sort((a, b) => Number(a.position) - Number(b.position)).map((image) => text(image.public_url)),
     productOptions: variants.sort((a, b) => Number(a.position) - Number(b.position)).map((variant): ProductOption => {

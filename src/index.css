@@ -214,15 +214,20 @@ textarea {
   text-transform: uppercase;
 }
 
-.product-card__image .badge {
+.product-card__badges { display: flex; flex-wrap: wrap; gap: 4px; }
+.product-card__image .product-card__badges {
   position: absolute;
   top: 10px;
   left: 10px;
+  right: 10px;
+}
+.product-card__badges .badge {
   margin: 0;
   background: var(--card);
   padding: 5px 10px;
   font-weight: 700;
 }
+.badge.badge--new { margin-left: 0; color: #fff; background: #263d30; border-color: #263d30; }
 
 @media (prefers-reduced-motion: reduce) { .product-card__image img { transition: none; } }
 
@@ -254,6 +259,10 @@ textarea {
 .storefront-hero__link { display: inline-flex; align-items: center; justify-content: space-between; gap: 36px; padding: 14px 17px; background: #192b22; color: #fff; font-size: .84rem; font-weight: 600; text-decoration: none; }
 .storefront-hero__image { position: relative; min-height: 0; overflow: hidden; background: #cbd2c9; }
 .storefront-hero__image img { width: 100%; height: 100%; position: absolute; inset: 0; object-fit: cover; }
+.banner-carousel__product { position: absolute; inset: 0; color: #192b22; }
+.banner-carousel__product:focus-visible { outline: 3px solid #fff; outline-offset: -5px; }
+.banner-carousel__product-name { position: absolute; left: 18px; bottom: 18px; max-width: calc(100% - 36px); padding: 7px 10px; background: rgba(255,255,255,.92); color: #192b22; font-size: .72rem; overflow-wrap: anywhere; }
+.storefront-hero__image:has(.banner-carousel__controls) .banner-carousel__product-name { bottom: 60px; }
 .storefront-hero__image > span { position: absolute; right: 18px; bottom: 18px; padding: 7px 10px; background: rgba(255,255,255,.9); color: #192b22; font-size: .72rem; }
 .banner-carousel__controls { position: absolute; bottom: 12px; right: 12px; display: flex; align-items: center; background: #192b22; color: white; }
 .banner-carousel__controls button { width: 40px; height: 40px; border: 0; background: transparent; color: inherit; cursor: pointer; }

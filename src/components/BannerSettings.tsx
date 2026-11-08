@@ -87,6 +87,7 @@ export function BannerSettings() {
       <div className="banner-settings__image">
         <label className="field">
           <span>{t('Banner images')}</span>
+          <small>{t('If no banner images are added, photos of new products will be shown.')}</small>
           <input type="file" multiple accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={event => {
             const picked = Array.from(event.target.files ?? [])
             setFiles(current => [...current, ...picked])

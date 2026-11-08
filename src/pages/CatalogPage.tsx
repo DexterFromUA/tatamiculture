@@ -40,7 +40,11 @@ export function CatalogPage() {
 
   const loadingBanner = supabaseConfigured && banner === undefined
   const showBanner = !loadingBanner && banner?.enabled !== false
-  const images = bannerImages(banner)
+  const configuredImages = bannerImages(banner)
+  const images = configuredImages.length ? configuredImages : products
+    .filter(product => product.isActive && product.isNew && product.imgUrls[0])
+    .sort((a, b) => (Date.parse(b.createdAt || '') || 0) - (Date.parse(a.createdAt || '') || 0) || a.id.localeCompare(b.id))
+    .map(product => ({ url: product.imgUrls[0], path: '', productId: product.id, productName: product.name }))
   const firstImage = showBanner ? images[0]?.url : undefined
   const waitingForImage = Boolean(firstImage && imageResult?.url !== firstImage)
   const imageUnavailable = imageResult?.url === firstImage && imageResult?.loaded === false
@@ -111,7 +115,7 @@ export function CatalogPage() {
             <a href="#collection" className="storefront-hero__link">{t('Explore collection')} <span aria-hidden="true">↗</span></a>
           </div>
           {(images.length > 1 || (images.length === 1 && !imageUnavailable)) && (
-            <BannerCarousel images={images} imageRef={heroImage} ready={!loading} hideFirstImage={imageUnavailable} />
+            <BannerCarousel key={JSON.stringify(images.map(image => image.url))} images={images} imageRef={heroImage} ready={!loading} hideFirstImage={imageUnavailable} />
           )}
         </header>}
         {!loading && (

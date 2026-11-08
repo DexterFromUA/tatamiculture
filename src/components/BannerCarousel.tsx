@@ -1,5 +1,6 @@
 import { useEffect, useState, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import type { BannerImage } from '../lib/banner'
 
 export function BannerCarousel({ images, imageRef, ready, hideFirstImage }: {
@@ -26,7 +27,10 @@ export function BannerCarousel({ images, imageRef, ready, hideFirstImage }: {
   }
 
   return <div className="storefront-hero__image">
-    <img ref={imageRef} src={images[current].url} alt="" hidden={hideFirstImage && current === 0} fetchPriority={current === 0 ? 'high' : 'auto'} />
+    {images[current].productId ? <Link className="banner-carousel__product" to={`/product/${images[current].productId}`} aria-label={images[current].productName}>
+      <img ref={imageRef} src={images[current].url} alt="" hidden={hideFirstImage && current === 0} fetchPriority={current === 0 ? 'high' : 'auto'} />
+      <span className="banner-carousel__product-name">{images[current].productName} ↗</span>
+    </Link> : <img ref={imageRef} src={images[current].url} alt="" hidden={hideFirstImage && current === 0} fetchPriority={current === 0 ? 'high' : 'auto'} />}
     {total > 1 && <div className="banner-carousel__controls" role="group" aria-label={t('Banner images')}>
       <button type="button" onClick={() => setPaused(!paused)} aria-label={t(paused ? 'Play slideshow' : 'Pause slideshow')}>
         <span aria-hidden="true">{paused ? '▶' : 'Ⅱ'}</span>

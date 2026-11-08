@@ -12,6 +12,12 @@ export function ProductCard({ product, store, scrollToTop = false }: { product: 
   const priceLabel = min === max ? formatPrice(min, store.currency) : t('From {{price}}', { price: formatPrice(min, store.currency) })
   const onSale = product.productOptions.some((option) => option.isDiscount)
   const image = product.imgUrls[0]
+  const badges = (product.isNew || onSale) && (
+    <div className="product-card__badges">
+      {product.isNew && <span className="badge badge--new">{t('New arrival')}</span>}
+      {onSale && <span className="badge">{t('Sale')}</span>}
+    </div>
+  )
 
   return (
     <Link to={`/product/${product.id}`} className="product-card" onClick={event => {
@@ -19,10 +25,11 @@ export function ProductCard({ product, store, scrollToTop = false }: { product: 
     }}>
       {image && <div className="product-card__image">
         <img src={image} alt="" />
-        {onSale ? <span className="badge">{t('Sale')}</span> : null}
+        {badges}
       </div>}
+      {!image && badges}
       <div className="product-card__meta">
-        <p className="muted">{productCategoryLabel(product, i18n.resolvedLanguage) ?? t('Uncategorized')}{!image && onSale && ` · ${t('Sale')}`}</p>
+        <p className="muted">{productCategoryLabel(product, i18n.resolvedLanguage) ?? t('Uncategorized')}</p>
         <h3>{product.name}</h3>
         <p>{priceLabel}</p>
       </div>

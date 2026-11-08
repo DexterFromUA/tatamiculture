@@ -55,6 +55,7 @@ export type Product = {
   categories?: CatalogCategory[]
   imgUrls: string[]
   isActive: boolean
+  isNew: boolean
   productOptions: ProductOption[]
 }
 

@@ -2,6 +2,9 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 const uk = {
+  'If no banner images are added, photos of new products will be shown.': 'Якщо зображення банера не додані, показуватимуться фото новинок.',
+  'New arrival': 'Новинка',
+  'Mark as new': 'Позначити як новинку',
   'Size guide image': 'Фото розмірної сітки',
   'Store temporarily unavailable': 'Магазин тимчасово недоступний',
   'Store contacts': 'Контакти магазину',

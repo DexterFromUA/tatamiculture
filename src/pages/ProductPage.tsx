@@ -87,6 +87,7 @@ function ProductDetails() {
       <div className="product-view__body">
         <Link className="shop-back" to="/">← {t('Back to shop')}</Link>
         <p className="muted">{categoryPaths(categories, categoryIds, i18n.resolvedLanguage).join(' · ') || productCategoryLabel(product, i18n.resolvedLanguage) || t('Uncategorized')}</p>
+        {product.isNew && <span className="badge badge--new">{t('New arrival')}</span>}
         <h1>{product.name}</h1>
         {product.description.trim() && (
           <div className="lede product-description">
