@@ -113,6 +113,7 @@ export const supabaseApi = {
     const profile = await profileFor(user, token).catch(() => null)
     return {
       token,
+      refreshToken: typeof session.refresh_token === 'string' ? session.refresh_token : undefined,
       user: mapUser(user, profile),
       registrationStoreId: metadata?.registration_store_id === storeId ? storeId : undefined,
     }
@@ -128,7 +129,7 @@ export const supabaseApi = {
 
   async getCurrentUser(token: string): Promise<User> {
     const user = await supabaseRequest<Row>('/auth/v1/user', { token })
-    return mapUser(user, await profileFor(user, token))
+    return mapUser(user, await profileFor(user, token).catch(() => null))
   },
 
   async createOrder(input: { store: Store; items: CartItem[]; checkout: CheckoutInput; token: string | null; shortLinkId?: string }): Promise<Order> {

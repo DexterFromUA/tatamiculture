@@ -161,6 +161,7 @@ const uk = {
   'Could not send an SMS code. Check the number or try again later.': 'Не вдалося надіслати SMS-код. Перевірте номер або спробуйте пізніше.',
   'The code is incorrect or has expired.': 'Код неправильний або термін його дії минув.',
   'Could not finish signing in. Try again.': 'Не вдалося завершити вхід. Спробуйте ще раз.',
+  'Could not restore your session. Check your connection and try again.': 'Не вдалося відновити сеанс. Перевірте з’єднання та спробуйте ще раз.',
   'Checking…': 'Перевірка…', 'Sending…': 'Надсилання…', 'Demo phone: {{phone}} · code: {{code}}': 'Демонстраційний телефон: {{phone}} · код: {{code}}',
   Name: 'Ім’я', Email: 'Електронна пошта', Phone: 'Телефон', City: 'Місто', Address: 'Адреса', Note: 'Коментар',
   'Start typing your city': 'Почніть вводити місто', 'Choose branch': 'Оберіть відділення', 'Loading branches…': 'Завантаження відділень…',
