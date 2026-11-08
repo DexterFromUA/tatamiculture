@@ -7,6 +7,7 @@ import { useStore } from '../context/StoreContext'
 import { useToast } from '../context/ToastContext'
 import { formatPrice, optionPrice } from '../lib/format'
 import { categoriesForProduct, categoryPaths, productCategoryLabel } from '../lib/categories'
+import { productDescription, productName } from '../lib/productText'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
@@ -46,6 +47,8 @@ function ProductDetails() {
   }
 
   const price = optionPrice(option)
+  const name = productName(product, i18n.resolvedLanguage)
+  const description = productDescription(product, i18n.resolvedLanguage)
   const categories = categoriesForProduct(product)
   const categoryIds = categories.map(category => category.id)
   const selectedCategories = new Set(categoryIds)
@@ -73,7 +76,7 @@ function ProductDetails() {
     <article className="product-view shop-detail">
       {activeImage && <div className="product-gallery">
         <div className="product-view__image">
-          <img src={activeImage} alt={product.name} />
+          <img src={activeImage} alt={name} />
           {images.length > 1 ? <div className="gallery-controls">
             <button type="button" onClick={() => changeImage(-1)} aria-label={t('Previous image')}>←</button>
             <span>{imageIndex + 1} / {images.length}</span>
@@ -88,10 +91,10 @@ function ProductDetails() {
         <Link className="shop-back" to="/">← {t('Back to shop')}</Link>
         <p className="muted">{categoryPaths(categories, categoryIds, i18n.resolvedLanguage).join(' · ') || productCategoryLabel(product, i18n.resolvedLanguage) || t('Uncategorized')}</p>
         {product.isNew && <span className="badge badge--new">{t('New arrival')}</span>}
-        <h1>{product.name}</h1>
-        {product.description.trim() && (
+        <h1>{name}</h1>
+        {description.trim() && (
           <div className="lede product-description">
-            <Markdown skipHtml remarkPlugins={[remarkBreaks]}>{product.description}</Markdown>
+            <Markdown skipHtml remarkPlugins={[remarkBreaks]}>{description}</Markdown>
           </div>
         )}
         {(product.sizeGuide || product.sizeGuideImageUrl) && <>

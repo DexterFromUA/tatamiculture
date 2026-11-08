@@ -23,6 +23,8 @@ function mapProduct(row: Row): Product {
   const variants = (row.product_variants as Row[] | undefined) ?? []
   return {
     id: text(row.id), storeId: text(row.store_id), name: text(row.name), description: text(row.description), createdAt: text(row.created_at),
+    name_uk: text(row.name_uk), name_en: text(row.name_en),
+    description_uk: text(row.description_uk), description_en: text(row.description_en),
     sizeGuide: text(row.size_guide), sizeGuideImageUrl: text(row.size_guide_image_url), composition: text(row.composition), careInstructions: text(row.care_instructions),
     primaryCategory: category ?? undefined, isActive: Boolean(row.is_active),
     isNew: row.is_new === true,

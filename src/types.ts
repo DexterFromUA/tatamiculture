@@ -41,7 +41,16 @@ export type CatalogCategory = {
   position: number
 }
 
-export type Product = {
+export type ProductText = {
+  name: string
+  description: string
+  name_uk?: string | null
+  name_en?: string | null
+  description_uk?: string | null
+  description_en?: string | null
+}
+
+export type Product = ProductText & {
   createdAt?: string
   sizeGuide?: string
   sizeGuideImageUrl?: string
@@ -49,8 +58,6 @@ export type Product = {
   careInstructions?: string
   id: string
   storeId: string
-  name: string
-  description: string
   primaryCategory?: CatalogCategory
   categories?: CatalogCategory[]
   imgUrls: string[]

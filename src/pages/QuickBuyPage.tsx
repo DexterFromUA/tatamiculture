@@ -3,11 +3,12 @@ import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { formatPrice, optionPrice } from '../lib/format'
 import { api } from '../lib/api'
+import { productName } from '../lib/productText'
 import type { Product, Store } from '../types'
 
 export function QuickBuyPage() {
   const { code } = useParams()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
   const [payload, setPayload] = useState<{ store: Store; product: Product } | null>(null)
@@ -53,7 +54,7 @@ export function QuickBuyPage() {
   return (
     <section className="page-status">
       <p className="muted">{store.name} · quick buy</p>
-      <h1>{product.name}</h1>
+      <h1>{productName(product, i18n.resolvedLanguage)}</h1>
       <p>From {formatPrice(price, store.currency)}</p>
       <Link className="btn" to={`/product/${product.id}`}>
         View product

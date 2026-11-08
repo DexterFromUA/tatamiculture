@@ -7,6 +7,7 @@ import { bannerImages, type Banner } from '../lib/banner'
 import { BannerCarousel } from '../components/BannerCarousel'
 import { categoriesForProduct, categoryGroups, categoryLabel } from '../lib/categories'
 import { optionPrice } from '../lib/format'
+import { productName } from '../lib/productText'
 
 const bannerTimeout = 5000
 const siteIcon = '/tatami-mark-transparent.png'
@@ -15,6 +16,7 @@ export function CatalogPage() {
   const { store, products } = useStore()
   const storeId = store?.id
   const { t, i18n } = useTranslation()
+  const language = i18n.resolvedLanguage === 'en' ? 'en' : 'uk'
   const [category, setCategory] = useState('')
   const [subcategory, setSubcategory] = useState('')
   const [search, setSearch] = useState('')
@@ -45,7 +47,7 @@ export function CatalogPage() {
   const images = configuredImages.length ? configuredImages : products
     .filter(product => product.isActive && product.isNew && product.imgUrls[0])
     .sort((a, b) => (Date.parse(b.createdAt || '') || 0) - (Date.parse(a.createdAt || '') || 0) || a.id.localeCompare(b.id))
-    .map(product => ({ url: product.imgUrls[0], path: '', productId: product.id, productName: product.name }))
+    .map(product => ({ url: product.imgUrls[0], path: '', productId: product.id, productName: productName(product, language) }))
   const firstImage = showBanner ? (images[0]?.url ?? siteIcon) : undefined
   const waitingForImage = Boolean(firstImage && imageResult?.url !== firstImage)
   const imageUnavailable = imageResult?.url === firstImage && imageResult?.loaded === false
@@ -71,7 +73,6 @@ export function CatalogPage() {
   }, [firstImage])
 
   if (!store) return null
-  const language = i18n.resolvedLanguage === 'en' ? 'en' : 'uk'
   const kicker = banner?.[`kicker_${language}`]?.trim()
   const title = banner?.[`title_${language}`]?.trim() || t('Everyday movement')
   const description = banner?.[`description_${language}`]?.trim()
@@ -86,7 +87,7 @@ export function CatalogPage() {
   const query = search.trim().toLocaleLowerCase(language)
   const visibleProducts = products.filter(product =>
     (!filterId || categoriesForProduct(product).some(item => item.id === filterId))
-    && (!query || product.name.toLocaleLowerCase(language).includes(query))
+    && (!query || [product.name, product.name_uk, product.name_en].some(name => name?.toLocaleLowerCase(language).includes(query)))
     && (!size || product.productOptions.some(option => option.name.trim() === size)),
   ).sort((a, b) => {
     if (sort !== 'newest') {

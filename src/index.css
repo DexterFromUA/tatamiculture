@@ -865,7 +865,8 @@ textarea {
 .category-manager { padding: 18px; margin: 0 0 20px; border: 1px solid var(--line); background: var(--paper); }
 .category-manager h3 { margin: 0; }
 .category-manager__form { display: grid; gap: 10px; margin: 16px 0; }
-.category-manager__names { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.category-manager__names,
+.product-editor__translations { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .category-manager__actions { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; }
 .category-manager__form .field { min-width: 0; margin: 0; }
 .category-manager__actions .field { flex: 1 1 180px; }
@@ -1009,7 +1010,8 @@ textarea {
   .crm-stats { grid-template-columns: 1fr; }
   .catalog-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .catalog-toolbar { grid-template-columns: 1fr; }
-  .category-manager__names { grid-template-columns: 1fr; }
+  .category-manager__names,
+  .product-editor__translations { grid-template-columns: 1fr; }
 
   .admin-list li { grid-template-columns: 1fr; }
 

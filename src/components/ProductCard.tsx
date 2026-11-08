@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { optionPrice, formatPrice } from '../lib/format'
 import { productCategoryLabel } from '../lib/categories'
+import { productName } from '../lib/productText'
 import type { Product, Store } from '../types'
 import { useTranslation } from 'react-i18next'
 
@@ -30,7 +31,7 @@ export function ProductCard({ product, store, scrollToTop = false }: { product: 
       {!image && badges}
       <div className="product-card__meta">
         <p className="muted">{productCategoryLabel(product, i18n.resolvedLanguage) ?? t('Uncategorized')}</p>
-        <h3>{product.name}</h3>
+        <h3>{productName(product, i18n.resolvedLanguage)}</h3>
         <p>{priceLabel}</p>
       </div>
     </Link>

@@ -1,6 +1,5 @@
 import { LocalImagePreview } from '../components/LocalImagePreview'
 import { VariantCostEditor } from '../components/VariantCostEditor'
-import { VariantPriceEditor } from '../components/VariantPriceEditor'
 import { StockAdjustment } from '../components/StockAdjustment'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -10,7 +9,9 @@ import { useToast } from '../context/ToastContext'
 import { SupabaseError, supabaseConfigured, supabaseRequest, uploadProductImage } from '../lib/supabase'
 import { fetchAll, hasStoreMembership } from '../lib/crm'
 import { categoryGroups, categoryLabel, categoryPaths } from '../lib/categories'
-import type { CatalogCategory } from '../types'
+import { formatPrice } from '../lib/format'
+import { productName } from '../lib/productText'
+import type { CatalogCategory, ProductText } from '../types'
 
 type Variant = {
   id?: string
@@ -23,15 +24,13 @@ type Variant = {
   is_preorder: boolean
 }
 type ProductImage = { id: string; public_url: string; storage_path: string; position: number }
-type DraftVariant = Variant & { key: string }
-type CatalogProduct = {
+type DraftVariant = Omit<Variant, 'price'> & { key: string }
+type CatalogProduct = ProductText & {
   size_guide?: string
   size_guide_image_url?: string
   composition?: string
   care_instructions?: string
   id: string
-  name: string
-  description: string
   category_id: string | null
   product_categories: Array<{ category_id: string }>
   is_active: boolean
@@ -48,8 +47,9 @@ type Draft = {
   composition: string
   careInstructions: string
   id?: string
-  name: string
-  description: string
+  names: Record<'uk' | 'en', string>
+  descriptions: Record<'uk' | 'en', string>
+  price: string
   categoryIds: string[]
   isActive: boolean
   isNew: boolean
@@ -60,8 +60,8 @@ type Draft = {
 }
 
 const defaultLowStockThreshold = 3
-const blankVariant = (): DraftVariant => ({ key: crypto.randomUUID(), name: 'M', sku: '', price: 0, compare_at_price: null, stock_quantity: 0, low_stock_threshold: defaultLowStockThreshold, is_preorder: false })
-const blankDraft = (): Draft => ({ key: crypto.randomUUID(), newImagesFirst: false, sizeGuide: '', sizeGuideImageUrl: '', sizeGuideImageFile: null, composition: '', careInstructions: '', name: '', description: '', categoryIds: [], isActive: true, isNew: false, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
+const blankVariant = (): DraftVariant => ({ key: crypto.randomUUID(), name: 'M', sku: '', compare_at_price: null, stock_quantity: 0, low_stock_threshold: defaultLowStockThreshold, is_preorder: false })
+const blankDraft = (): Draft => ({ key: crypto.randomUUID(), newImagesFirst: false, sizeGuide: '', sizeGuideImageUrl: '', sizeGuideImageFile: null, composition: '', careInstructions: '', names: { uk: '', en: '' }, descriptions: { uk: '', en: '' }, price: '0', categoryIds: [], isActive: true, isNew: false, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
 const categorySlug = (name: string) => `${name.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'category'}-${crypto.randomUUID().slice(0, 8)}`
 
 function assignedCategoryIds(product: CatalogProduct) {
@@ -77,22 +77,30 @@ function setProductCategories(productIds: string[], categoryIds: string[], token
   })
 }
 
-function toDraft(product: CatalogProduct): Draft {
+function toDraft(product: CatalogProduct, language?: string): Draft {
+  const names = { uk: product.name_uk ?? '', en: product.name_en ?? '' }
+  const descriptions = { uk: product.description_uk ?? '', en: product.description_en ?? '' }
+  const editorLanguage = language === 'en' ? 'en' : 'uk'
+  if (!names.uk.trim() && !names.en.trim()) names[editorLanguage] = product.name
+  if (!descriptions.uk.trim() && !descriptions.en.trim()) descriptions[editorLanguage] = product.description
   return {
     key: product.id,
     newImagesFirst: false,
     sizeGuide: product.size_guide ?? '', composition: product.composition ?? '', careInstructions: product.care_instructions ?? '',
     sizeGuideImageUrl: product.size_guide_image_url ?? '', sizeGuideImageFile: null,
     id: product.id,
-    name: product.name,
-    description: product.description,
+    names,
+    descriptions,
+    price: String(Number(product.product_variants[0]?.price ?? 0) / 100),
     categoryIds: assignedCategoryIds(product),
     isActive: product.is_active,
     isNew: product.is_new === true,
     images: [...product.product_images].sort((a, b) => a.position - b.position),
     newImageFiles: [],
     removedImageIds: [],
-    variants: product.product_variants.map((variant) => ({ ...variant, key: variant.id ?? crypto.randomUUID(), price: Number(variant.price) / 100, compare_at_price: variant.compare_at_price === null ? null : Number(variant.compare_at_price) / 100 })),
+    variants: product.product_variants.map(({ id, name, sku, compare_at_price, stock_quantity, low_stock_threshold, is_preorder }) => ({
+      key: id ?? crypto.randomUUID(), id, name, sku, compare_at_price, stock_quantity, low_stock_threshold, is_preorder,
+    })),
   }
 }
 
@@ -133,8 +141,12 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
     ...children.map(category => ({ category, label: `${categoryLabel(parent, language)} / ${categoryLabel(category, language)}` })),
   ])
   const editingCategory = categories.find(category => category.id === editingCategoryId)
+  const savedVariants = products.find(product => product.id === draft?.id)?.product_variants
+  const hasDifferentPrices = savedVariants?.some(variant => Number(variant.price) !== Number(savedVariants[0].price))
   const query = search.trim().toLowerCase()
-  const searchedProducts = products.filter(product => `${product.name} ${product.product_variants.map(variant => variant.sku).join(' ')}`.toLowerCase().includes(query))
+  const searchedProducts = products.filter(product => [
+    product.name, product.name_uk, product.name_en, ...product.product_variants.map(variant => variant.sku),
+  ].some(value => value?.toLowerCase().includes(query)))
   const lowCount = products.flatMap(product => product.product_variants).filter(variant => !variant.is_preorder && variant.stock_quantity < variant.low_stock_threshold).length
   const outCount = products.flatMap(product => product.product_variants).filter(variant => !variant.is_preorder && variant.stock_quantity === 0).length
   const productMatches = searchedProducts.filter(product => categoryFilter === 'all' || assignedCategoryIds(product).includes(categoryFilter))
@@ -198,7 +210,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
     if (dirty && !window.confirm(t('Discard unsaved changes?'))) return
     closeSavedEditor()
   }
-  const openProduct = (product: CatalogProduct) => beginDraft(toDraft(product))
+  const openProduct = (product: CatalogProduct) => beginDraft(toDraft(product, language))
   const changeView = (next: CatalogView) => { setView(next); setPage(1); setDraft(null) }
 
   const load = useCallback(async () => {
@@ -240,7 +252,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
     return () => window.clearTimeout(timer)
   }, [load])
 
-  const updateVariant = (index: number, field: keyof Variant, value: string | number | boolean | null) => {
+  const updateVariant = (index: number, field: keyof DraftVariant, value: string | number | boolean | null) => {
     setDraft((current) => current ? {
       ...current,
       variants: current.variants.map((variant, itemIndex) => itemIndex === index ? { ...variant, [field]: value } : variant),
@@ -364,21 +376,31 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
 
   const save = async () => {
     if (!store || !token || !draft || saving) return
-    if (!draft.name.trim()) {
-      setError('Product name is required')
+    const name_uk = draft.names.uk.trim() || null
+    const name_en = draft.names.en.trim() || null
+    const name = name_uk ?? name_en
+    if (!name) {
+      setError(t('Enter a product name in at least one language.'))
       return
     }
     if (draft.variants.length === 0) {
       setError('Add at least one size or variant')
       return
     }
+    const price = Math.round(Number(draft.price) * 100)
+    if (!draft.price.trim() || !Number.isSafeInteger(price) || Number(draft.price) < 0) {
+      setError('Enter a valid price')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
+      const description_uk = draft.descriptions.uk.trim() ? draft.descriptions.uk : null
+      const description_en = draft.descriptions.en.trim() ? draft.descriptions.en : null
       const payload = {
         store_id: store.id,
-        name: draft.name.trim(),
-        description: draft.description,
+        name, name_uk, name_en,
+        description: description_uk ?? description_en ?? '', description_uk, description_en,
         size_guide: draft.sizeGuide, composition: draft.composition, care_instructions: draft.careInstructions,
         is_active: draft.isActive,
         is_new: draft.isNew,
@@ -417,8 +439,8 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
           product_id: productId,
           name: variant.name.trim() || 'One size',
           sku: variant.sku?.trim() || null,
-          price: Math.max(0, Math.round(Number(variant.price) * 100)),
-          compare_at_price: variant.compare_at_price === null || variant.compare_at_price === 0 ? null : Math.round(Number(variant.compare_at_price) * 100),
+          price,
+          compare_at_price: variant.compare_at_price && Number(variant.compare_at_price) >= price ? variant.compare_at_price : null,
           is_preorder: variant.is_preorder,
           position,
         },
@@ -523,7 +545,8 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
   const deleteProduct = async () => {
     const productId = draft?.id
     if (!store || !token || !productId || saving || categoryBusy) return
-    const name = products.find(product => product.id === productId)?.name ?? draft.name
+    const product = products.find(item => item.id === productId)
+    const name = product ? productName(product, language) : draft.names.uk || draft.names.en
     if (!window.confirm(t('Permanently delete “{{name}}” from the catalogue?', { name }))) return
 
     setSaving(true)
@@ -665,9 +688,9 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
             const unavailable = product.product_variants.filter(variant => !variant.is_preorder && variant.stock_quantity === 0).length
             return <li key={product.id} className={selected.includes(product.id) ? 'catalog-admin__selected' : undefined}>
               {product.product_images[0] && <img className="catalog-admin__thumb" src={product.product_images[0].public_url} alt="" />}
-              <div className="catalog-admin__item"><strong>{product.name}</strong><span>{categoryPaths(categories, assignedCategoryIds(product), language).join(' · ') || t('Uncategorized')} · {product.is_active ? t('Published') : t('Hidden')}{product.is_new && ` · ${t('New arrival')}`}</span><span>{product.product_variants.length} {t('variants')}{unavailable ? ` · ${unavailable} ${t('out of stock')}` : ''}</span></div>
+              <div className="catalog-admin__item"><strong>{productName(product, language)}</strong><span>{categoryPaths(categories, assignedCategoryIds(product), language).join(' · ') || t('Uncategorized')} · {product.is_active ? t('Published') : t('Hidden')}{product.is_new && ` · ${t('New arrival')}`}</span><span>{product.product_variants.length} {t('variants')}{unavailable ? ` · ${unavailable} ${t('out of stock')}` : ''}</span></div>
               <div className="actions">
-                <input type="checkbox" aria-label={`${t('Select product')} · ${product.name}`} checked={selected.includes(product.id)} disabled={saving} onChange={event => setSelected(current => event.target.checked ? [...current, product.id] : current.filter(id => id !== product.id))} />
+                <input type="checkbox" aria-label={`${t('Select product')} · ${productName(product, language)}`} checked={selected.includes(product.id)} disabled={saving} onChange={event => setSelected(current => event.target.checked ? [...current, product.id] : current.filter(id => id !== product.id))} />
                 <button type="button" className="text-btn" onClick={() => openProduct(product)}>{t('Edit')}</button>
                 {stockSchemaReady && <button type="button" className="text-btn" disabled={saving} onClick={() => void duplicate(product)}>{t('Duplicate')}</button>}
               </div>
@@ -677,7 +700,8 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
             return <li key={product.id} className="catalog-stock-row">
               {product.product_images[0] && <img className="catalog-admin__thumb" src={product.product_images[0].public_url} alt="" />}
               <div className="catalog-admin__item">
-                <strong>{product.name}</strong>
+                <strong>{productName(product, language)}</strong>
+                <span>{formatPrice(Number(product.product_variants[0].price) / 100, store.currency)}</span>
                 <label className="catalog-stock-row__size">
                   <span>{t('Size')}</span>
                   <select value={variant.id} onChange={event => {
@@ -692,7 +716,6 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
               </div>
               <div className="catalog-stock-row__actions" key={variant.id}>
                 <button type="button" className="text-btn" onClick={() => openProduct(product)}>{t('Edit')}</button>
-                {variant.id && token && <VariantPriceEditor key={variant.price} id={variant.id} price={variant.price} compareAtPrice={variant.compare_at_price} token={token} onSaved={load} />}
                 {variant.id && token && <VariantCostEditor variantId={variant.id} token={token} />}
                 {stockSchemaReady && !variant.is_preorder && variant.id && token && <StockAdjustment variantId={variant.id} token={token} reload={load} />}
               </div>
@@ -712,8 +735,24 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
               <button type="button" className="text-btn" disabled={saving || categoryBusy} onClick={closeEditor}>{t('Close')}</button>
             </div>
           </div>
-          <label className="field"><span>{t('Name')}</span><input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
-          <label className="field"><span>{t('Description')}</span><textarea rows={3} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
+          <div className="product-editor__translations">
+            {(['uk', 'en'] as const).map(locale => <div key={locale}>
+              <label className="field">
+                <span>{t(locale === 'uk' ? 'Name in Ukrainian' : 'Name in English')}</span>
+                <input value={draft.names[locale]} onChange={event => setDraft({ ...draft, names: { ...draft.names, [locale]: event.target.value } })} />
+              </label>
+              <label className="field">
+                <span>{t(locale === 'uk' ? 'Description in Ukrainian' : 'Description in English')}</span>
+                <textarea rows={3} value={draft.descriptions[locale]} onChange={event => setDraft({ ...draft, descriptions: { ...draft.descriptions, [locale]: event.target.value } })} />
+              </label>
+            </div>)}
+          </div>
+          <p className="muted">{t('When a translation is blank, the store shows the text from the other language.')}</p>
+          <label className="field">
+            <span>{t('Price, UAH')}</span>
+            <input type="number" min="0" step="0.01" value={draft.price} disabled={saving} onChange={event => setDraft({ ...draft, price: event.target.value })} />
+            {hasDifferentPrices && <small>{t('Sizes currently have different prices. Saving applies this price to all sizes.')}</small>}
+          </label>
           <details className="customer-section"><summary>{t('Product information')}</summary>
             <label className="field">{t('Size guide and measurements')}<textarea rows={5} maxLength={10000} value={draft.sizeGuide} onChange={event => setDraft({ ...draft, sizeGuide: event.target.value })} /></label>
             <label className="field"><span>{t('Size guide image')}</span><input type="file" accept="image/jpeg,image/png,image/webp" disabled={saving} onChange={event => {
@@ -770,7 +809,6 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
             {draft.variants.map((variant, index) => <div className="variant-editor__row" key={variant.key}>
               <label className="variant-field"><span>{t('Size')}</span><input value={variant.name} onChange={(event) => updateVariant(index, 'name', event.target.value)} /></label>
               <label className="variant-field"><span>{t('SKU')}</span><input value={variant.sku} onChange={(event) => updateVariant(index, 'sku', event.target.value)} /></label>
-              <label className="variant-field"><span>{t('Price, UAH')}</span><input type="number" min="0" value={variant.price} onChange={(event) => updateVariant(index, 'price', Number(event.target.value))} /></label>
               {!variant.is_preorder && <>
                 <label className="variant-field"><span>{t('Stock, units')}</span><input type="number" min="0" disabled={stockSchemaReady && Boolean(variant.id)} value={variant.stock_quantity} onChange={event => updateVariant(index, 'stock_quantity', Number(event.target.value))} /></label>
                 {stockSchemaReady && <label className="variant-field"><span>{t('Low stock threshold')}</span><input type="number" min="0" value={variant.low_stock_threshold} onChange={event => updateVariant(index, 'low_stock_threshold', Number(event.target.value))} /></label>}

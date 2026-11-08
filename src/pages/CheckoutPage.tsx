@@ -5,6 +5,7 @@ import { useCart } from '../context/CartContext'
 import { useStore } from '../context/StoreContext'
 import { useToast } from '../context/ToastContext'
 import { formatPrice, optionPrice } from '../lib/format'
+import { productName } from '../lib/productText'
 import { api } from '../lib/api'
 import { novaPoshtaEnabled, redirectToLiqPay, startLiqPayCheckout, startMonobankCheckout } from '../lib/payments'
 import { getPaymentSettings, paymentMethods, paymentUnavailable, type PaymentProvider, type PaymentSettings } from '../lib/paymentMethods'
@@ -18,7 +19,7 @@ export function CheckoutPage() {
   const { user, token } = useAuth()
   const { addToast } = useToast()
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [submitting, setSubmitting] = useState(false)
   const storeId = store?.id
   const [preferredProvider, setPreferredProvider] = useState<PaymentProvider | null>(null)
@@ -87,7 +88,7 @@ export function CheckoutPage() {
   const cartLines = items.flatMap((item) => {
     const product = products.find((entry) => entry.id === item.productId)
     const option = product?.productOptions.find((entry) => entry.id === item.optionId)
-    return product && option ? [{ id: `${item.productId}-${item.optionId}`, name: product.name, image: product.imgUrls[0], option: option.name, quantity: item.quantity, total: optionPrice(option) * item.quantity }] : []
+    return product && option ? [{ id: `${item.productId}-${item.optionId}`, name: productName(product, i18n.resolvedLanguage), image: product.imgUrls[0], option: option.name, quantity: item.quantity, total: optionPrice(option) * item.quantity }] : []
   })
 
   if (items.length === 0) {
