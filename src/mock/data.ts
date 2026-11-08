@@ -30,6 +30,7 @@ const category = (id: string, name_en: string, name_uk: string): CatalogCategory
 export const products: Product[] = [
   {
     id: 'p_hoodie',
+    createdAt: '2026-01-06T00:00:00Z',
     storeId: 'store_tatami',
     name: 'Training hoodie',
     description: 'Щільне худі вільного крою для розминки та відновлення після тренування.',
@@ -44,6 +45,7 @@ export const products: Product[] = [
   },
   {
     id: 'p_tshirt',
+    createdAt: '2026-01-05T00:00:00Z',
     storeId: 'store_tatami',
     name: 'Performance T-shirt',
     description: 'Легка футболка, що відводить вологу та не сковує рухи.',
@@ -57,6 +59,7 @@ export const products: Product[] = [
   },
   {
     id: 'p_joggers',
+    createdAt: '2026-01-04T00:00:00Z',
     storeId: 'store_tatami',
     name: 'Everyday joggers',
     description: 'М’які джогери із високою посадкою для залу й міста.',
@@ -70,6 +73,7 @@ export const products: Product[] = [
   },
   {
     id: 'p_top',
+    createdAt: '2026-01-03T00:00:00Z',
     storeId: 'store_tatami',
     name: 'Seamless training top',
     description: 'Безшовний топ середньої підтримки для функціональних тренувань.',
@@ -83,6 +87,7 @@ export const products: Product[] = [
   },
   {
     id: 'p_bag',
+    createdAt: '2026-01-02T00:00:00Z',
     storeId: 'store_tatami',
     name: 'Gym tote',
     description: 'Легка містка сумка для форми, води та кросівок.',
@@ -95,6 +100,7 @@ export const products: Product[] = [
   },
   {
     id: 'p_leggings',
+    createdAt: '2026-01-01T00:00:00Z',
     storeId: 'store_tatami',
     name: 'Move leggings',
     description: 'Еластичні легінси з високим поясом для бігу, йоги та силових вправ.',

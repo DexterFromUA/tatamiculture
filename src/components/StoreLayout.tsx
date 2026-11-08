@@ -6,6 +6,7 @@ import { useStore } from '../context/StoreContext'
 import { useTranslation } from 'react-i18next'
 import { hasStoreMembership } from '../lib/crm'
 import { supabaseConfigured } from '../lib/supabase'
+import { contactsChanged, getStorefrontContacts, type StorefrontContacts } from '../lib/storefrontContacts'
 
 export function StoreLayout() {
   const { store, loading, notFound } = useStore()
@@ -15,6 +16,16 @@ export function StoreLayout() {
   const storeId = store?.id
   const userId = user?.id
   const [crmAccess, setCrmAccess] = useState<{ storeId: string; userId: string; token: string } | null>(null)
+  const [contacts, setContacts] = useState<StorefrontContacts | null>(null)
+
+  useEffect(() => {
+    if (!storeId) return
+    let active = true
+    const load = () => { void getStorefrontContacts(storeId).then(value => { if (active) setContacts(value) }).catch(() => { if (active) setContacts(null) }) }
+    load()
+    window.addEventListener(contactsChanged, load)
+    return () => { active = false; window.removeEventListener(contactsChanged, load) }
+  }, [storeId])
 
   useEffect(() => {
     if (!supabaseConfigured || !storeId || !userId || !token) return
@@ -83,10 +94,11 @@ export function StoreLayout() {
         <Outlet />
       </main>
       <footer className="footer">
-        <span>
-          {store.name}
-        </span>
-        <span>{t('Mock payments only')}</span>
+        <span className="footer__copyright">© {new Date().getFullYear()} <strong>{store.name}</strong></span>
+        <div className="footer__contacts">
+          {contacts?.instagram_url && <a href={contacts.instagram_url} target="_blank" rel="noopener noreferrer"><span>Instagram</span><strong>@{contacts.instagram_url.split('/').filter(Boolean).pop()}</strong> ↗</a>}
+          {contacts?.email && <a href={`mailto:${contacts.email}`}><span>Email</span><strong>{contacts.email}</strong> ↗</a>}
+        </div>
       </footer>
     </div>
   )

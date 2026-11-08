@@ -22,7 +22,7 @@ function mapProduct(row: Row): Product {
   const images = (row.product_images as Row[] | undefined) ?? []
   const variants = (row.product_variants as Row[] | undefined) ?? []
   return {
-    id: text(row.id), storeId: text(row.store_id), name: text(row.name), description: text(row.description),
+    id: text(row.id), storeId: text(row.store_id), name: text(row.name), description: text(row.description), createdAt: text(row.created_at),
     sizeGuide: text(row.size_guide), composition: text(row.composition), careInstructions: text(row.care_instructions),
     primaryCategory: category ?? undefined, isActive: Boolean(row.is_active),
     categories: assignments?.flatMap(link => link.categories ? [link.categories] : []),

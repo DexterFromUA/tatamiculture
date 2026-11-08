@@ -42,6 +42,7 @@ export type CatalogCategory = {
 }
 
 export type Product = {
+  createdAt?: string
   sizeGuide?: string
   composition?: string
   careInstructions?: string

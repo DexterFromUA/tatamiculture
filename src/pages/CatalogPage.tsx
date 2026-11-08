@@ -6,6 +6,7 @@ import { supabaseConfigured, supabaseRequest } from '../lib/supabase'
 import { bannerImages, type Banner } from '../lib/banner'
 import { BannerCarousel } from '../components/BannerCarousel'
 import { categoriesForProduct, categoryGroups, categoryLabel } from '../lib/categories'
+import { optionPrice } from '../lib/format'
 
 const bannerTimeout = 5000
 
@@ -15,6 +16,9 @@ export function CatalogPage() {
   const { t, i18n } = useTranslation()
   const [category, setCategory] = useState('')
   const [subcategory, setSubcategory] = useState('')
+  const [search, setSearch] = useState('')
+  const [size, setSize] = useState('')
+  const [sort, setSort] = useState('newest')
   const [banner, setBanner] = useState<Banner | null | undefined>(undefined)
   const [imageResult, setImageResult] = useState<{ url: string; loaded: boolean }>()
   const heroImage = useRef<HTMLImageElement>(null)
@@ -73,9 +77,22 @@ export function CatalogPage() {
   const activeGroup = groups.find(({ parent }) => parent.id === category)
   const activeSubcategory = activeGroup?.children.find(child => child.id === subcategory)
   const filterId = activeSubcategory?.id ?? activeGroup?.parent.id
-  const visibleProducts = filterId
-    ? products.filter(product => categoriesForProduct(product).some(item => item.id === filterId))
-    : products
+  const sizes = [...new Set(products.flatMap(product => product.productOptions.map(option => option.name.trim()).filter(Boolean)))]
+    .sort((a, b) => a.localeCompare(b, language, { numeric: true }))
+  const query = search.trim().toLocaleLowerCase(language)
+  const visibleProducts = products.filter(product =>
+    (!filterId || categoriesForProduct(product).some(item => item.id === filterId))
+    && (!query || product.name.toLocaleLowerCase(language).includes(query))
+    && (!size || product.productOptions.some(option => option.name.trim() === size)),
+  ).sort((a, b) => {
+    if (sort !== 'newest') {
+      const price = (options: typeof a.productOptions) => options.length ? Math.min(...options.map(optionPrice)) : Infinity
+      const difference = price(a.productOptions) - price(b.productOptions)
+      if (Number.isFinite(difference) && difference !== 0) return sort === 'price-low' ? difference : -difference
+      if (price(a.productOptions) !== price(b.productOptions)) return price(a.productOptions) === Infinity ? 1 : -1
+    }
+    return (Date.parse(b.createdAt || '') || 0) - (Date.parse(a.createdAt || '') || 0)
+  })
   const activeCategory = activeSubcategory ?? activeGroup?.parent
   const collectionName = activeCategory ? categoryLabel(activeCategory, language) : t('All products')
   const selectCategory = (id: string) => {
@@ -109,7 +126,11 @@ export function CatalogPage() {
                   ? <h2>{collectionName} <sup>{visibleProducts.length}</sup></h2>
                   : <h1>{collectionName} <sup>{visibleProducts.length}</sup></h1>}
               </div>
-              <p>{t('Find your essentials')}</p>
+              <div className="collection-tools">
+                <label><span className="sr-only">{t('Search products')}</span><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder={t('Search products')} /></label>
+                <label><span className="sr-only">{t('Filter by size')}</span><select value={size} onChange={event => setSize(event.target.value)}><option value="">{t('All sizes')}</option>{sizes.map(item => <option key={item} value={item}>{item}</option>)}</select></label>
+                <label><span className="sr-only">{t('Sort products')}</span><select value={sort} onChange={event => setSort(event.target.value)}><option value="newest">{t('Newest first')}</option><option value="price-low">{t('Price: low to high')}</option><option value="price-high">{t('Price: high to low')}</option></select></label>
+              </div>
             </div>
             <div className="collection-filters" role="group" aria-label={t('Categories')}>
               <button type="button" className={!activeGroup ? 'active' : ''} aria-pressed={!activeGroup} onClick={() => selectCategory('')}>{t('All products')}</button>
@@ -128,6 +149,7 @@ export function CatalogPage() {
             <div className="grid storefront-grid">
               {visibleProducts.map(product => <ProductCard key={product.id} product={product} store={store} />)}
             </div>
+            {visibleProducts.length === 0 && <p className="muted">{t('No products match these filters.')}</p>}
           </>
         )}
       </section>

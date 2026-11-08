@@ -2,6 +2,18 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 const uk = {
+  'Store contacts': 'Контакти магазину',
+  'These contacts appear at the bottom of the store.': 'Ці контакти відображаються внизу магазину.',
+  'Instagram profile URL': 'Посилання на профіль Instagram',
+  'Enter a valid Instagram profile URL.': 'Введіть правильне посилання на профіль Instagram.',
+  'Could not load contacts.': 'Не вдалося завантажити контакти.',
+  'Could not save contacts.': 'Не вдалося зберегти контакти.',
+  'Filter by size': 'Фільтр за розміром',
+  'All sizes': 'Усі розміри',
+  'Sort products': 'Сортування товарів',
+  'Newest first': 'Спочатку нові',
+  'Price: low to high': 'Ціна: від нижчої до вищої',
+  'Price: high to low': 'Ціна: від вищої до нижчої',
   'Delete product': 'Видалити товар',
   'Deleting…': 'Видалення…',
   'Permanently delete “{{name}}” from the catalogue?': 'Назавжди видалити «{{name}}» з каталогу?',
