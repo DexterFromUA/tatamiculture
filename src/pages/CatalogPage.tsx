@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { supabaseConfigured, supabaseRequest } from '../lib/supabase'
 import { bannerImages, type Banner } from '../lib/banner'
 import { BannerCarousel } from '../components/BannerCarousel'
+import { categoriesForProduct, categoryGroups } from '../lib/categories'
 
 const bannerTimeout = 5000
 
@@ -13,6 +14,7 @@ export function CatalogPage() {
   const storeId = store?.id
   const { t, i18n } = useTranslation()
   const [category, setCategory] = useState('')
+  const [subcategory, setSubcategory] = useState('')
   const [banner, setBanner] = useState<Banner | null | undefined>(undefined)
   const [imageResult, setImageResult] = useState<{ url: string; loaded: boolean }>()
   const heroImage = useRef<HTMLImageElement>(null)
@@ -65,8 +67,20 @@ export function CatalogPage() {
   const kicker = banner?.[`kicker_${language}`]?.trim()
   const title = banner?.[`title_${language}`]?.trim() || t('Everyday movement')
   const description = banner?.[`description_${language}`]?.trim()
-  const categories = [...new Set(products.map(product => product.category).filter(Boolean))]
-  const visibleProducts = category ? products.filter(product => product.category === category) : products
+  const categories = [...new Map(products.flatMap(product =>
+    categoriesForProduct(product).map(item => [item.id, item] as const))).values()]
+  const groups = categoryGroups(categories)
+  const activeGroup = groups.find(({ parent }) => parent.id === category)
+  const activeSubcategory = activeGroup?.children.find(child => child.id === subcategory)
+  const filterId = activeSubcategory?.id ?? activeGroup?.parent.id
+  const visibleProducts = filterId
+    ? products.filter(product => categoriesForProduct(product).some(item => item.id === filterId))
+    : products
+  const collectionName = activeSubcategory?.name ?? activeGroup?.parent.name ?? t('All products')
+  const selectCategory = (id: string) => {
+    setCategory(id)
+    setSubcategory('')
+  }
 
   return (
     <>
@@ -91,17 +105,25 @@ export function CatalogPage() {
               <div>
                 <span className="storefront-kicker">{t('The collection')}</span>
                 {showBanner
-                  ? <h2>{t('All products')} <sup>{visibleProducts.length}</sup></h2>
-                  : <h1>{t('All products')} <sup>{visibleProducts.length}</sup></h1>}
+                  ? <h2>{collectionName} <sup>{visibleProducts.length}</sup></h2>
+                  : <h1>{collectionName} <sup>{visibleProducts.length}</sup></h1>}
               </div>
               <p>{t('Find your essentials')}</p>
             </div>
-            <div className="collection-filters" aria-label={t('Category')}>
-              <button type="button" className={!category ? 'active' : ''} aria-pressed={!category} onClick={() => setCategory('')}>{t('All products')}</button>
-              {categories.map(item => (
-                <button type="button" key={item} className={category === item ? 'active' : ''} aria-pressed={category === item} onClick={() => setCategory(item)}>{item}</button>
+            <div className="collection-filters" role="group" aria-label={t('Categories')}>
+              <button type="button" className={!activeGroup ? 'active' : ''} aria-pressed={!activeGroup} onClick={() => selectCategory('')}>{t('All products')}</button>
+              {groups.map(({ parent }) => (
+                <button type="button" key={parent.id} className={category === parent.id ? 'active' : ''} aria-pressed={category === parent.id} onClick={() => selectCategory(parent.id)}>{parent.name}</button>
               ))}
             </div>
+            {!!activeGroup?.children.length && (
+              <div className="collection-filters collection-filters--subcategories" role="group" aria-label={t('Subcategories')}>
+                <button type="button" className={!activeSubcategory ? 'active' : ''} aria-pressed={!activeSubcategory} onClick={() => setSubcategory('')}>{t('All in {{category}}', { category: activeGroup.parent.name })}</button>
+                {activeGroup.children.map(child => (
+                  <button type="button" key={child.id} className={subcategory === child.id ? 'active' : ''} aria-pressed={subcategory === child.id} onClick={() => setSubcategory(child.id)}>{child.name}</button>
+                ))}
+              </div>
+            )}
             <div className="grid storefront-grid">
               {visibleProducts.map(product => <ProductCard key={product.id} product={product} store={store} />)}
             </div>

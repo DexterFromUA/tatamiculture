@@ -7,10 +7,11 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { useToast } from '../context/ToastContext'
-import { supabaseConfigured, supabaseRequest, uploadProductImage } from '../lib/supabase'
+import { SupabaseError, supabaseConfigured, supabaseRequest, uploadProductImage } from '../lib/supabase'
 import { fetchAll, hasStoreMembership } from '../lib/crm'
+import { categoryGroups, categoryPaths } from '../lib/categories'
+import type { CatalogCategory } from '../types'
 
-type Category = { id: string; name: string; position: number }
 type Variant = {
   id?: string
   name: string
@@ -31,6 +32,7 @@ type CatalogProduct = {
   name: string
   description: string
   category_id: string | null
+  product_categories: Array<{ category_id: string }>
   is_active: boolean
   product_images: ProductImage[]
   product_variants: Variant[]
@@ -44,7 +46,7 @@ type Draft = {
   id?: string
   name: string
   description: string
-  categoryId: string
+  categoryIds: string[]
   isActive: boolean
   images: ProductImage[]
   newImageFiles: File[]
@@ -53,8 +55,21 @@ type Draft = {
 }
 
 const blankVariant = (): DraftVariant => ({ key: crypto.randomUUID(), name: 'M', sku: '', price: 0, compare_at_price: null, stock_quantity: 0, low_stock_threshold: 3, is_preorder: false })
-const blankDraft = (): Draft => ({ key: crypto.randomUUID(), newImagesFirst: false, sizeGuide: '', composition: '', careInstructions: '', name: '', description: '', categoryId: '', isActive: true, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
+const blankDraft = (): Draft => ({ key: crypto.randomUUID(), newImagesFirst: false, sizeGuide: '', composition: '', careInstructions: '', name: '', description: '', categoryIds: [], isActive: true, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
 const categorySlug = (name: string) => `${name.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'category'}-${crypto.randomUUID().slice(0, 8)}`
+
+function assignedCategoryIds(product: CatalogProduct) {
+  return [...new Set([
+    ...(product.category_id ? [product.category_id] : []),
+    ...(product.product_categories ?? []).map(link => link.category_id),
+  ])]
+}
+
+function setProductCategories(productIds: string[], categoryIds: string[], token: string) {
+  return supabaseRequest('/rest/v1/rpc/set_catalog_product_categories', {
+    method: 'POST', token, body: JSON.stringify({ p_products: productIds, p_categories: categoryIds }),
+  })
+}
 
 function toDraft(product: CatalogProduct): Draft {
   return {
@@ -64,7 +79,7 @@ function toDraft(product: CatalogProduct): Draft {
     id: product.id,
     name: product.name,
     description: product.description,
-    categoryId: product.category_id ?? '',
+    categoryIds: assignedCategoryIds(product),
     isActive: product.is_active,
     images: [...product.product_images].sort((a, b) => a.position - b.position),
     newImageFiles: [],
@@ -78,16 +93,17 @@ type StockFilter = 'all' | 'low' | 'out'
 
 export function CatalogAdminPage({ embedded = false, initialView = 'products' }: { embedded?: boolean; initialView?: CatalogView }) {
   const { t } = useTranslation()
-  const { store } = useStore()
+  const { store, refreshProducts } = useStore()
   const { token, user } = useAuth()
   const { addToast } = useToast()
   const [member, setMember] = useState<boolean | null>(null)
   const [stockSchemaReady, setStockSchemaReady] = useState(false)
   const [products, setProducts] = useState<CatalogProduct[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
+  const [categories, setCategories] = useState<CatalogCategory[]>([])
   const [draft, setDraft] = useState<Draft | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [view, setView] = useState<CatalogView>(initialView)
@@ -96,16 +112,22 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [showCategories, setShowCategories] = useState(false)
   const [categoryName, setCategoryName] = useState('')
+  const [categoryParent, setCategoryParent] = useState('')
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
   const [categoryBusy, setCategoryBusy] = useState(false)
   const [selected, setSelected] = useState<string[]>([])
   const [bulkAction, setBulkAction] = useState('')
   const [page, setPage] = useState(1)
+  const groups = categoryGroups(categories)
+  const categoryOptions = groups.flatMap(({ parent, children }) => [
+    { category: parent, label: parent.name },
+    ...children.map(category => ({ category, label: `${parent.name} / ${category.name}` })),
+  ])
   const query = search.trim().toLowerCase()
   const searchedProducts = products.filter(product => `${product.name} ${product.product_variants.map(variant => variant.sku).join(' ')}`.toLowerCase().includes(query))
   const lowCount = products.flatMap(product => product.product_variants).filter(variant => !variant.is_preorder && variant.stock_quantity < variant.low_stock_threshold).length
   const outCount = products.flatMap(product => product.product_variants).filter(variant => !variant.is_preorder && variant.stock_quantity === 0).length
-  const productMatches = searchedProducts.filter(product => categoryFilter === 'all' || product.category_id === categoryFilter)
+  const productMatches = searchedProducts.filter(product => categoryFilter === 'all' || assignedCategoryIds(product).includes(categoryFilter))
   const stockMatches = searchedProducts.map(product => ({
     product,
     variants: product.product_variants.filter(variant =>
@@ -154,13 +176,17 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
     setError(null)
     setDraft(next)
   }
-  const closeEditor = () => {
-    if (dirty && !window.confirm(t('Discard unsaved changes?'))) return
+  const closeSavedEditor = () => {
     setDraft(null)
     setShowCategories(false)
     setEditingCategoryId(null)
     setCategoryName('')
+    setCategoryParent('')
     setError(null)
+  }
+  const closeEditor = () => {
+    if (dirty && !window.confirm(t('Discard unsaved changes?'))) return
+    closeSavedEditor()
   }
   const openProduct = (product: CatalogProduct) => beginDraft(toDraft(product))
   const changeView = (next: CatalogView) => { setView(next); setPage(1); setDraft(null) }
@@ -174,13 +200,13 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
         return
       }
       const productQuery = (includeThreshold: boolean) =>
-        fetchAll<CatalogProduct>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=*,product_images(id,public_url,storage_path,position),product_variants(id,name,sku,price,compare_at_price,stock_quantity,is_preorder${includeThreshold ? ',low_stock_threshold' : ''})&order=position.asc,id.asc&product_variants.order=position.asc,id.asc`, token)
+        fetchAll<CatalogProduct>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=*,product_categories(category_id),product_images(id,public_url,storage_path,position),product_variants(id,name,sku,price,compare_at_price,stock_quantity,is_preorder${includeThreshold ? ',low_stock_threshold' : ''})&order=position.asc,id.asc&product_variants.order=position.asc,id.asc`, token)
       const [catalog, nextCategories] = await Promise.all([
         productQuery(true).then(products => ({ products, hasThreshold: true })).catch(async (cause: unknown) => {
           if (!(cause instanceof Error) || !/column .*low_stock_threshold.*does not exist/i.test(cause.message)) throw cause
           return { products: await productQuery(false), hasThreshold: false }
         }),
-        supabaseRequest<Category[]>(`/rest/v1/categories?store_id=eq.${encodeURIComponent(store.id)}&select=id,name,position&order=position.asc`, { token }),
+        fetchAll<CatalogCategory>(`/rest/v1/categories?store_id=eq.${encodeURIComponent(store.id)}&select=id,name,position,parent_id&order=position.asc,id.asc`, token),
       ])
       setMember(true)
       setStockSchemaReady(catalog.hasThreshold)
@@ -241,7 +267,9 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
     if (!store || !token || categoryBusy) return
     const name = categoryName.trim()
     if (!name) { setError(t('Enter a category name.')); return }
-    if (categories.some(category => category.id !== editingCategoryId && category.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+    const parentId = categoryParent || null
+    if (categories.some(category => category.id !== editingCategoryId && category.parent_id === parentId
+      && category.name.trim().toLowerCase() === name.toLowerCase())) {
       setError(t('This category already exists.'))
       return
     }
@@ -251,17 +279,25 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
       if (editingCategoryId) {
         await supabaseRequest(`/rest/v1/categories?id=eq.${encodeURIComponent(editingCategoryId)}&store_id=eq.${encodeURIComponent(store.id)}`, { method: 'PATCH', token, body: JSON.stringify({ name }) })
         setCategories(current => current.map(category => category.id === editingCategoryId ? { ...category, name } : category))
+        await refreshProducts().catch(() => {})
       } else {
-        const created = await supabaseRequest<Category[]>('/rest/v1/categories', {
+        const created = await supabaseRequest<CatalogCategory[]>('/rest/v1/categories', {
           method: 'POST', token, headers: { Prefer: 'return=representation' },
-          body: JSON.stringify({ store_id: store.id, name, slug: categorySlug(name), position: Math.max(-1, ...categories.map(category => category.position)) + 1 }),
+          body: JSON.stringify({
+            store_id: store.id, name, slug: categorySlug(name), parent_id: parentId,
+            position: Math.max(-1, ...categories.filter(category => category.parent_id === parentId).map(category => category.position)) + 1,
+          }),
         })
         const category = created[0]
         if (!category) throw new Error(t('Could not create category.'))
         setCategories(current => [...current, category])
-        setDraft(current => current ? { ...current, categoryId: category.id } : current)
+        setDraft(current => current ? {
+          ...current,
+          categoryIds: [...new Set([...current.categoryIds, ...(parentId ? [parentId] : []), category.id])],
+        } : current)
       }
       setCategoryName('')
+      setCategoryParent('')
       setEditingCategoryId(null)
       if (draft) setShowCategories(false)
     } catch (cause) {
@@ -271,9 +307,16 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
     }
   }
 
-  const deleteCategory = async (category: Category) => {
+  const categoryDeleteReason = (category: CatalogCategory) => {
+    if (categories.some(item => item.parent_id === category.id)) return 'Remove its subcategories first.'
+    if (products.some(product => assignedCategoryIds(product).includes(category.id))) return 'Move products to another category first.'
+    return ''
+  }
+
+  const deleteCategory = async (category: CatalogCategory) => {
     if (!store || !token || categoryBusy) return
-    if (products.some(product => product.category_id === category.id)) { setError(t('Move products to another category first.')); return }
+    const reason = categoryDeleteReason(category)
+    if (reason) { setError(t(reason)); return }
     if (!window.confirm(t('Delete category "{{name}}"?', { name: category.name }))) return
     setCategoryBusy(true)
     setError(null)
@@ -281,13 +324,29 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
       await supabaseRequest(`/rest/v1/categories?id=eq.${encodeURIComponent(category.id)}&store_id=eq.${encodeURIComponent(store.id)}`, { method: 'DELETE', token })
       setCategories(current => current.filter(item => item.id !== category.id))
       if (categoryFilter === category.id) setCategoryFilter('all')
-      setDraft(current => current?.categoryId === category.id ? { ...current, categoryId: '' } : current)
-      if (editingCategoryId === category.id) { setEditingCategoryId(null); setCategoryName('') }
+      if (categoryParent === category.id) setCategoryParent('')
+      if (bulkAction === category.id) setBulkAction('')
+      if (editingCategoryId === category.id) resetCategoryForm()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('Could not delete category.'))
     } finally {
       setCategoryBusy(false)
     }
+  }
+
+  const resetCategoryForm = () => {
+    setEditingCategoryId(null)
+    setCategoryName('')
+    setCategoryParent('')
+    setError(null)
+  }
+
+  const toggleCategory = (category: CatalogCategory, checked: boolean) => {
+    const removed = new Set([category.id, ...categories.filter(item => item.parent_id === category.id).map(item => item.id)])
+    setDraft(current => current ? {
+      ...current,
+      categoryIds: checked ? [...current.categoryIds, category.id] : current.categoryIds.filter(id => !removed.has(id)),
+    } : current)
   }
 
   const save = async () => {
@@ -308,7 +367,6 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
         name: draft.name.trim(),
         description: draft.description.trim(),
         size_guide: draft.sizeGuide, composition: draft.composition, care_instructions: draft.careInstructions,
-        category_id: draft.categoryId || null,
         is_active: draft.isActive,
       }
       const productId = draft.key
@@ -377,9 +435,10 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
           body: JSON.stringify({ product_id: productId, public_url: image.publicUrl, storage_path: image.storagePath, position: (draft.newImagesFirst ? 0 : retainedImages.length) + index }),
         }),
       ))
+      await setProductCategories([productId], draft.categoryIds, token)
       await supabaseRequest(productPath, { method: 'PATCH', token, body: JSON.stringify(payload) })
-      await load()
-      setDraft(null)
+      await Promise.all([load(), refreshProducts().catch(() => {})])
+      closeSavedEditor()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not save product')
     } finally {
@@ -389,19 +448,23 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
 
   const applyBulk = async () => {
     if (!store || !token || !bulkAction || selected.length === 0 || saving) return
-    const patch = bulkAction === 'publish' || bulkAction === 'hide'
-      ? { is_active: bulkAction === 'publish' }
-      : { category_id: bulkAction === 'uncategorized' ? null : bulkAction }
     setSaving(true)
     setError(null)
     try {
-      await supabaseRequest(`/rest/v1/products?store_id=eq.${store.id}&id=in.(${selected.join(',')})`, {
-        method: 'PATCH', token, body: JSON.stringify(patch),
-      })
+      if (bulkAction === 'publish' || bulkAction === 'hide') {
+        await supabaseRequest(`/rest/v1/products?store_id=eq.${store.id}&id=in.(${selected.join(',')})`, {
+          method: 'PATCH', token, body: JSON.stringify({ is_active: bulkAction === 'publish' }),
+        })
+      } else {
+        const category = categories.find(item => item.id === bulkAction)
+        if (!category && bulkAction !== 'uncategorized') return
+        const ids = category ? [...(category.parent_id ? [category.parent_id] : []), category.id] : []
+        await setProductCategories(selected, ids, token)
+      }
       setSelected([])
       setBulkAction('')
       addToast(t('Bulk changes applied'))
-      await load()
+      await Promise.all([load(), refreshProducts().catch(() => {})])
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('Could not save product'))
     } finally {
@@ -425,21 +488,74 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
     }
   }
 
+  const deleteProduct = async () => {
+    const productId = draft?.id
+    if (!store || !token || !productId || saving || categoryBusy) return
+    const name = products.find(product => product.id === productId)?.name ?? draft.name
+    if (!window.confirm(t('Permanently delete “{{name}}” from the catalogue?', { name }))) return
+
+    setSaving(true)
+    setDeleting(true)
+    setError(null)
+    try {
+      const deleted = await supabaseRequest<boolean>('/rest/v1/rpc/delete_catalog_product', {
+        method: 'POST', token, body: JSON.stringify({ p_store_id: store.id, p_product_id: productId }),
+      })
+      setSelected(current => current.filter(id => id !== productId))
+      closeSavedEditor()
+      addToast(t(deleted ? 'Product deleted' : 'Product no longer exists'))
+      await Promise.all([load(), refreshProducts().catch(() => {})])
+    } catch (cause) {
+      setError(cause instanceof SupabaseError && cause.code === '23503'
+        ? t('This product is linked to orders or stock history. Hide it from the storefront instead.')
+        : cause instanceof Error ? cause.message : t('Could not delete product'))
+    } finally {
+      setDeleting(false)
+      setSaving(false)
+    }
+  }
+
   if (!store) return null
   if (!supabaseConfigured) return <section className="page-status"><h1>{t('CRM needs Supabase')}</h1></section>
   if (loading && member === null) return <div className="page-status">{t('Loading catalogue…')}</div>
   if (member === false) return <section className="page-status"><h1>{t('Manager access required')}</h1></section>
 
   const categoryManager = showCategories ? <section className="category-manager" aria-label={t('Manage categories')}>
-    <div className="product-editor__head"><h3>{t(draft ? 'Create category' : 'Manage categories')}</h3>{draft && <button type="button" className="text-btn" disabled={categoryBusy} onClick={() => { setShowCategories(false); setCategoryName(''); setError(null) }}>{t('Cancel')}</button>}</div>
+    <div className="product-editor__head">
+      <h3>{t(draft ? 'Create category or subcategory' : 'Manage categories')}</h3>
+      {draft && <button type="button" className="text-btn" disabled={categoryBusy} onClick={() => {
+        setShowCategories(false)
+        resetCategoryForm()
+      }}>{t('Cancel')}</button>}
+    </div>
     <form className="category-manager__form" onSubmit={event => { event.preventDefault(); void saveCategory() }}>
-      <label className="field"><span>{editingCategoryId ? t('Rename category') : t('New category')}</span><input value={categoryName} maxLength={100} onChange={event => setCategoryName(event.target.value)} /></label>
-      <button type="submit" className="btn" disabled={categoryBusy}>{editingCategoryId ? t('Save') : t('Create category')}</button>
-      {editingCategoryId && <button type="button" className="text-btn" disabled={categoryBusy} onClick={() => { setEditingCategoryId(null); setCategoryName(''); setError(null) }}>{t('Cancel')}</button>}
+      <label className="field">
+        <span>{editingCategoryId ? t('Rename category') : t('New category')}</span>
+        <input value={categoryName} maxLength={100} onChange={event => setCategoryName(event.target.value)} />
+      </label>
+      <label className="field">
+        <span>{t('Parent category')}</span>
+        <select value={categoryParent} disabled={categoryBusy || Boolean(editingCategoryId)} onChange={event => setCategoryParent(event.target.value)}>
+          <option value="">{t('None (main category)')}</option>
+          {groups.map(({ parent }) => <option key={parent.id} value={parent.id}>{parent.name}</option>)}
+        </select>
+      </label>
+      <button type="submit" className="btn" disabled={categoryBusy}>{t(editingCategoryId ? 'Save' : categoryParent ? 'Create subcategory' : 'Create category')}</button>
+      {editingCategoryId && <button type="button" className="text-btn" disabled={categoryBusy} onClick={resetCategoryForm}>{t('Cancel')}</button>}
     </form>
-    {!draft && <ul className="category-manager__list">{categories.map(category => {
-      const used = products.filter(product => product.category_id === category.id).length
-      return <li key={category.id}><div><strong>{category.name}</strong><span>{t('Products')}: {used}</span></div><button type="button" className="text-btn" disabled={categoryBusy} onClick={() => { setEditingCategoryId(category.id); setCategoryName(category.name) }}>{t('Rename')}</button><button type="button" className="text-btn" disabled={categoryBusy || used > 0} title={used > 0 ? t('Move products to another category first.') : undefined} onClick={() => void deleteCategory(category)}>{t('Delete')}</button></li>
+    {!draft && <ul className="category-manager__list">{categoryOptions.map(({ category }) => {
+      const used = products.filter(product => assignedCategoryIds(product).includes(category.id)).length
+      const reason = categoryDeleteReason(category)
+      return <li key={category.id} className={category.parent_id ? 'category-manager__subcategory' : undefined}>
+        <div><strong>{category.name}</strong><span>{t('Products')}: {used}</span></div>
+        <button type="button" className="text-btn" disabled={categoryBusy} onClick={() => {
+          setEditingCategoryId(category.id)
+          setCategoryName(category.name)
+          setCategoryParent(category.parent_id ?? '')
+          setError(null)
+        }}>{t('Rename')}</button>
+        <button type="button" className="text-btn" disabled={categoryBusy || Boolean(reason)} title={reason ? t(reason) : undefined} onClick={() => void deleteCategory(category)}>{t('Delete')}</button>
+      </li>
     })}</ul>}
   </section> : null
 
@@ -447,7 +563,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
     <section>
       <header className="page-head page-head--row">
         {!embedded ? <div><p className="muted">{store.name} · {t('management')}</p><h1>{t('Catalogue')}</h1></div> : <div />}
-        {!draft && <div className="catalog-header-actions"><button type="button" className="btn btn--ghost" disabled={categoryBusy} onClick={() => { setShowCategories(current => !current); setEditingCategoryId(null); setCategoryName(''); setError(null) }}>{t(showCategories ? 'Products' : 'Manage categories')}</button>{!showCategories && <button type="button" className="btn" onClick={() => beginDraft(blankDraft())}>{t('Add product')}</button>}</div>}
+        {!draft && <div className="catalog-header-actions"><button type="button" className="btn btn--ghost" disabled={categoryBusy} onClick={() => { setShowCategories(current => !current); resetCategoryForm() }}>{t(showCategories ? 'Products' : 'Manage categories')}</button>{!showCategories && <button type="button" className="btn" onClick={() => beginDraft(blankDraft())}>{t('Add product')}</button>}</div>}
       </header>
       {error ? <p className="error" role="alert">{error}</p> : null}
       {!draft && (showCategories ? categoryManager : <>
@@ -459,7 +575,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
       </div>
       <div className="catalog-toolbar">
         <input aria-label={t('Search products')} placeholder={t('Search products')} value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} />
-        {view === 'products' ? <select aria-label={t('Category')} value={categoryFilter} onChange={event => { setCategoryFilter(event.target.value); setPage(1) }}><option value="all">{t('All categories')}</option>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select> : <select aria-label={t('Stock filter')} value={stockFilter} onChange={event => { setStockFilter(event.target.value as StockFilter); setPage(1) }}><option value="all">{t('All stock')}</option><option value="low">{t('Low stock')}</option><option value="out">{t('Out of stock')}</option></select>}
+        {view === 'products' ? <select aria-label={t('Category')} value={categoryFilter} onChange={event => { setCategoryFilter(event.target.value); setPage(1) }}><option value="all">{t('All categories')}</option>{categoryOptions.map(({ category, label }) => <option key={category.id} value={category.id}>{label}</option>)}</select> : <select aria-label={t('Stock filter')} value={stockFilter} onChange={event => { setStockFilter(event.target.value as StockFilter); setPage(1) }}><option value="all">{t('All stock')}</option><option value="low">{t('Low stock')}</option><option value="out">{t('Out of stock')}</option></select>}
       </div>
         {view === 'products' && selected.length > 0 && <div className="catalog-bulk" role="group" aria-label={t('Bulk action')}>
           <div className="catalog-bulk__selection" aria-live="polite">
@@ -474,8 +590,8 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
             <option value="">{t('Bulk action')}</option>
             <option value="publish">{t('Publish')}</option>
             <option value="hide">{t('Hide')}</option>
-            <option value="uncategorized">{t('Uncategorized')}</option>
-            {categories.map(category => <option key={category.id} value={category.id}>{t('Category')} · {category.name}</option>)}
+            <option value="uncategorized">{t('Clear categories')}</option>
+            {categoryOptions.map(({ category, label }) => <option key={category.id} value={category.id}>{t('Replace categories with {{category}}', { category: label })}</option>)}
           </select>
           <button type="button" className="btn" disabled={saving || !bulkAction} onClick={() => void applyBulk()}>{t(saving ? 'Saving…' : 'Apply')}</button>
           <button type="button" className="catalog-bulk__clear" disabled={saving} onClick={() => setSelected([])}>{t('Clear selection')}</button>
@@ -500,7 +616,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
             const unavailable = product.product_variants.filter(variant => !variant.is_preorder && variant.stock_quantity === 0).length
             return <li key={product.id} className={selected.includes(product.id) ? 'catalog-admin__selected' : undefined}>
               {product.product_images[0] ? <img className="catalog-admin__thumb" src={product.product_images[0].public_url} alt="" /> : <div className="catalog-admin__thumb catalog-admin__thumb--empty" aria-hidden="true" />}
-              <div className="catalog-admin__item"><strong>{product.name}</strong><span>{categories.find(category => category.id === product.category_id)?.name ?? t('Uncategorized')} · {product.is_active ? t('Published') : t('Hidden')}</span><span>{product.product_variants.length} {t('variants')}{unavailable ? ` · ${unavailable} ${t('out of stock')}` : ''}</span></div>
+              <div className="catalog-admin__item"><strong>{product.name}</strong><span>{categoryPaths(categories, assignedCategoryIds(product)).join(' · ') || t('Uncategorized')} · {product.is_active ? t('Published') : t('Hidden')}</span><span>{product.product_variants.length} {t('variants')}{unavailable ? ` · ${unavailable} ${t('out of stock')}` : ''}</span></div>
               <div className="actions">
                 <input type="checkbox" aria-label={`${t('Select product')} · ${product.name}`} checked={selected.includes(product.id)} disabled={saving} onChange={event => setSelected(current => event.target.checked ? [...current, product.id] : current.filter(id => id !== product.id))} />
                 <button type="button" className="text-btn" onClick={() => openProduct(product)}>{t('Edit')}</button>
@@ -538,7 +654,15 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
       {pages > 1 && <div className="crm-pagination"><button className="text-btn" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t('Previous')}</button><span>{currentPage} / {pages}</span><button className="text-btn" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>{t('Next')}</button></div>}
       </>)}
         {draft && <section className="product-editor catalog-product-workspace">
-          <div className="product-editor__head"><h2 ref={editorHeading} tabIndex={-1}>{draft.id ? t('Edit product') : t('New product')}</h2><button type="button" className="text-btn" disabled={saving || categoryBusy} onClick={closeEditor}>{t('Close')}</button></div>
+          <div className="product-editor__head">
+            <h2 ref={editorHeading} tabIndex={-1}>{draft.id ? t('Edit product') : t('New product')}</h2>
+            <div className="actions">
+              {draft.id && <button type="button" className="text-btn product-editor__delete" disabled={saving || categoryBusy} onClick={() => void deleteProduct()}>
+                {t(deleting ? 'Deleting…' : 'Delete product')}
+              </button>}
+              <button type="button" className="text-btn" disabled={saving || categoryBusy} onClick={closeEditor}>{t('Close')}</button>
+            </div>
+          </div>
           <label className="field"><span>{t('Name')}</span><input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
           <label className="field"><span>{t('Description')}</span><textarea rows={3} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
           <details className="customer-section"><summary>{t('Product information')}</summary>
@@ -546,7 +670,29 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
             <label className="field">{t('Composition')}<textarea rows={3} maxLength={10000} value={draft.composition} onChange={event => setDraft({ ...draft, composition: event.target.value })} /></label>
             <label className="field">{t('Care instructions')}<textarea rows={3} maxLength={10000} value={draft.careInstructions} onChange={event => setDraft({ ...draft, careInstructions: event.target.value })} /></label>
           </details>
-          <div className="category-picker"><label className="field"><span>{t('Category')}</span><select value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}><option value="">{t('Uncategorized')}</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>{!showCategories && <button type="button" className="text-btn" disabled={saving} onClick={() => { setEditingCategoryId(null); setCategoryName(''); setShowCategories(true) }}>{t('Create category')}</button>}</div>
+          <fieldset className="catalog-category-picker" disabled={saving || categoryBusy}>
+            <legend>{t('Categories')}</legend>
+            {groups.length === 0 && <p className="muted">{t('No categories yet.')}</p>}
+            {groups.map(({ parent, children }) => {
+              const checked = draft.categoryIds.includes(parent.id)
+              return <div className="catalog-category-picker__branch" key={parent.id}>
+                <label className="check">
+                  <input type="checkbox" checked={checked} onChange={event => toggleCategory(parent, event.target.checked)} />
+                  {parent.name}
+                </label>
+                {checked && children.length > 0 && <div className="catalog-category-picker__children">
+                  {children.map(child => <label className="check" key={child.id}>
+                    <input type="checkbox" checked={draft.categoryIds.includes(child.id)} onChange={event => toggleCategory(child, event.target.checked)} />
+                    {child.name}
+                  </label>)}
+                </div>}
+              </div>
+            })}
+            {!showCategories && <button type="button" className="text-btn" onClick={() => {
+              resetCategoryForm()
+              setShowCategories(true)
+            }}>{t('Create category or subcategory')}</button>}
+          </fieldset>
           {categoryManager}
           <label className="field"><span>{t('Upload images')}</span><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => setDraft({ ...draft, newImageFiles: [...draft.newImageFiles, ...Array.from(event.target.files ?? [])] })} /><small>{t('JPG, PNG or WebP · up to 5 MB per file')}</small></label>
           {draft.images.length > 0 || draft.newImageFiles.length > 0 ? <div className="image-manager">
@@ -572,7 +718,10 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
               <button type="button" className="text-btn" disabled={draft.variants.length === 1} onClick={() => removeVariant(index)}>{t('Remove')}</button>
             </div>)}
           </div>
-          <div className="actions"><button type="button" className="btn" disabled={saving || categoryBusy} onClick={() => void save()}>{saving ? t('Saving…') : t('Save product')}</button><button type="button" className="btn btn--ghost" disabled={saving || categoryBusy} onClick={closeEditor}>{t('Cancel')}</button></div>
+          <div className="actions">
+            <button type="button" className="btn" disabled={saving || categoryBusy} onClick={() => void save()}>{t(saving && !deleting ? 'Saving…' : 'Save product')}</button>
+            <button type="button" className="btn btn--ghost" disabled={saving || categoryBusy} onClick={closeEditor}>{t('Cancel')}</button>
+          </div>
         </section>}
     </section>
   )

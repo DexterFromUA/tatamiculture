@@ -32,6 +32,13 @@ export type ProductOption = {
   quantity: number
 }
 
+export type CatalogCategory = {
+  id: string
+  name: string
+  parent_id: string | null
+  position: number
+}
+
 export type Product = {
   sizeGuide?: string
   composition?: string
@@ -41,6 +48,7 @@ export type Product = {
   name: string
   description: string
   category: string
+  categories?: CatalogCategory[]
   imgUrls: string[]
   isActive: boolean
   productOptions: ProductOption[]

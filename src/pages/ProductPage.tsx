@@ -6,6 +6,7 @@ import { useCart } from '../context/CartContext'
 import { useStore } from '../context/StoreContext'
 import { useToast } from '../context/ToastContext'
 import { formatPrice, optionPrice } from '../lib/format'
+import { categoriesForProduct, categoryPaths } from '../lib/categories'
 import { useTranslation } from 'react-i18next'
 
 export function ProductPage() {
@@ -36,6 +37,10 @@ export function ProductPage() {
   }
 
   const price = optionPrice(option)
+  const categories = categoriesForProduct(product)
+  const categoryIds = categories.map(category => category.id)
+  const related = products.filter(item => item.id !== product.id
+    && categoriesForProduct(item).some(category => categoryIds.includes(category.id))).slice(0, 4)
   const images = product.imgUrls
   const activeImage = images[imageIndex] ?? images[0]
   const changeImage = (direction: -1 | 1) => {
@@ -65,7 +70,7 @@ export function ProductPage() {
       </div>
       <div className="product-view__body">
         <Link className="shop-back" to="/">← {t('Back to shop')}</Link>
-        <p className="muted">{product.category}</p>
+        <p className="muted">{categoryPaths(categories, categoryIds).join(' · ') || t(product.category)}</p>
         <h1>{product.name}</h1>
         <p className="lede">{product.description}</p>
         {[
@@ -122,9 +127,9 @@ export function ProductPage() {
         </div>
       </div>
     </article>
-    {products.some(item => item.id !== product.id && item.category === product.category) && <section className="page-section">
+    {related.length > 0 && <section className="page-section">
       <h2>{t('Related products')}</h2>
-      <div className="product-grid">{products.filter(item => item.id !== product.id && item.category === product.category).slice(0, 4).map(item => <ProductCard key={item.id} product={item} store={store} />)}</div>
+      <div className="product-grid">{related.map(item => <ProductCard key={item.id} product={item} store={store} />)}</div>
     </section>}
     </>
   )

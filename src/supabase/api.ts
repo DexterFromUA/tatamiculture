@@ -1,11 +1,12 @@
 import { normalizePhone } from '../lib/phone'
 import { supabaseRequest } from '../lib/supabase'
-import type { AuthSession, CartItem, CheckoutInput, Order, OrderItem, Product, ProductOption, ShortLink, Store, User } from '../types'
+import type { AuthSession, CartItem, CatalogCategory, CheckoutInput, Order, OrderItem, Product, ProductOption, ShortLink, Store, User } from '../types'
 
 type Row = Record<string, unknown>
 
 const money = (amount: unknown) => Number(amount ?? 0) / 100
 const text = (value: unknown) => String(value ?? '')
+const productFields = '*,categories!products_category_id_fkey(name),product_categories(categories(id,name,parent_id,position)),product_variants(*),product_images(*)'
 
 function mapStore(row: Row): Store {
   return {
@@ -17,12 +18,14 @@ function mapStore(row: Row): Store {
 
 function mapProduct(row: Row): Product {
   const category = row.categories as Row | null
+  const assignments = row.product_categories as Array<{ categories: CatalogCategory | null }> | undefined
   const images = (row.product_images as Row[] | undefined) ?? []
   const variants = (row.product_variants as Row[] | undefined) ?? []
   return {
     id: text(row.id), storeId: text(row.store_id), name: text(row.name), description: text(row.description),
     sizeGuide: text(row.size_guide), composition: text(row.composition), careInstructions: text(row.care_instructions),
     category: text(category?.name ?? 'Uncategorized'), isActive: Boolean(row.is_active),
+    categories: assignments?.flatMap(link => link.categories ? [link.categories] : []),
     imgUrls: images.sort((a, b) => Number(a.position) - Number(b.position)).map((image) => text(image.public_url)),
     productOptions: variants.sort((a, b) => Number(a.position) - Number(b.position)).map((variant): ProductOption => {
       const price = money(variant.price)
@@ -82,12 +85,12 @@ export const supabaseApi = {
   },
 
   async getProducts(storeId: string): Promise<Product[]> {
-    const rows = await supabaseRequest<Row[]>(`/rest/v1/products?store_id=eq.${encodeURIComponent(storeId)}&is_active=eq.true&select=*,categories(name),product_variants(*),product_images(*)`)
+    const rows = await supabaseRequest<Row[]>(`/rest/v1/products?store_id=eq.${encodeURIComponent(storeId)}&is_active=eq.true&select=${productFields}`)
     return rows.map(mapProduct)
   },
 
   async getProduct(storeId: string, productId: string): Promise<Product | null> {
-    const rows = await supabaseRequest<Row[]>(`/rest/v1/products?id=eq.${encodeURIComponent(productId)}&store_id=eq.${encodeURIComponent(storeId)}&is_active=eq.true&select=*,categories(name),product_variants(*),product_images(*)`)
+    const rows = await supabaseRequest<Row[]>(`/rest/v1/products?id=eq.${encodeURIComponent(productId)}&store_id=eq.${encodeURIComponent(storeId)}&is_active=eq.true&select=${productFields}`)
     return rows[0] ? mapProduct(rows[0]) : null
   },
 
@@ -175,7 +178,7 @@ export const supabaseApi = {
     if (!link) return null
     const [stores, products] = await Promise.all([
       supabaseRequest<Row[]>(`/rest/v1/stores?id=eq.${encodeURIComponent(text(link.store_id))}&select=*`),
-      supabaseRequest<Row[]>(`/rest/v1/products?id=eq.${encodeURIComponent(text(link.product_id))}&store_id=eq.${encodeURIComponent(text(link.store_id))}&is_active=eq.true&select=*,categories(name),product_variants(*),product_images(*)`),
+      supabaseRequest<Row[]>(`/rest/v1/products?id=eq.${encodeURIComponent(text(link.product_id))}&store_id=eq.${encodeURIComponent(text(link.store_id))}&is_active=eq.true&select=${productFields}`),
     ])
     const store = stores[0] ? mapStore(stores[0]) : null
     const product = products[0] ? mapProduct(products[0]) : null
