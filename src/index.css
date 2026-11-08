@@ -1355,7 +1355,8 @@ textarea {
 .cart-empty { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; min-height: 350px; }
 .cart-empty h1 { margin-bottom: 16px; }
 .cart-empty > p:not(.eyebrow) { color: #5c5c5c; }
-.cart-empty__link { margin-top: 20px; padding: 14px 18px; background: #303030; color: #fff; font-weight: 600; font-size: .85rem; text-decoration: none; }
+.cart-empty__link { margin-top: 20px; padding: 14px 18px; background: #bd2731; color: #fff; font-weight: 600; font-size: .85rem; text-decoration: none; }
+.cart-hero__footer a { color: #bd2731; }
 .cart-page__layout { gap: 18px; }
 .cart-page__layout > div { min-width: 0; }
 .cart-list-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 22px 24px; background: var(--card); border: 1px solid var(--line); border-bottom: 0; }
