@@ -1,6 +1,6 @@
 import { RestockSubscription } from '../components/RestockSubscription'
 import { ProductCard } from '../components/ProductCard'
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useCart } from '../context/CartContext'
 import { useStore } from '../context/StoreContext'
@@ -8,6 +8,8 @@ import { useToast } from '../context/ToastContext'
 import { formatPrice, optionPrice } from '../lib/format'
 import { categoriesForProduct, categoryPaths, productCategoryLabel } from '../lib/categories'
 import { useTranslation } from 'react-i18next'
+import Markdown from 'react-markdown'
+import remarkBreaks from 'remark-breaks'
 
 export function ProductPage() {
   const { productId } = useParams()
@@ -18,6 +20,8 @@ export function ProductPage() {
   const [optionId, setOptionId] = useState(product?.productOptions[0]?.id ?? '')
   const [quantity, setQuantity] = useState(1)
   const [imageIndex, setImageIndex] = useState(0)
+  const sizeGuideDialog = useRef<HTMLDialogElement>(null)
+  const sizeGuideTitleId = useId()
   const { t, i18n } = useTranslation()
 
   const option = useMemo(
@@ -72,9 +76,32 @@ export function ProductPage() {
         <Link className="shop-back" to="/">← {t('Back to shop')}</Link>
         <p className="muted">{categoryPaths(categories, categoryIds, i18n.resolvedLanguage).join(' · ') || productCategoryLabel(product, i18n.resolvedLanguage) || t('Uncategorized')}</p>
         <h1>{product.name}</h1>
-        <p className="lede">{product.description}</p>
+        {product.description.trim() && (
+          <div className="lede product-description">
+            <Markdown skipHtml remarkPlugins={[remarkBreaks]}>{product.description}</Markdown>
+          </div>
+        )}
+        {(product.sizeGuide || product.sizeGuideImageUrl) && <>
+          <button type="button" className="size-guide-trigger" aria-haspopup="dialog" onClick={() => sizeGuideDialog.current?.showModal()}>
+            {t('Size guide and measurements')} <span aria-hidden="true">↗</span>
+          </button>
+          <dialog ref={sizeGuideDialog} className="size-guide-dialog" aria-labelledby={sizeGuideTitleId}
+            onClick={event => {
+              if (event.target !== event.currentTarget) return
+              const bounds = event.currentTarget.getBoundingClientRect()
+              if (event.clientX < bounds.left || event.clientX >= bounds.right || event.clientY < bounds.top || event.clientY >= bounds.bottom) event.currentTarget.close()
+            }}>
+            <header className="size-guide-dialog__header">
+              <h2 id={sizeGuideTitleId}>{t('Size guide and measurements')}</h2>
+              <button type="button" className="text-btn" autoFocus onClick={() => sizeGuideDialog.current?.close()}>{t('Close')}</button>
+            </header>
+            <div className="size-guide-dialog__body">
+              {product.sizeGuide && <p style={{ whiteSpace: 'pre-wrap' }}>{product.sizeGuide}</p>}
+              {product.sizeGuideImageUrl && <a href={product.sizeGuideImageUrl} target="_blank" rel="noopener noreferrer"><img src={product.sizeGuideImageUrl} alt={t('Size guide and measurements')} /></a>}
+            </div>
+          </dialog>
+        </>}
         {[
-          [t('Size guide and measurements'), product.sizeGuide],
           [t('Composition'), product.composition],
           [t('Care instructions'), product.careInstructions],
         ].filter(([, value]) => value).map(([label, value]) => <details key={label} className="customer-section">
@@ -116,7 +143,14 @@ export function ProductPage() {
             onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))}
           />
         </label>
-        {option.isPreOrder ? <p className="note">{t('This option is a pre-order. Production starts after checkout.')}</p> : null}
+        {option.isPreOrder ? (
+          <p className="note product-delivery-note">
+            <strong>{t('Average delivery time: 5–15 business days')}</strong>
+            <small>{t('This is an estimate. Your parcel may arrive earlier or take longer.')}</small>
+          </p>
+        ) : option.quantity > 0 && (
+          <p className="note product-delivery-note">{t('Ships in 1–5 business days')}</p>
+        )}
         {!option.isPreOrder && option.quantity === 0 && <RestockSubscription key={option.id} variantId={option.id} />}
         <div className="actions">
           <button type="button" className="btn" disabled={!option.isPreOrder && option.quantity < 1} onClick={addToCart}>

@@ -2,6 +2,7 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 const uk = {
+  'Size guide image': 'Фото розмірної сітки',
   'Store temporarily unavailable': 'Магазин тимчасово недоступний',
   'Store contacts': 'Контакти магазину',
   'These contacts appear at the bottom of the store.': 'Ці контакти відображаються внизу магазину.',
@@ -184,7 +185,9 @@ const uk = {
   English: 'English', Ukrainian: 'Українська',
   'Cart is empty': 'Кошик порожній', 'Continue shopping': 'Продовжити покупки', Quantity: 'Кількість', Remove: 'Видалити', Total: 'Разом', Checkout: 'Оформити замовлення',
   'Product not found': 'Товар не знайдено', 'Back to shop': 'До магазину', Option: 'Варіант',
-  'This option is a pre-order. Production starts after checkout.': 'Цей варіант доступний за передзамовленням. Виробництво розпочнеться після оформлення.',
+  'Average delivery time: 5–15 business days': 'Середній термін доставки: 5–15 робочих днів',
+  'This is an estimate. Your parcel may arrive earlier or take longer.': 'Термін доставки орієнтовний. Посилка може приїхати раніше або затриматися.',
+  'Ships in 1–5 business days': 'Відправлення протягом 1–5 робочих днів',
   'Add to cart': 'Додати до кошика', 'View cart': 'Переглянути кошик', Sale: 'Знижка',
   'Added to cart': 'Додано до кошика', 'Previous image': 'Попереднє зображення', 'Next image': 'Наступне зображення', 'pre-order': 'передзамовлення',
   'Page not found': 'Сторінку не знайдено', 'Loading…': 'Завантаження…',

@@ -44,6 +44,7 @@ export type CatalogCategory = {
 export type Product = {
   createdAt?: string
   sizeGuide?: string
+  sizeGuideImageUrl?: string
   composition?: string
   careInstructions?: string
   id: string

@@ -26,6 +26,7 @@ type ProductImage = { id: string; public_url: string; storage_path: string; posi
 type DraftVariant = Variant & { key: string }
 type CatalogProduct = {
   size_guide?: string
+  size_guide_image_url?: string
   composition?: string
   care_instructions?: string
   id: string
@@ -41,6 +42,8 @@ type Draft = {
   key: string
   newImagesFirst: boolean
   sizeGuide: string
+  sizeGuideImageUrl: string
+  sizeGuideImageFile: File | null
   composition: string
   careInstructions: string
   id?: string
@@ -56,7 +59,7 @@ type Draft = {
 
 const defaultLowStockThreshold = 3
 const blankVariant = (): DraftVariant => ({ key: crypto.randomUUID(), name: 'M', sku: '', price: 0, compare_at_price: null, stock_quantity: 0, low_stock_threshold: defaultLowStockThreshold, is_preorder: false })
-const blankDraft = (): Draft => ({ key: crypto.randomUUID(), newImagesFirst: false, sizeGuide: '', composition: '', careInstructions: '', name: '', description: '', categoryIds: [], isActive: true, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
+const blankDraft = (): Draft => ({ key: crypto.randomUUID(), newImagesFirst: false, sizeGuide: '', sizeGuideImageUrl: '', sizeGuideImageFile: null, composition: '', careInstructions: '', name: '', description: '', categoryIds: [], isActive: true, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
 const categorySlug = (name: string) => `${name.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'category'}-${crypto.randomUUID().slice(0, 8)}`
 
 function assignedCategoryIds(product: CatalogProduct) {
@@ -77,6 +80,7 @@ function toDraft(product: CatalogProduct): Draft {
     key: product.id,
     newImagesFirst: false,
     sizeGuide: product.size_guide ?? '', composition: product.composition ?? '', careInstructions: product.care_instructions ?? '',
+    sizeGuideImageUrl: product.size_guide_image_url ?? '', sizeGuideImageFile: null,
     id: product.id,
     name: product.name,
     description: product.description,
@@ -153,7 +157,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
     if (editorOpen) editorHeading.current?.focus()
   }, [editorOpen])
   const [originalDraft, setOriginalDraft] = useState('')
-  const dirty = draft !== null && (draft.newImageFiles.length > 0 || JSON.stringify(draft) !== originalDraft)
+  const dirty = draft !== null && (draft.newImageFiles.length > 0 || draft.sizeGuideImageFile !== null || JSON.stringify(draft) !== originalDraft)
   useEffect(() => {
     if (!dirty) return
     const preventExit = (event: BeforeUnloadEvent) => event.preventDefault()
@@ -371,7 +375,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
       const payload = {
         store_id: store.id,
         name: draft.name.trim(),
-        description: draft.description.trim(),
+        description: draft.description,
         size_guide: draft.sizeGuide, composition: draft.composition, care_instructions: draft.careInstructions,
         is_active: draft.isActive,
       }
@@ -383,6 +387,15 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
           method: 'POST', token, headers: { Prefer: 'resolution=ignore-duplicates' },
           body: JSON.stringify({ ...payload, id: productId, is_active: false }),
         })
+      }
+
+      let sizeGuideImageUrl = draft.sizeGuideImageUrl
+      if (draft.sizeGuideImageFile) {
+        const image = await uploadProductImage(productId, draft.sizeGuideImageFile, token)
+        sizeGuideImageUrl = image.publicUrl
+        setDraft(current => current?.key === productId
+          ? { ...current, sizeGuideImageUrl, sizeGuideImageFile: null }
+          : current)
       }
 
       const current = products.find((product) => product.id === productId)
@@ -451,7 +464,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
         }),
       ))
       await setProductCategories([productId], draft.categoryIds, token)
-      await supabaseRequest(productPath, { method: 'PATCH', token, body: JSON.stringify(payload) })
+      await supabaseRequest(productPath, { method: 'PATCH', token, body: JSON.stringify({ ...payload, size_guide_image_url: sizeGuideImageUrl }) })
       await Promise.all([load(), refreshProducts().catch(() => {})])
       closeSavedEditor()
     } catch (cause) {
@@ -699,6 +712,15 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
           <label className="field"><span>{t('Description')}</span><textarea rows={3} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
           <details className="customer-section"><summary>{t('Product information')}</summary>
             <label className="field">{t('Size guide and measurements')}<textarea rows={5} maxLength={10000} value={draft.sizeGuide} onChange={event => setDraft({ ...draft, sizeGuide: event.target.value })} /></label>
+            <label className="field"><span>{t('Size guide image')}</span><input type="file" accept="image/jpeg,image/png,image/webp" disabled={saving} onChange={event => {
+              const file = event.target.files?.[0]
+              if (file) setDraft({ ...draft, sizeGuideImageFile: file })
+              event.target.value = ''
+            }} /><small>{t('JPG, PNG or WebP · up to 5 MB per file')}</small></label>
+            {(draft.sizeGuideImageFile || draft.sizeGuideImageUrl) && <div className="size-guide-editor">
+              {draft.sizeGuideImageFile ? <LocalImagePreview file={draft.sizeGuideImageFile} /> : <img src={draft.sizeGuideImageUrl} alt={t('Size guide image')} />}
+              <button type="button" className="text-btn" disabled={saving} onClick={() => setDraft({ ...draft, sizeGuideImageFile: null, sizeGuideImageUrl: '' })}>{t('Remove image')}</button>
+            </div>}
             <label className="field">{t('Composition')}<textarea rows={3} maxLength={10000} value={draft.composition} onChange={event => setDraft({ ...draft, composition: event.target.value })} /></label>
             <label className="field">{t('Care instructions')}<textarea rows={3} maxLength={10000} value={draft.careInstructions} onChange={event => setDraft({ ...draft, careInstructions: event.target.value })} /></label>
           </details>
