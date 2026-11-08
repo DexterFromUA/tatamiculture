@@ -842,6 +842,10 @@ textarea {
 .catalog-admin__item { min-width: 0; flex: 1; }
 .catalog-admin__item strong { display: block; overflow-wrap: anywhere; }
 .catalog-admin__item span.stock-low { color: var(--danger); }
+.catalog-admin__list .catalog-stock-row { flex-wrap: wrap; align-items: flex-start; }
+.catalog-stock-row__size { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.catalog-stock-row__size select { min-width: 72px; max-width: 100%; }
+.catalog-stock-row__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .catalog-admin__no-results { color: var(--muted); }
 
 .catalog-admin__list span {

@@ -86,8 +86,11 @@ export function ProductPage() {
           )}
         </p>
         <label className="field">
-          <span>{t('Option')}</span>
-          <select value={option.id} onChange={(event) => setOptionId(event.target.value)}>
+          <span>{t('Size')}</span>
+          <select value={option.id} onChange={(event) => {
+            setOptionId(event.target.value)
+            setQuantity(1)
+          }}>
             {product.productOptions.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name}

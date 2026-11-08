@@ -22,6 +22,7 @@ type Variant = {
   is_preorder: boolean
 }
 type ProductImage = { id: string; public_url: string; storage_path: string; position: number }
+type DraftVariant = Variant & { key: string }
 type CatalogProduct = {
   size_guide?: string
   composition?: string
@@ -35,6 +36,7 @@ type CatalogProduct = {
   product_variants: Variant[]
 }
 type Draft = {
+  key: string
   newImagesFirst: boolean
   sizeGuide: string
   composition: string
@@ -47,15 +49,16 @@ type Draft = {
   images: ProductImage[]
   newImageFiles: File[]
   removedImageIds: string[]
-  variants: Variant[]
+  variants: DraftVariant[]
 }
 
-const blankVariant = (): Variant => ({ name: 'M', sku: '', price: 0, compare_at_price: null, stock_quantity: 0, low_stock_threshold: 3, is_preorder: false })
-const blankDraft = (): Draft => ({ newImagesFirst: false, sizeGuide: '', composition: '', careInstructions: '', name: '', description: '', categoryId: '', isActive: true, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
+const blankVariant = (): DraftVariant => ({ key: crypto.randomUUID(), name: 'M', sku: '', price: 0, compare_at_price: null, stock_quantity: 0, low_stock_threshold: 3, is_preorder: false })
+const blankDraft = (): Draft => ({ key: crypto.randomUUID(), newImagesFirst: false, sizeGuide: '', composition: '', careInstructions: '', name: '', description: '', categoryId: '', isActive: true, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
 const categorySlug = (name: string) => `${name.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'category'}-${crypto.randomUUID().slice(0, 8)}`
 
 function toDraft(product: CatalogProduct): Draft {
   return {
+    key: product.id,
     newImagesFirst: false,
     sizeGuide: product.size_guide ?? '', composition: product.composition ?? '', careInstructions: product.care_instructions ?? '',
     id: product.id,
@@ -66,7 +69,7 @@ function toDraft(product: CatalogProduct): Draft {
     images: [...product.product_images].sort((a, b) => a.position - b.position),
     newImageFiles: [],
     removedImageIds: [],
-    variants: product.product_variants.map((variant) => ({ ...variant, price: Number(variant.price) / 100, compare_at_price: variant.compare_at_price === null ? null : Number(variant.compare_at_price) / 100 })),
+    variants: product.product_variants.map((variant) => ({ ...variant, key: variant.id ?? crypto.randomUUID(), price: Number(variant.price) / 100, compare_at_price: variant.compare_at_price === null ? null : Number(variant.compare_at_price) / 100 })),
   }
 }
 
@@ -89,6 +92,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
   const [search, setSearch] = useState('')
   const [view, setView] = useState<CatalogView>(initialView)
   const [stockFilter, setStockFilter] = useState<StockFilter>(initialView === 'stock' ? 'low' : 'all')
+  const [stockSelection, setStockSelection] = useState<Record<string, string>>({})
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [showCategories, setShowCategories] = useState(false)
   const [categoryName, setCategoryName] = useState('')
@@ -99,11 +103,16 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
   const [page, setPage] = useState(1)
   const query = search.trim().toLowerCase()
   const searchedProducts = products.filter(product => `${product.name} ${product.product_variants.map(variant => variant.sku).join(' ')}`.toLowerCase().includes(query))
-  const stockRows = searchedProducts.flatMap(product => product.product_variants.map(variant => ({ product, variant })))
   const lowCount = products.flatMap(product => product.product_variants).filter(variant => !variant.is_preorder && variant.stock_quantity < variant.low_stock_threshold).length
   const outCount = products.flatMap(product => product.product_variants).filter(variant => !variant.is_preorder && variant.stock_quantity === 0).length
   const productMatches = searchedProducts.filter(product => categoryFilter === 'all' || product.category_id === categoryFilter)
-  const stockMatches = stockRows.filter(({ variant }) => stockFilter === 'all' || (!variant.is_preorder && (stockFilter === 'out' ? variant.stock_quantity === 0 : variant.stock_quantity < variant.low_stock_threshold)))
+  const stockMatches = searchedProducts.map(product => ({
+    product,
+    variants: product.product_variants.filter(variant =>
+      stockFilter === 'all' || (!variant.is_preorder && (stockFilter === 'out'
+        ? variant.stock_quantity === 0
+        : variant.stock_quantity < variant.low_stock_threshold))),
+  })).filter(({ variants }) => variants.length > 0)
   const pages = Math.max(1, Math.ceil((view === 'products' ? productMatches.length : stockMatches.length) / 20))
   const currentPage = Math.min(page, pages)
   const pageProducts = productMatches.slice((currentPage - 1) * 20, currentPage * 20)
@@ -113,6 +122,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
   const draggedFile = useRef<number | null>(null)
   const draggedImage = useRef<string | null>(null)
   const editorHeading = useRef<HTMLHeadingElement>(null)
+  const attemptedVariantIds = useRef(new Set<string>())
   const editorOpen = draft !== null
   useEffect(() => {
     if (editorOpen) editorHeading.current?.focus()
@@ -139,6 +149,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
   }, [dirty, t])
 
   const beginDraft = (next: Draft) => {
+    attemptedVariantIds.current.clear()
     setOriginalDraft(JSON.stringify(next))
     setError(null)
     setDraft(next)
@@ -163,7 +174,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
         return
       }
       const productQuery = (includeThreshold: boolean) =>
-        fetchAll<CatalogProduct>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=*,product_images(id,public_url,storage_path,position),product_variants(id,name,sku,price,compare_at_price,stock_quantity,is_preorder${includeThreshold ? ',low_stock_threshold' : ''})&order=position.asc,id.asc`, token)
+        fetchAll<CatalogProduct>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=*,product_images(id,public_url,storage_path,position),product_variants(id,name,sku,price,compare_at_price,stock_quantity,is_preorder${includeThreshold ? ',low_stock_threshold' : ''})&order=position.asc,id.asc&product_variants.order=position.asc,id.asc`, token)
       const [catalog, nextCategories] = await Promise.all([
         productQuery(true).then(products => ({ products, hasThreshold: true })).catch(async (cause: unknown) => {
           if (!(cause instanceof Error) || !/column .*low_stock_threshold.*does not exist/i.test(cause.message)) throw cause
@@ -280,7 +291,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
   }
 
   const save = async () => {
-    if (!store || !token || !draft) return
+    if (!store || !token || !draft || saving) return
     if (!draft.name.trim()) {
       setError('Product name is required')
       return
@@ -300,40 +311,56 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
         category_id: draft.categoryId || null,
         is_active: draft.isActive,
       }
-      let productId = draft.id
-      if (productId) {
-        await supabaseRequest<CatalogProduct[]>(`/rest/v1/products?id=eq.${encodeURIComponent(productId)}`, {
-          method: 'PATCH', token, headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload),
+      const productId = draft.key
+      const productPath = `/rest/v1/products?id=eq.${encodeURIComponent(productId)}&store_id=eq.${encodeURIComponent(store.id)}`
+      if (!draft.id) {
+        // Keep an unfinished product off the storefront and reuse its ID on retry.
+        await supabaseRequest('/rest/v1/products?on_conflict=id', {
+          method: 'POST', token, headers: { Prefer: 'resolution=ignore-duplicates' },
+          body: JSON.stringify({ ...payload, id: productId, is_active: false }),
         })
-      } else {
-        const created = await supabaseRequest<CatalogProduct[]>('/rest/v1/products', {
-          method: 'POST', token, headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload),
-        })
-        productId = created[0]?.id
-        if (!productId) throw new Error('Product could not be created')
       }
 
       const current = products.find((product) => product.id === productId)
-      const keepIds = new Set(draft.variants.flatMap((variant) => variant.id ? [variant.id] : []))
-      await Promise.all((current?.product_variants ?? []).filter((variant) => variant.id && !keepIds.has(variant.id)).map((variant) =>
-        supabaseRequest(`/rest/v1/product_variants?id=eq.${encodeURIComponent(variant.id ?? '')}`, { method: 'DELETE', token }),
+      const keepIds = new Set(draft.variants.map(variant => variant.key))
+      const knownIds = new Set([
+        ...(current?.product_variants ?? []).flatMap(variant => variant.id ? [variant.id] : []),
+        ...attemptedVariantIds.current,
+      ])
+      await Promise.all([...knownIds].filter(id => !keepIds.has(id)).map(id =>
+        supabaseRequest(`/rest/v1/product_variants?id=eq.${encodeURIComponent(id)}&product_id=eq.${encodeURIComponent(productId)}`, { method: 'DELETE', token }),
       ))
-      await Promise.all(draft.variants.map((variant, position) => {
-        const variantPayload = {
+      const variants = draft.variants.map((variant, position) => ({
+        variant,
+        fields: {
           product_id: productId,
           name: variant.name.trim() || 'One size',
           sku: variant.sku?.trim() || null,
           price: Math.max(0, Math.round(Number(variant.price) * 100)),
           compare_at_price: variant.compare_at_price === null || variant.compare_at_price === 0 ? null : Math.round(Number(variant.compare_at_price) * 100),
-          ...((!variant.id || !stockSchemaReady) && { stock_quantity: variant.stock_quantity }),
           ...(stockSchemaReady && { low_stock_threshold: variant.low_stock_threshold }),
           is_preorder: variant.is_preorder,
           position,
-        }
-        return variant.id
-          ? supabaseRequest(`/rest/v1/product_variants?id=eq.${encodeURIComponent(variant.id)}`, { method: 'PATCH', token, body: JSON.stringify(variantPayload) })
-          : supabaseRequest('/rest/v1/product_variants', { method: 'POST', token, body: JSON.stringify(variantPayload) })
+        },
       }))
+      const newVariants = variants.filter(({ variant }) => !variant.id)
+      const insertedIds = new Set<string>()
+      if (newVariants.length > 0) {
+        for (const { variant } of newVariants) attemptedVariantIds.current.add(variant.key)
+        const inserted = await supabaseRequest<{ id: string }[]>('/rest/v1/product_variants?on_conflict=id&select=id', {
+          method: 'POST', token, headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
+          body: JSON.stringify(newVariants.map(({ variant, fields }) => ({
+            ...fields, id: variant.key, stock_quantity: variant.stock_quantity,
+          }))),
+        })
+        for (const row of inserted ?? []) insertedIds.add(row.id)
+      }
+      await Promise.all(variants.filter(({ variant }) => !insertedIds.has(variant.key)).map(({ variant, fields }) =>
+        supabaseRequest(`/rest/v1/product_variants?id=eq.${encodeURIComponent(variant.key)}&product_id=eq.${encodeURIComponent(productId)}`, {
+          method: 'PATCH', token,
+          body: JSON.stringify({ ...fields, ...(!stockSchemaReady && { stock_quantity: variant.stock_quantity }) }),
+        }),
+      ))
 
       const removedImages = draft.images.filter((image) => draft.removedImageIds.includes(image.id))
       const retainedImages = draft.images.filter((image) => !draft.removedImageIds.includes(image.id))
@@ -350,6 +377,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
           body: JSON.stringify({ product_id: productId, public_url: image.publicUrl, storage_path: image.storagePath, position: (draft.newImagesFirst ? 0 : retainedImages.length) + index }),
         }),
       ))
+      await supabaseRequest(productPath, { method: 'PATCH', token, body: JSON.stringify(payload) })
       await load()
       setDraft(null)
     } catch (cause) {
@@ -479,16 +507,32 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
                 {stockSchemaReady && <button type="button" className="text-btn" disabled={saving} onClick={() => void duplicate(product)}>{t('Duplicate')}</button>}
               </div>
             </li>
-          }) : stockMatches.slice((currentPage - 1) * 20, currentPage * 20).map(({ product, variant }, index) => <li key={variant.id ?? `${product.id}-${index}`}>
-            {product.product_images[0] ? <img className="catalog-admin__thumb" src={product.product_images[0].public_url} alt="" /> : <div className="catalog-admin__thumb catalog-admin__thumb--empty" aria-hidden="true" />}
-            <div className="catalog-admin__item"><strong>{product.name} · {variant.name}</strong><span>{variant.sku || t('No SKU')} · {product.is_active ? t('Published') : t('Hidden')}</span><span className={!variant.is_preorder && variant.stock_quantity < variant.low_stock_threshold ? 'stock-low' : ''}>{variant.is_preorder ? t('Pre-order') : `${variant.stock_quantity} ${t('in stock')}`}</span></div>
-            <div>
-              <button type="button" className="text-btn" onClick={() => openProduct(product)}>{t('Edit')}</button>
-              {variant.id && token && <VariantPriceEditor key={`${variant.id}-${variant.price}`} id={variant.id} price={variant.price} compareAtPrice={variant.compare_at_price} token={token} onSaved={load} />}
-              {variant.id && token && <VariantCostEditor variantId={variant.id} token={token} />}
-              {stockSchemaReady && variant.id && token && <StockAdjustment variantId={variant.id} token={token} reload={load} />}
-            </div>
-          </li>)}
+          }) : stockMatches.slice((currentPage - 1) * 20, currentPage * 20).map(({ product, variants }) => {
+            const variant = variants.find(item => item.id === stockSelection[product.id]) ?? variants[0]
+            return <li key={product.id} className="catalog-stock-row">
+              {product.product_images[0] ? <img className="catalog-admin__thumb" src={product.product_images[0].public_url} alt="" /> : <div className="catalog-admin__thumb catalog-admin__thumb--empty" aria-hidden="true" />}
+              <div className="catalog-admin__item">
+                <strong>{product.name}</strong>
+                <label className="catalog-stock-row__size">
+                  <span>{t('Size')}</span>
+                  <select value={variant.id} onChange={event => {
+                    const id = event.target.value
+                    setStockSelection(current => ({ ...current, [product.id]: id }))
+                  }}>
+                    {variants.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}
+                  </select>
+                </label>
+                <span>{variant.sku || t('No SKU')} · {product.is_active ? t('Published') : t('Hidden')}</span>
+                <span className={!variant.is_preorder && variant.stock_quantity < variant.low_stock_threshold ? 'stock-low' : ''}>{variant.is_preorder ? t('Pre-order') : `${variant.stock_quantity} ${t('in stock')}`}</span>
+              </div>
+              <div className="catalog-stock-row__actions" key={variant.id}>
+                <button type="button" className="text-btn" onClick={() => openProduct(product)}>{t('Edit')}</button>
+                {variant.id && token && <VariantPriceEditor key={variant.price} id={variant.id} price={variant.price} compareAtPrice={variant.compare_at_price} token={token} onSaved={load} />}
+                {variant.id && token && <VariantCostEditor variantId={variant.id} token={token} />}
+                {stockSchemaReady && variant.id && token && <StockAdjustment variantId={variant.id} token={token} reload={load} />}
+              </div>
+            </li>
+          })}
           {(view === 'products' ? productMatches.length : stockMatches.length) === 0 ? <li className="catalog-admin__no-results">{t('No products match these filters.')}</li> : null}
         </ul>
       {pages > 1 && <div className="crm-pagination"><button className="text-btn" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t('Previous')}</button><span>{currentPage} / {pages}</span><button className="text-btn" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>{t('Next')}</button></div>}
@@ -518,7 +562,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
           </div> : null}
           <label className="check"><input type="checkbox" checked={draft.isActive} onChange={(event) => setDraft({ ...draft, isActive: event.target.checked })} /> {t('Published in storefront')}</label>
           <div className="variant-editor"><div className="product-editor__head"><h3>{t('Sizes and stock')}</h3><button type="button" className="text-btn" onClick={() => setDraft({ ...draft, variants: [...draft.variants, blankVariant()] })}>{t('Add size')}</button></div>
-            {draft.variants.map((variant, index) => <div className="variant-editor__row" key={variant.id ?? `new-${index}`}>
+            {draft.variants.map((variant, index) => <div className="variant-editor__row" key={variant.key}>
               <label className="variant-field"><span>{t('Size')}</span><input value={variant.name} onChange={(event) => updateVariant(index, 'name', event.target.value)} /></label>
               <label className="variant-field"><span>{t('SKU')}</span><input value={variant.sku} onChange={(event) => updateVariant(index, 'sku', event.target.value)} /></label>
               <label className="variant-field"><span>{t('Price, UAH')}</span><input type="number" min="0" value={variant.price} onChange={(event) => updateVariant(index, 'price', Number(event.target.value))} /></label>
