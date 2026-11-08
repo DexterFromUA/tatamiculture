@@ -13,6 +13,11 @@ import remarkBreaks from 'remark-breaks'
 
 export function ProductPage() {
   const { productId } = useParams()
+  return <ProductDetails key={productId} />
+}
+
+function ProductDetails() {
+  const { productId } = useParams()
   const { store, products } = useStore()
   const { addItem } = useCart()
   const { addToast } = useToast()
@@ -43,8 +48,15 @@ export function ProductPage() {
   const price = optionPrice(option)
   const categories = categoriesForProduct(product)
   const categoryIds = categories.map(category => category.id)
-  const related = products.filter(item => item.id !== product.id
-    && categoriesForProduct(item).some(category => categoryIds.includes(category.id))).slice(0, 4)
+  const selectedCategories = new Set(categoryIds)
+  const related = products.flatMap(item => {
+    if (item.id === product.id || !item.isActive || item.productOptions.length === 0) return []
+    const matches = categoriesForProduct(item).filter(category => selectedCategories.has(category.id))
+    if (matches.length === 0) return []
+    return [{ item, subcategories: matches.filter(category => category.parent_id).length, categories: matches.length }]
+  }).sort((a, b) => b.subcategories - a.subcategories || b.categories - a.categories
+    || (Date.parse(b.item.createdAt || '') || 0) - (Date.parse(a.item.createdAt || '') || 0))
+    .slice(0, 4)
   const images = product.imgUrls
   const activeImage = images[imageIndex] ?? images[0]
   const changeImage = (direction: -1 | 1) => {
@@ -162,9 +174,9 @@ export function ProductPage() {
         </div>
       </div>
     </article>
-    {related.length > 0 && <section className="page-section">
+    {related.length > 0 && <section className="related-products">
       <h2>{t('Related products')}</h2>
-      <div className="product-grid">{related.map(item => <ProductCard key={item.id} product={item} store={store} />)}</div>
+      <div className="related-products__grid">{related.map(({ item }) => <ProductCard key={item.id} product={item} store={store} scrollToTop />)}</div>
     </section>}
     </>
   )

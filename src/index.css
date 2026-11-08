@@ -1020,6 +1020,10 @@ textarea {
 .shop-back { display: inline-block; margin-bottom: 24px; color: var(--muted); font-size: .8rem; text-decoration: none; }
 .shop-back:hover { color: var(--accent); }
 .shop-detail { gap: clamp(32px, 6vw, 80px); }
+.related-products { margin-top: 80px; padding-top: 32px; border-top: 1px solid var(--line); }
+.related-products h2 { margin: 0 0 24px; font: 600 clamp(1.6rem, 3vw, 2.2rem)/1.15 var(--ui); letter-spacing: -.04em; }
+.related-products__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 28px 16px; }
+@media (max-width: 800px) { .related-products { margin-top: 48px; } .related-products__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .shop-detail:not(:has(.product-gallery)) { grid-template-columns: minmax(0, 620px); }
 .shop-detail .product-view__image { border: 0; background: color-mix(in srgb, var(--accent) 8%, var(--card)); }
 .shop-detail .product-view__body { padding: 12px 0; }
