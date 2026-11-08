@@ -74,6 +74,7 @@ export function StoreLayout() {
     <div className="shell">
       <header className="topbar">
         <NavLink to="/" className="brand">
+          <img className="brand__mark" src="/tatami-mark-transparent.png" alt="" />
           {store.name}
         </NavLink>
         <nav className="nav">
