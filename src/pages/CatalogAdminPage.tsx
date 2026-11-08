@@ -606,7 +606,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
         <button type="button" className={view === 'stock' && stockFilter === 'out' ? 'active' : ''} onClick={() => { changeView('stock'); setStockFilter('out') }}><span>{t('Out of stock')}</span><strong>{outCount}</strong></button>
       </div>
       <div className="catalog-toolbar">
-        <input aria-label={t('Search products')} placeholder={t('Search products')} value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} />
+        <input type="search" aria-label={t('Search by name or SKU')} placeholder={t('Search by name or SKU')} value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} />
         {view === 'products' ? <select aria-label={t('Category')} value={categoryFilter} onChange={event => { setCategoryFilter(event.target.value); setPage(1) }}><option value="all">{t('All categories')}</option>{categoryOptions.map(({ category, label }) => <option key={category.id} value={category.id}>{label}</option>)}</select> : <select aria-label={t('Stock filter')} value={stockFilter} onChange={event => { setStockFilter(event.target.value as StockFilter); setPage(1) }}><option value="all">{t('All stock')}</option><option value="low">{t('Low stock')}</option><option value="out">{t('Out of stock')}</option></select>}
       </div>
         {view === 'products' && selected.length > 0 && <div className="catalog-bulk" role="group" aria-label={t('Bulk action')}>
@@ -647,7 +647,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
           {view === 'products' ? pageProducts.map(product => {
             const unavailable = product.product_variants.filter(variant => !variant.is_preorder && variant.stock_quantity === 0).length
             return <li key={product.id} className={selected.includes(product.id) ? 'catalog-admin__selected' : undefined}>
-              {product.product_images[0] ? <img className="catalog-admin__thumb" src={product.product_images[0].public_url} alt="" /> : <div className="catalog-admin__thumb catalog-admin__thumb--empty" aria-hidden="true" />}
+              {product.product_images[0] && <img className="catalog-admin__thumb" src={product.product_images[0].public_url} alt="" />}
               <div className="catalog-admin__item"><strong>{product.name}</strong><span>{categoryPaths(categories, assignedCategoryIds(product), language).join(' · ') || t('Uncategorized')} · {product.is_active ? t('Published') : t('Hidden')}</span><span>{product.product_variants.length} {t('variants')}{unavailable ? ` · ${unavailable} ${t('out of stock')}` : ''}</span></div>
               <div className="actions">
                 <input type="checkbox" aria-label={`${t('Select product')} · ${product.name}`} checked={selected.includes(product.id)} disabled={saving} onChange={event => setSelected(current => event.target.checked ? [...current, product.id] : current.filter(id => id !== product.id))} />
@@ -658,7 +658,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
           }) : stockMatches.slice((currentPage - 1) * 20, currentPage * 20).map(({ product, variants }) => {
             const variant = variants.find(item => item.id === stockSelection[product.id]) ?? variants[0]
             return <li key={product.id} className="catalog-stock-row">
-              {product.product_images[0] ? <img className="catalog-admin__thumb" src={product.product_images[0].public_url} alt="" /> : <div className="catalog-admin__thumb catalog-admin__thumb--empty" aria-hidden="true" />}
+              {product.product_images[0] && <img className="catalog-admin__thumb" src={product.product_images[0].public_url} alt="" />}
               <div className="catalog-admin__item">
                 <strong>{product.name}</strong>
                 <label className="catalog-stock-row__size">

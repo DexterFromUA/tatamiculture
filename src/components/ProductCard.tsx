@@ -11,15 +11,16 @@ export function ProductCard({ product, store }: { product: Product; store: Store
   const max = Math.max(...prices)
   const priceLabel = min === max ? formatPrice(min, store.currency) : t('From {{price}}', { price: formatPrice(min, store.currency) })
   const onSale = product.productOptions.some((option) => option.isDiscount)
+  const image = product.imgUrls[0]
 
   return (
     <Link to={`/product/${product.id}`} className="product-card">
-      <div className="product-card__image">
-        <img src={product.imgUrls[0]} alt="" />
+      {image && <div className="product-card__image">
+        <img src={image} alt="" />
         {onSale ? <span className="badge">{t('Sale')}</span> : null}
-      </div>
+      </div>}
       <div className="product-card__meta">
-        <p className="muted">{productCategoryLabel(product, i18n.resolvedLanguage) ?? t('Uncategorized')}</p>
+        <p className="muted">{productCategoryLabel(product, i18n.resolvedLanguage) ?? t('Uncategorized')}{!image && onSale && ` · ${t('Sale')}`}</p>
         <h3>{product.name}</h3>
         <p>{priceLabel}</p>
       </div>

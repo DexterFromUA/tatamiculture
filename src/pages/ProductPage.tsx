@@ -55,7 +55,7 @@ export function ProductPage() {
   return (
     <>
     <article className="product-view shop-detail">
-      <div className="product-gallery">
+      {activeImage && <div className="product-gallery">
         <div className="product-view__image">
           <img src={activeImage} alt={product.name} />
           {images.length > 1 ? <div className="gallery-controls">
@@ -67,7 +67,7 @@ export function ProductPage() {
         {images.length > 1 ? <div className="gallery-thumbnails">
           {images.map((image, index) => <button type="button" className={index === imageIndex ? 'active' : ''} key={image} onClick={() => setImageIndex(index)} aria-label={t('Show image {{number}}', { number: index + 1 })}><img src={image} alt="" /></button>)}
         </div> : null}
-      </div>
+      </div>}
       <div className="product-view__body">
         <Link className="shop-back" to="/">← {t('Back to shop')}</Link>
         <p className="muted">{categoryPaths(categories, categoryIds, i18n.resolvedLanguage).join(' · ') || productCategoryLabel(product, i18n.resolvedLanguage) || t('Uncategorized')}</p>

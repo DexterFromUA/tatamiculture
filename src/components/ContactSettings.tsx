@@ -55,7 +55,7 @@ export function ContactSettings() {
     {error && <p className="error" role="alert">{error}</p>}
     {draft && <form className="form" onSubmit={event => void save(event)}>
       <label className="field"><span>{t('Email')}</span><input type="email" maxLength={254} value={draft.email} onChange={event => { setDraft({ ...draft, email: event.target.value }); setSaved(false) }} /></label>
-      <label className="field"><span>{t('Instagram profile URL')}</span><input type="url" maxLength={500} placeholder="https://www.instagram.com/tatami.culture" value={draft.instagram_url} onChange={event => { setDraft({ ...draft, instagram_url: event.target.value }); setSaved(false) }} /></label>
+      <label className="field"><span>{t('Instagram profile URL')}</span><input type="url" maxLength={500} value={draft.instagram_url} onChange={event => { setDraft({ ...draft, instagram_url: event.target.value }); setSaved(false) }} /></label>
       <div className="banner-settings__actions"><button className="btn" disabled={busy || !token}>{t(busy ? 'Saving…' : 'Save settings')}</button>{saved && <p className="success" role="status">{t('Saved')}</p>}</div>
     </form>}
   </section>

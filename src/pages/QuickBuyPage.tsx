@@ -9,6 +9,7 @@ export function QuickBuyPage() {
   const { code } = useParams()
   const { t } = useTranslation()
   const [loading, setLoading] = useState(true)
+  const [loadFailed, setLoadFailed] = useState(false)
   const [payload, setPayload] = useState<{ store: Store; product: Product } | null>(null)
 
   useEffect(() => {
@@ -23,13 +24,18 @@ export function QuickBuyPage() {
       }
     }
 
-    void load()
+    void load().catch(() => {
+      if (cancelled) return
+      setLoadFailed(true)
+      setLoading(false)
+    })
     return () => {
       cancelled = true
     }
   }, [code])
 
   if (loading) return <div className="page-status">Opening link…</div>
+  if (loadFailed) return <main className="page-status"><h1>{t('Store temporarily unavailable')}</h1></main>
 
   if (!payload) {
     return (

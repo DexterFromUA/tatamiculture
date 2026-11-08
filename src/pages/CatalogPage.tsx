@@ -41,8 +41,7 @@ export function CatalogPage() {
   const loadingBanner = supabaseConfigured && banner === undefined
   const showBanner = !loadingBanner && banner?.enabled !== false
   const images = bannerImages(banner)
-  const fallbackImage = products[0]?.imgUrls[0]
-  const firstImage = showBanner ? images[0]?.url || fallbackImage : undefined
+  const firstImage = showBanner ? images[0]?.url : undefined
   const waitingForImage = Boolean(firstImage && imageResult?.url !== firstImage)
   const imageUnavailable = imageResult?.url === firstImage && imageResult?.loaded === false
   const loading = loadingBanner || waitingForImage
@@ -111,11 +110,9 @@ export function CatalogPage() {
             {description && <p>{description}</p>}
             <a href="#collection" className="storefront-hero__link">{t('Explore collection')} <span aria-hidden="true">↗</span></a>
           </div>
-          {images.length > 0
-            ? (images.length > 1 || !imageUnavailable) && (
-              <BannerCarousel images={images} imageRef={heroImage} ready={!loading} hideFirstImage={imageUnavailable} />
-            )
-            : fallbackImage && !imageUnavailable && <div className="storefront-hero__image"><img ref={heroImage} src={fallbackImage} alt="" fetchPriority="high" /><span>{products[0].name}</span></div>}
+          {(images.length > 1 || (images.length === 1 && !imageUnavailable)) && (
+            <BannerCarousel images={images} imageRef={heroImage} ready={!loading} hideFirstImage={imageUnavailable} />
+          )}
         </header>}
         {!loading && (
           <>
@@ -127,7 +124,7 @@ export function CatalogPage() {
                   : <h1>{collectionName} <sup>{visibleProducts.length}</sup></h1>}
               </div>
               <div className="collection-tools">
-                <label><span className="sr-only">{t('Search products')}</span><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder={t('Search products')} /></label>
+                <label><input type="search" aria-label={t('Search products')} placeholder={t('Search products')} value={search} onChange={event => setSearch(event.target.value)} /></label>
                 <label><span className="sr-only">{t('Filter by size')}</span><select value={size} onChange={event => setSize(event.target.value)}><option value="">{t('All sizes')}</option>{sizes.map(item => <option key={item} value={item}>{item}</option>)}</select></label>
                 <label><span className="sr-only">{t('Sort products')}</span><select value={sort} onChange={event => setSort(event.target.value)}><option value="newest">{t('Newest first')}</option><option value="price-low">{t('Price: low to high')}</option><option value="price-high">{t('Price: high to low')}</option></select></label>
               </div>

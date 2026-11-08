@@ -2,6 +2,7 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 const uk = {
+  'Store temporarily unavailable': 'Магазин тимчасово недоступний',
   'Store contacts': 'Контакти магазину',
   'These contacts appear at the bottom of the store.': 'Ці контакти відображаються внизу магазину.',
   'Instagram profile URL': 'Посилання на профіль Instagram',
@@ -170,7 +171,8 @@ const uk = {
   'From {{price}}': 'Від {{price}}',
   'Mark all as read': 'Позначити всі як прочитані',
   System: 'Система', Currency: 'Валюта', Created: 'Створено',
-  'Search products': 'Пошук товарів за назвою або артикулом',
+  'Search products': 'Пошук товарів за назвою',
+  'Search by name or SKU': 'Пошук товарів за назвою або артикулом',
   'Order activity': 'Історія подій замовлення', 'No events yet': 'Подій поки немає', event_status: 'Статус замовлення', event_payment_status: 'Статус оплати', event_cost: 'Собівартість', event_return: 'Повернення',
   Notifications: 'Сповіщення', 'No notifications yet': 'Сповіщень поки немає', 'Mark as read': 'Позначити прочитаним', 'Action failed': 'Не вдалося виконати дію',
   'Order operations': 'Події та фінанси', 'Order cost': 'Собівартість замовлення', Save: 'Зберегти', Returns: 'Повернення', 'Return accounting only': 'Облік підтвердженого повернення. Не виконує банківське відшкодування й не змінює залишки.', 'Return amount': 'Сума повернення', Reason: 'Причина', 'Record return': 'Записати повернення', 'Invalid amount': 'Вкажіть коректну суму',
@@ -179,7 +181,7 @@ const uk = {
   Shop: 'Магазин', Cart: 'Кошик', 'Sign in': 'Увійти', 'Sign out': 'Вийти', Account: 'Кабінет',
   'Opening store…': 'Відкриваємо магазин…', 'Store not found': 'Магазин не знайдено',
   'The storefront is unavailable right now.': 'Вітрина наразі недоступна.', 'Go to Tatami.Culture': 'До Tatami.Culture',
-  'Mock payments only': 'Тестовий режим оплат', English: 'English', Ukrainian: 'Українська',
+  English: 'English', Ukrainian: 'Українська',
   'Cart is empty': 'Кошик порожній', 'Continue shopping': 'Продовжити покупки', Quantity: 'Кількість', Remove: 'Видалити', Total: 'Разом', Checkout: 'Оформити замовлення',
   'Product not found': 'Товар не знайдено', 'Back to shop': 'До магазину', Option: 'Варіант',
   'This option is a pre-order. Production starts after checkout.': 'Цей варіант доступний за передзамовленням. Виробництво розпочнеться після оформлення.',
@@ -197,7 +199,7 @@ const uk = {
   'The code is incorrect or has expired.': 'Код неправильний або термін його дії минув.',
   'Could not finish signing in. Try again.': 'Не вдалося завершити вхід. Спробуйте ще раз.',
   'Could not restore your session. Check your connection and try again.': 'Не вдалося відновити сеанс. Перевірте з’єднання та спробуйте ще раз.',
-  'Checking…': 'Перевірка…', 'Sending…': 'Надсилання…', 'Demo phone: {{phone}} · code: {{code}}': 'Демонстраційний телефон: {{phone}} · код: {{code}}',
+  'Checking…': 'Перевірка…', 'Sending…': 'Надсилання…',
   Name: 'Ім’я', Email: 'Електронна пошта', Phone: 'Телефон', City: 'Місто', Address: 'Адреса', Note: 'Коментар',
   'Start typing your city': 'Почніть вводити місто', 'Choose branch': 'Оберіть відділення', 'Loading branches…': 'Завантаження відділень…',
   Payments: 'Оплата', 'Payment methods': 'Способи оплати',

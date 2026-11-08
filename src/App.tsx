@@ -1,4 +1,6 @@
 import { Navigate, Outlet, Route, Routes, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import { supabaseConfigured } from './lib/supabase'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { StoreLayout } from './components/StoreLayout'
 import { CartProvider } from './context/CartContext'
@@ -32,6 +34,11 @@ function LegacyStoreRedirect() {
 }
 
 export default function App() {
+  const { t } = useTranslation()
+  if (!supabaseConfigured) {
+    return <main className="page-status"><h1>{t('Store temporarily unavailable')}</h1></main>
+  }
+
   return (
     <Routes>
       <Route path="/q/:code" element={<QuickBuyPage />} />

@@ -1,6 +1,6 @@
 # Tatami store
 
-Небольшой интернет-магазин спортивной одежды на React + TypeScript. Витрина работает и без backend в демо-режиме, а при наличии переменных окружения автоматически использует Supabase.
+Интернет-магазин спортивной одежды на React + TypeScript с данными в Supabase.
 
 ## Запуск
 
@@ -9,12 +9,12 @@ cd store
 yarn dev
 ```
 
-Без `.env.local` используется локальный каталог и `localStorage`; это удобно для интерфейсной разработки. Демо-витрина доступна по `/tatami`.
+Перед запуском настрой `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` в `.env.local`. Для опубликованной витрины задай эти же переменные в настройках сборки. При отсутствии конфигурации витрина показывает сообщение о недоступности магазина.
 
 ## Подключение Supabase
 
 1. Создать проект Supabase и применить [миграцию](supabase/migrations/20261008000000_store_crm.sql) через SQL Editor или Supabase CLI.
-2. Выполнить [seed.sql](supabase/seed.sql), чтобы добавить Tatami и стартовый каталог.
+2. Выполнить [seed.sql](supabase/seed.sql), чтобы добавить магазин Tatami. Каталог заполняется в CRM.
 3. Скопировать `.env.example` в `.env.local` и добавить URL проекта и **anon key**. `service_role` ключ никогда не добавляется в Vite.
 4. Создать собственный аккаунт в витрине и назначить его владельцем, выполнив запрос из конца миграции.
 
@@ -44,7 +44,7 @@ supabase functions deploy liqpay-create-checkout --use-api
 supabase functions deploy liqpay-webhook --use-api
 ```
 
-До включения `VITE_LIQPAY_ENABLED` checkout сохраняет прежний demo-режим и не проводит настоящую оплату.
+До включения `VITE_LIQPAY_ENABLED` способ оплаты LiqPay скрыт при оформлении заказа.
 
 ## Monobank
 

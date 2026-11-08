@@ -5,8 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { api } from '../lib/api'
 import { normalizePhone } from '../lib/phone'
-import { SupabaseError, supabaseConfigured } from '../lib/supabase'
-import { DEMO_SMS_CODE, demoUser } from '../mock/data'
+import { SupabaseError } from '../lib/supabase'
 import type { AuthSession } from '../types'
 
 export function PhoneAuthPage({ register = false }: { register?: boolean }) {
@@ -136,7 +135,7 @@ export function PhoneAuthPage({ register = false }: { register?: boolean }) {
               </label>}
               <label className="field">
                 <span>{t('Phone')}</span>
-                <input type="tel" autoComplete="tel" placeholder="+380" value={phone} onChange={event => setPhone(event.target.value)} required disabled={busy} />
+                <input type="tel" autoComplete="tel" value={phone} onChange={event => setPhone(event.target.value)} required disabled={busy} />
               </label>
             </>}
             <button type="submit" className="btn" disabled={busy || !store || (Boolean(sentTo) && !verified && code.length !== 6)}>
@@ -153,7 +152,6 @@ export function PhoneAuthPage({ register = false }: { register?: boolean }) {
             {t(register ? 'Already have an account?' : 'New here?')}{' '}
             <Link to={register ? '/login' : '/register'} state={location.state}>{t(register ? 'Sign in' : 'Create an account')}</Link>
           </p>
-          {!supabaseConfigured && <p className="auth-card__demo">{t('Demo phone: {{phone}} · code: {{code}}', { phone: demoUser.phone, code: DEMO_SMS_CODE })}</p>}
         </div>
       </div>
     </section>

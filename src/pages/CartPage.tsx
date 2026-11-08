@@ -47,7 +47,7 @@ export function CartPage() {
       <ul className="line-list">
         {rows.map(({ item, product, option, unit, line }) => (
           <li key={`${item.productId}-${item.optionId}`} className="line cart-line">
-            {product.imgUrls[0] ? <img src={product.imgUrls[0]} alt="" /> : <div className="cart-line__placeholder" aria-hidden="true" />}
+            {product.imgUrls[0] && <img src={product.imgUrls[0]} alt="" />}
             <div className="cart-line__product">
               <p className="cart-line__category">{productCategoryLabel(product, i18n.resolvedLanguage) ?? t('Uncategorized')}</p>
               <Link to={`/product/${product.id}`}>{product.name}</Link>

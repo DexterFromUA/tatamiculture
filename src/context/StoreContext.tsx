@@ -7,6 +7,7 @@ type StoreContextValue = {
   products: Product[]
   loading: boolean
   notFound: boolean
+  loadFailed: boolean
   refreshProducts: () => Promise<void>
 }
 
@@ -17,6 +18,7 @@ export function StoreProvider({ slug, children }: { slug: string | undefined; ch
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -30,6 +32,7 @@ export function StoreProvider({ slug, children }: { slug: string | undefined; ch
 
       setLoading(true)
       setNotFound(false)
+      setLoadFailed(false)
 
       const nextStore = await api.getStoreBySlug(slug)
       if (cancelled) return
@@ -50,7 +53,13 @@ export function StoreProvider({ slug, children }: { slug: string | undefined; ch
       setLoading(false)
     }
 
-    void load()
+    void load().catch(() => {
+      if (cancelled) return
+      setStore(null)
+      setProducts([])
+      setLoadFailed(true)
+      setLoading(false)
+    })
     return () => {
       cancelled = true
     }
@@ -61,8 +70,8 @@ export function StoreProvider({ slug, children }: { slug: string | undefined; ch
   }, [store])
 
   const value = useMemo(
-    () => ({ store, products, loading, notFound, refreshProducts }),
-    [store, products, loading, notFound, refreshProducts],
+    () => ({ store, products, loading, notFound, loadFailed, refreshProducts }),
+    [store, products, loading, notFound, loadFailed, refreshProducts],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

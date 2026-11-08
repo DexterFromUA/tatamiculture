@@ -9,7 +9,7 @@ import { supabaseConfigured } from '../lib/supabase'
 import { contactsChanged, getStorefrontContacts, type StorefrontContacts } from '../lib/storefrontContacts'
 
 export function StoreLayout() {
-  const { store, loading, notFound } = useStore()
+  const { store, loading, notFound, loadFailed } = useStore()
   const { count } = useCart()
   const { isAuthenticated, token, user } = useAuth()
   const { t, i18n } = useTranslation()
@@ -54,6 +54,10 @@ export function StoreLayout() {
 
   if (loading) {
     return <div className="page-status">{t('Opening store…')}</div>
+  }
+
+  if (loadFailed) {
+    return <main className="page-status"><h1>{t('Store temporarily unavailable')}</h1></main>
   }
 
   if (notFound || !store) {

@@ -121,7 +121,6 @@ export function BannerSettings() {
               <span>{t(field.label)}</span>
               <input
                 maxLength={field.maxLength}
-                placeholder={field.key === 'title' ? t('Everyday movement', { lng: language }) : t('Hidden when empty')}
                 value={banner[key]}
                 onChange={event => {
                   setBanner({ ...banner, [key]: event.target.value })
