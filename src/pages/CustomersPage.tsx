@@ -48,7 +48,7 @@ export function CustomersPage({ onOpenCustomer, revision }: { onOpenCustomer: (i
       <div className="customers-toolbar">
         <label className="search-field"><span>{t('Search customers')}</span><input type="search" value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} /></label>
         <label className="check"><input type="checkbox" checked={duplicatesOnly} onChange={event => { setDuplicatesOnly(event.target.checked); setPage(1) }} />{t('Matching phone numbers')}</label>
-        <button className="text-btn" onClick={() => downloadCsv('Tatami.Culture-customers.csv', [[t('Name'), t('Phone'), t('Email'), t('Orders'), t('Total')], ...rows.map(row => [row.name, row.phone, row.email, row.count, row.total])])}>{t('Export CSV')}</button>
+        <button className="text-btn" onClick={() => downloadCsv('tatami.culture-customers.csv', [[t('Name'), t('Phone'), t('Email'), t('Orders'), t('Total')], ...rows.map(row => [row.name, row.phone, row.email, row.count, row.total])])}>{t('Export CSV')}</button>
       </div>
       <ul className="customers-list">{rows.slice((current - 1) * 20, current * 20).map(customer => <li key={customer.id}>
         <div><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => onOpenCustomer(customer.id)}>{customer.name}</button><span>{customer.phone || customer.email} · {customer.tags.join(' · ')}</span></div>

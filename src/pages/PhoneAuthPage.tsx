@@ -110,7 +110,7 @@ export function PhoneAuthPage({ register = false }: { register?: boolean }) {
     <section className="auth-page auth-page--login">
       <div className={`auth-card auth-card--login${register ? ' auth-card--register' : ''}`}>
         <header className="auth-card__head login-intro">
-          <p className="eyebrow">{t('Tatami.Culture account')}</p>
+          <p className="eyebrow">{t('tatami.culture account')}</p>
           <h1>{t(register ? 'Create account' : 'Welcome back')}</h1>
           <p className="muted">{t(register ? 'Keep track of your training gear and every order in one place.' : 'Sign in to view your orders and manage your details.')}</p>
           <span className="login-intro__mark" aria-hidden="true">T.</span>

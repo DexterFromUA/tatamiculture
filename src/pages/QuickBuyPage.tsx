@@ -42,7 +42,7 @@ export function QuickBuyPage() {
       <section className="page-status">
         <h1>Link expired</h1>
         <p>This short link is unavailable.</p>
-        <Link to="/">{t('Go to Tatami.Culture')}</Link>
+        <Link to="/">{t('Go to tatami.culture')}</Link>
       </section>
     )
   }

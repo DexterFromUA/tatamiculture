@@ -41,7 +41,7 @@ export function AccountPage() {
     <section className="account-page">
       <header className="account-hero">
         <div>
-          <p className="eyebrow">{t('Tatami.Culture account')}</p>
+          <p className="eyebrow">{t('tatami.culture account')}</p>
           <h1>{t('Hi, {{name}}.', { name: user.name.split(' ')[0] || t('athlete') })}</h1>
           <p className="muted">{t('Your details and orders, kept together.')}</p>
         </div>
@@ -49,7 +49,7 @@ export function AccountPage() {
       </header>
       <div className="account-layout">
         <aside className="account-card account-profile">
-          <div className="account-profile__head"><div className="account-avatar" aria-hidden="true">{(user.name || user.email || 'T').trim().charAt(0).toUpperCase()}</div><div><p className="eyebrow">{t('Tatami.Culture account')}</p><h2>{user.name || t('Tatami.Culture customer')}</h2></div><button type="button" className="text-btn account-signout" onClick={() => { logout(); navigate('/') }}>{t('Sign out')}</button></div>
+          <div className="account-profile__head"><div className="account-avatar" aria-hidden="true">{(user.name || user.email || 'T').trim().charAt(0).toUpperCase()}</div><div><p className="eyebrow">{t('tatami.culture account')}</p><h2>{user.name || t('tatami.culture customer')}</h2></div><button type="button" className="text-btn account-signout" onClick={() => { logout(); navigate('/') }}>{t('Sign out')}</button></div>
           <dl className="account-details">
             {user.email && <div><dt>{t('Email')}</dt><dd>{user.email}</dd></div>}
             <div><dt>{t('Phone')}</dt><dd>{user.phone || '—'}</dd></div>

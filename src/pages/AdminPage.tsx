@@ -96,7 +96,7 @@ export function AdminPage() {
   const pages = Math.max(1, Math.ceil(visibleOrders.length / 20))
   const currentPage = Math.min(page, pages)
   const pageOrders = visibleOrders.slice((currentPage - 1) * 20, currentPage * 20)
-  const exportOrders = () => downloadCsv('Tatami.Culture-orders.csv', [
+  const exportOrders = () => downloadCsv('tatami.culture-orders.csv', [
     [t('Receipt'), t('Name'), t('Email'), t('Phone'), t('Order status'), t('Total'), 'Currency', 'Created'],
     ...visibleOrders.map(order => [order.receipt_code, order.customer_name, order.customer_email, order.customer_phone, t(order.status), Number(order.total_price) / 100, order.currency, order.created_at]),
   ])
@@ -188,7 +188,7 @@ export function AdminPage() {
         <AdminTabs active={section} onChange={(next) => { if (next === 'catalogue') setCatalogView('products'); setSection(next) }} />
       </header>
       {error ? <div className="crm-error" role="alert"><span>{error}</span><button type="button" className="text-btn" onClick={() => setError(null)}>{t('Close')}</button></div> : null}
-      <div className="crm-section-head"><div><span className="crm-section-head__label">{store.name} / CRM</span><h2>{section === 'overview' ? t('Overview') : section === 'orders' ? t('Orders') : section === 'customers' ? t('Customers') : section === 'catalogue' ? t('Catalogue') : t('Settings')}</h2></div></div>
+      <div className="crm-section-head"><div><span className="crm-section-head__label"><span>{store.name}</span> / CRM</span><h2>{section === 'overview' ? t('Overview') : section === 'orders' ? t('Orders') : section === 'customers' ? t('Customers') : section === 'catalogue' ? t('Catalogue') : t('Settings')}</h2></div></div>
       {section === 'customers' ? <CustomersPage revision={customerRevision} onOpenCustomer={id => setSelectedCustomer({ kind: 'customer', id })} /> : section === 'catalogue' ? <CatalogAdminPage key={catalogView} embedded initialView={catalogView} /> : section === 'settings' ? <SettingsWorkspace /> : <>
       {section === 'overview' ? <><div className="crm-stats crm-stats--overview">
         <div><span>{t('Orders')}</span><strong>{orders.length}</strong></div>
