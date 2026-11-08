@@ -25,16 +25,18 @@ export type ProductOption = {
   id: string
   name: string
   price: number
-  isPreOrder: boolean
   isDiscount: boolean
   discountPercent: number
-  isLimited: boolean
-  quantity: number
-}
+} & (
+  | { isPreOrder: true; isLimited: false; quantity: null }
+  | { isPreOrder: false; isLimited: boolean; quantity: number }
+)
 
 export type CatalogCategory = {
   id: string
   name: string
+  name_uk?: string | null
+  name_en?: string | null
   parent_id: string | null
   position: number
 }
@@ -47,7 +49,7 @@ export type Product = {
   storeId: string
   name: string
   description: string
-  category: string
+  primaryCategory?: CatalogCategory
   categories?: CatalogCategory[]
   imgUrls: string[]
   isActive: boolean

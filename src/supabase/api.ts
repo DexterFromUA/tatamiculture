@@ -6,7 +6,7 @@ type Row = Record<string, unknown>
 
 const money = (amount: unknown) => Number(amount ?? 0) / 100
 const text = (value: unknown) => String(value ?? '')
-const productFields = '*,categories!products_category_id_fkey(name),product_categories(categories(id,name,parent_id,position)),product_variants(*),product_images(*)'
+const productFields = '*,categories!products_category_id_fkey(*),product_categories(categories(*)),product_variants(*),product_images(*)'
 
 function mapStore(row: Row): Store {
   return {
@@ -17,24 +17,27 @@ function mapStore(row: Row): Store {
 }
 
 function mapProduct(row: Row): Product {
-  const category = row.categories as Row | null
+  const category = row.categories as CatalogCategory | null
   const assignments = row.product_categories as Array<{ categories: CatalogCategory | null }> | undefined
   const images = (row.product_images as Row[] | undefined) ?? []
   const variants = (row.product_variants as Row[] | undefined) ?? []
   return {
     id: text(row.id), storeId: text(row.store_id), name: text(row.name), description: text(row.description),
     sizeGuide: text(row.size_guide), composition: text(row.composition), careInstructions: text(row.care_instructions),
-    category: text(category?.name ?? 'Uncategorized'), isActive: Boolean(row.is_active),
+    primaryCategory: category ?? undefined, isActive: Boolean(row.is_active),
     categories: assignments?.flatMap(link => link.categories ? [link.categories] : []),
     imgUrls: images.sort((a, b) => Number(a.position) - Number(b.position)).map((image) => text(image.public_url)),
     productOptions: variants.sort((a, b) => Number(a.position) - Number(b.position)).map((variant): ProductOption => {
       const price = money(variant.price)
       const compareAt = variant.compare_at_price === null ? null : money(variant.compare_at_price)
       const discountPercent = compareAt && compareAt > price ? Math.round((1 - price / compareAt) * 100) : 0
-      return {
-        id: text(variant.id), name: text(variant.name), price, isPreOrder: Boolean(variant.is_preorder),
-        isDiscount: discountPercent > 0, discountPercent, isLimited: true, quantity: Number(variant.stock_quantity ?? 0),
+      const details = {
+        id: text(variant.id), name: text(variant.name), price,
+        isDiscount: discountPercent > 0, discountPercent,
       }
+      return variant.is_preorder
+        ? { ...details, isPreOrder: true, isLimited: false, quantity: null }
+        : { ...details, isPreOrder: false, isLimited: true, quantity: Number(variant.stock_quantity ?? 0) }
     }),
   }
 }

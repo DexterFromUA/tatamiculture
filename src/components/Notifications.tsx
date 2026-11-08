@@ -1,23 +1,25 @@
-import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState, type MouseEvent } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { supabaseConfigured, supabaseRequest } from '../lib/supabase'
 import { formatDate, formatPrice } from '../lib/format'
+import { useDrawer } from '../lib/useDrawer'
 
 type Notice = { id: string; receipt_code: string; kind: string; value: string; read_at: string | null; created_at: string; orders: { currency: string } | null }
 type RestockNotice = { variant_id: string; notified_at: string; product_variants: { name: string; product_id: string; products: { name: string } } }
 
 export function Notifications() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { token, user } = useAuth()
   const { store } = useStore()
   const [items, setItems] = useState<Notice[]>([])
   const [restocks, setRestocks] = useState<RestockNotice[]>([])
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
-  const dialogRef = useRef<HTMLDialogElement>(null)
+  const { ref: dialogRef, open: openDrawer, close: closeDrawer, onCancel, onClick } = useDrawer()
   const storeId = store?.id
   const userId = user?.id
 
@@ -63,21 +65,25 @@ export function Notifications() {
   )
 
   const unread = items.filter(item => !item.read_at).length + restocks.length
-  const close = () => dialogRef.current?.close()
+  const followNotice = (event: MouseEvent<HTMLAnchorElement>, to: string) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
+    event.preventDefault()
+    closeDrawer(() => { void navigate(to) })
+  }
 
   return <>
-    <button type="button" className="notification-bell" aria-haspopup="dialog" aria-label={`${t('Notifications')}: ${unread}`} title={t('Notifications')} onClick={() => dialogRef.current?.showModal()}>
+    <button type="button" className="notification-bell" aria-haspopup="dialog" aria-label={`${t('Notifications')}: ${unread}`} title={t('Notifications')} onClick={openDrawer}>
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4" /></svg>
       {unread > 0 && <span className="notification-bell__count">{unread > 99 ? '99+' : unread}</span>}
     </button>
     <dialog ref={dialogRef} className="order-drawer notifications-drawer" aria-labelledby="notification-dialog-title"
-      onClick={event => { if (event.target === event.currentTarget) close() }}>
+      onCancel={onCancel} onClick={onClick}>
       <header className="order-drawer__header">
         <div className="order-drawer__identity">
           <span className="order-drawer__eyebrow">{store?.name}</span>
           <h2 id="notification-dialog-title">{t('Notifications')}</h2>
         </div>
-        <button type="button" className="btn btn--ghost" onClick={close} autoFocus>{t('Close')}</button>
+        <button type="button" className="btn btn--ghost" onClick={() => closeDrawer()} autoFocus>{t('Close')}</button>
         <button type="button" className="btn btn--ghost notifications-drawer__read-all" disabled={pending || !storeId || !token || (!items.length && !restocks.length)} onClick={() => void read()}>
           {t('Mark all as read')}
         </button>
@@ -88,7 +94,7 @@ export function Notifications() {
         <ul className="notifications-drawer__list">
           {restocks.map(notice => <li key={notice.variant_id} className="order-drawer__card notifications-drawer__unread">
             <div className="notifications-drawer__meta">
-              <Link onClick={close} to={`/product/${notice.product_variants.product_id}`}>{notice.product_variants.products.name} · {notice.product_variants.name}</Link>
+              <Link to={`/product/${notice.product_variants.product_id}`} onClick={event => followNotice(event, `/product/${notice.product_variants.product_id}`)}>{notice.product_variants.products.name} · {notice.product_variants.name}</Link>
               <small>{formatDate(notice.notified_at)}</small>
             </div>
             <p>{t('Back in stock')}</p>
@@ -96,7 +102,7 @@ export function Notifications() {
           </li>)}
           {items.map(item => <li key={item.id} className={`order-drawer__card${item.read_at ? '' : ' notifications-drawer__unread'}`}>
             <div className="notifications-drawer__meta">
-              <Link to={`/receipt/${item.receipt_code}`} onClick={close}>{item.receipt_code}</Link>
+              <Link to={`/receipt/${item.receipt_code}`} onClick={event => followNotice(event, `/receipt/${item.receipt_code}`)}>{item.receipt_code}</Link>
               <small>{formatDate(item.created_at)}</small>
             </div>
             <p>{t(`event_${item.kind}`)}: {item.kind === 'return' ? formatPrice(Number(item.value) / 100, item.orders?.currency ?? store?.currency ?? 'UAH') : t(item.value)}</p>

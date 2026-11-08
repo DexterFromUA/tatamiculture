@@ -6,7 +6,7 @@ import { useCart } from '../context/CartContext'
 import { useStore } from '../context/StoreContext'
 import { useToast } from '../context/ToastContext'
 import { formatPrice, optionPrice } from '../lib/format'
-import { categoriesForProduct, categoryPaths } from '../lib/categories'
+import { categoriesForProduct, categoryPaths, productCategoryLabel } from '../lib/categories'
 import { useTranslation } from 'react-i18next'
 
 export function ProductPage() {
@@ -18,7 +18,7 @@ export function ProductPage() {
   const [optionId, setOptionId] = useState(product?.productOptions[0]?.id ?? '')
   const [quantity, setQuantity] = useState(1)
   const [imageIndex, setImageIndex] = useState(0)
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   const option = useMemo(
     () => product?.productOptions.find((item) => item.id === optionId) ?? product?.productOptions[0],
@@ -70,7 +70,7 @@ export function ProductPage() {
       </div>
       <div className="product-view__body">
         <Link className="shop-back" to="/">← {t('Back to shop')}</Link>
-        <p className="muted">{categoryPaths(categories, categoryIds).join(' · ') || t(product.category)}</p>
+        <p className="muted">{categoryPaths(categories, categoryIds, i18n.resolvedLanguage).join(' · ') || productCategoryLabel(product, i18n.resolvedLanguage) || t('Uncategorized')}</p>
         <h1>{product.name}</h1>
         <p className="lede">{product.description}</p>
         {[
@@ -99,8 +99,9 @@ export function ProductPage() {
             {product.productOptions.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name}
-                {item.isPreOrder ? ` · ${t('pre-order')}` : ''}
-                {item.isLimited ? ` · ${t('{{count}} available', { count: item.quantity })}` : ''}
+                {item.isPreOrder
+                  ? ` · ${t('pre-order')}`
+                  : item.isLimited ? ` · ${t('{{count}} available', { count: item.quantity })}` : ''}
               </option>
             ))}
           </select>
@@ -110,7 +111,7 @@ export function ProductPage() {
           <input
             type="number"
             min={1}
-            max={option.isLimited ? option.quantity : 10}
+            max={option.isPreOrder ? undefined : option.isLimited ? option.quantity : 10}
             value={quantity}
             onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))}
           />

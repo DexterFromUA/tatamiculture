@@ -2,12 +2,13 @@ import { Link } from 'react-router-dom'
 import { useCart } from '../context/CartContext'
 import { useStore } from '../context/StoreContext'
 import { formatPrice, optionPrice } from '../lib/format'
+import { productCategoryLabel } from '../lib/categories'
 import { useTranslation } from 'react-i18next'
 
 export function CartPage() {
   const { store, products } = useStore()
   const { items, setQuantity, removeItem } = useCart()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   if (!store) return null
 
@@ -48,7 +49,7 @@ export function CartPage() {
           <li key={`${item.productId}-${item.optionId}`} className="line cart-line">
             {product.imgUrls[0] ? <img src={product.imgUrls[0]} alt="" /> : <div className="cart-line__placeholder" aria-hidden="true" />}
             <div className="cart-line__product">
-              <p className="cart-line__category">{product.category}</p>
+              <p className="cart-line__category">{productCategoryLabel(product, i18n.resolvedLanguage) ?? t('Uncategorized')}</p>
               <Link to={`/product/${product.id}`}>{product.name}</Link>
               <p className="muted">{t('Option')}: {option.name}{option.isPreOrder ? ` · ${t('pre-order')}` : ''}</p>
               <p>{formatPrice(unit, store.currency)}</p>

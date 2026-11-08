@@ -1,4 +1,4 @@
--- Run after applying catalog_category_hierarchy. The fixtures are rolled back.
+-- Run after applying catalog_category_localized_names. The fixtures are rolled back.
 begin;
 do $$
 declare
@@ -53,6 +53,23 @@ begin
   exception when unique_violation then null;
   end;
 
+  update public.categories set name_uk = 'Екіпірування', name_en = 'Gear' where id = root_a;
+  update public.categories set name_uk = 'Рукавички', name_en = 'Gloves' where id = leaf_a;
+  begin
+    insert into public.categories (store_id, name, name_uk, name_en, slug, parent_id)
+    values (shop, 'Інші рукавички', 'Інші рукавички', ' gloves ', 'localized-duplicate', root_a);
+    raise exception 'Duplicate English sibling name accepted';
+  exception when unique_violation then null;
+  end;
+  begin
+    insert into public.categories (store_id, name, name_en, slug, parent_id)
+    values (shop, 'Рукавички', 'Рукавички', 'fallback-duplicate', root_a);
+    raise exception 'Duplicate Ukrainian fallback accepted';
+  exception when unique_violation then null;
+  end;
+  insert into public.categories (store_id, name, name_uk, name_en, slug, parent_id)
+  values (shop, 'Рукавички', 'Рукавички', 'Gloves', 'other-branch-gloves', root_b);
+
   insert into public.products (id, store_id, name, category_id) values (item, shop, 'Test product', root_a);
   if not exists (select 1 from public.product_categories where product_id = item and category_id = root_a) then
     raise exception 'Legacy product insert did not assign the category';
@@ -102,6 +119,14 @@ begin
     or exists (select 1 from public.product_categories where product_id = copied_item) then
     raise exception 'Category visibility does not match the visibility of its product';
   end if;
+  if not exists (
+    select 1 from public.product_categories pc join public.categories c on c.id = pc.category_id
+    where pc.product_id = item and c.id = leaf_a and c.name_uk = 'Рукавички' and c.name_en = 'Gloves'
+  ) or not exists (
+    select 1 from public.categories where id = root_b and name = 'Training' and name_uk is null and name_en is null
+  ) then
+    raise exception 'Translated or legacy category names are not readable';
+  end if;
   execute 'reset role';
 
   perform set_config('request.jwt.claim.sub', staff::text, true);
@@ -114,5 +139,5 @@ begin
   execute 'reset role';
 end;
 $$;
-select 'Category hierarchy, assignments, compatibility and permissions passed' as result;
+select 'Category hierarchy, localization, assignments and permissions passed' as result;
 rollback;

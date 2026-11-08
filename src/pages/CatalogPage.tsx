@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { supabaseConfigured, supabaseRequest } from '../lib/supabase'
 import { bannerImages, type Banner } from '../lib/banner'
 import { BannerCarousel } from '../components/BannerCarousel'
-import { categoriesForProduct, categoryGroups } from '../lib/categories'
+import { categoriesForProduct, categoryGroups, categoryLabel } from '../lib/categories'
 
 const bannerTimeout = 5000
 
@@ -69,14 +69,15 @@ export function CatalogPage() {
   const description = banner?.[`description_${language}`]?.trim()
   const categories = [...new Map(products.flatMap(product =>
     categoriesForProduct(product).map(item => [item.id, item] as const))).values()]
-  const groups = categoryGroups(categories)
+  const groups = categoryGroups(categories, language)
   const activeGroup = groups.find(({ parent }) => parent.id === category)
   const activeSubcategory = activeGroup?.children.find(child => child.id === subcategory)
   const filterId = activeSubcategory?.id ?? activeGroup?.parent.id
   const visibleProducts = filterId
     ? products.filter(product => categoriesForProduct(product).some(item => item.id === filterId))
     : products
-  const collectionName = activeSubcategory?.name ?? activeGroup?.parent.name ?? t('All products')
+  const activeCategory = activeSubcategory ?? activeGroup?.parent
+  const collectionName = activeCategory ? categoryLabel(activeCategory, language) : t('All products')
   const selectCategory = (id: string) => {
     setCategory(id)
     setSubcategory('')
@@ -113,14 +114,14 @@ export function CatalogPage() {
             <div className="collection-filters" role="group" aria-label={t('Categories')}>
               <button type="button" className={!activeGroup ? 'active' : ''} aria-pressed={!activeGroup} onClick={() => selectCategory('')}>{t('All products')}</button>
               {groups.map(({ parent }) => (
-                <button type="button" key={parent.id} className={category === parent.id ? 'active' : ''} aria-pressed={category === parent.id} onClick={() => selectCategory(parent.id)}>{parent.name}</button>
+                <button type="button" key={parent.id} className={category === parent.id ? 'active' : ''} aria-pressed={category === parent.id} onClick={() => selectCategory(parent.id)}>{categoryLabel(parent, language)}</button>
               ))}
             </div>
             {!!activeGroup?.children.length && (
               <div className="collection-filters collection-filters--subcategories" role="group" aria-label={t('Subcategories')}>
-                <button type="button" className={!activeSubcategory ? 'active' : ''} aria-pressed={!activeSubcategory} onClick={() => setSubcategory('')}>{t('All in {{category}}', { category: activeGroup.parent.name })}</button>
+                <button type="button" className={!activeSubcategory ? 'active' : ''} aria-pressed={!activeSubcategory} onClick={() => setSubcategory('')}>{t('All in {{category}}', { category: categoryLabel(activeGroup.parent, language) })}</button>
                 {activeGroup.children.map(child => (
-                  <button type="button" key={child.id} className={subcategory === child.id ? 'active' : ''} aria-pressed={subcategory === child.id} onClick={() => setSubcategory(child.id)}>{child.name}</button>
+                  <button type="button" key={child.id} className={subcategory === child.id ? 'active' : ''} aria-pressed={subcategory === child.id} onClick={() => setSubcategory(child.id)}>{categoryLabel(child, language)}</button>
                 ))}
               </div>
             )}

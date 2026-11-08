@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { fetchAll } from '../lib/crm'
 import { formatPrice } from '../lib/format'
+import { categoryLabel } from '../lib/categories'
+import type { CatalogCategory } from '../types'
 
 type Sale = {
   id: string
@@ -14,11 +16,11 @@ type Sale = {
   orders: { created_at: string; currency: string }
 }
 
-type Inventory = { id: string; name: string; created_at: string; categories: { name: string } | null; product_variants: Array<{ id: string; name: string; stock_quantity: number; is_preorder: boolean }> }
+type Inventory = { id: string; name: string; created_at: string; categories: CatalogCategory | null; product_variants: Array<{ id: string; name: string; stock_quantity: number; is_preorder: boolean }> }
 type Demand = { variant_id: string }
 
 export function SalesBreakdown({ storeId, token }: { storeId: string; token: string }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [rows, setRows] = useState<Sale[]>([])
   const [inventory, setInventory] = useState<Inventory[]>([])
   const [demand, setDemand] = useState<Demand[]>([])
@@ -31,7 +33,7 @@ export function SalesBreakdown({ storeId, token }: { storeId: string; token: str
     const abort = new AbortController()
     const since = new Date(now - 730 * 86400000).toISOString()
     Promise.all([fetchAll<Sale>(`/rest/v1/order_items?select=id,product_id,variant_id,product_name,variant_name,quantity,line_total,orders!inner(created_at,currency,store_id,status)&orders.store_id=eq.${storeId}&orders.status=eq.DELIVERED&orders.created_at=gte.${since}&order=id`, token, abort.signal)
-      , fetchAll<Inventory>(`/rest/v1/products?store_id=eq.${storeId}&select=id,name,created_at,categories(name),product_variants(id,name,stock_quantity,is_preorder)&order=id`, token, abort.signal),
+      , fetchAll<Inventory>(`/rest/v1/products?store_id=eq.${storeId}&select=id,name,created_at,categories!products_category_id_fkey(*),product_variants(id,name,stock_quantity,is_preorder)&order=id`, token, abort.signal),
         fetchAll<Demand>(`/rest/v1/restock_subscriptions?notified_at=is.null&select=variant_id,user_id,product_variants!inner(products!inner(store_id))&product_variants.products.store_id=eq.${storeId}&order=variant_id,user_id`, token, abort.signal),
       ]).then(([sales, products, subscriptions]) => { setRows(sales); setInventory(products); setDemand(subscriptions) }).catch(cause => { if (!abort.signal.aborted) setError(cause.message) })
       .finally(() => { if (!abort.signal.aborted) setLoading(false) })
@@ -42,9 +44,12 @@ export function SalesBreakdown({ storeId, token }: { storeId: string; token: str
     const age = now - new Date(row.orders.created_at).getTime()
     if (age < 0 || age >= days * 2 * 86400000) continue
     const product = inventory.find(item => item.id === row.product_id)
-    const name = group === 'category' ? product?.categories?.name ?? t('Uncategorized') : row.product_name
+    const category = product?.categories
+    const name = group === 'category'
+      ? (category ? categoryLabel(category, i18n.resolvedLanguage) : t('Uncategorized'))
+      : row.product_name
     const variant = group === 'variant' ? row.variant_name : ''
-    const identity = group === 'category' ? name : group === 'product' ? row.product_id ?? row.product_name : row.variant_id ?? `${row.product_name}-${row.variant_name}`
+    const identity = group === 'category' ? category?.id ?? null : group === 'product' ? row.product_id ?? row.product_name : row.variant_id ?? `${row.product_name}-${row.variant_name}`
     const key = JSON.stringify([identity, row.orders.currency])
     const current = totals.get(key) ?? { name, variant, currency: row.orders.currency, units: 0, revenue: 0, previous: 0 }
     if (age < days * 86400000) {

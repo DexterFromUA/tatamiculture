@@ -1,4 +1,4 @@
-import type { Product, ShortLink, Store, User } from '../types'
+import type { CatalogCategory, Product, ShortLink, Store, User } from '../types'
 
 export const DEMO_SMS_CODE = '123456'
 
@@ -24,13 +24,16 @@ export const demoUser: User = {
   city: 'Kyiv',
 }
 
+const category = (id: string, name_en: string, name_uk: string): CatalogCategory =>
+  ({ id, name: name_uk, name_en, name_uk, parent_id: null, position: 0 })
+
 export const products: Product[] = [
   {
     id: 'p_hoodie',
     storeId: 'store_tatami',
     name: 'Training hoodie',
     description: 'Щільне худі вільного крою для розминки та відновлення після тренування.',
-    category: 'Hoodies',
+    primaryCategory: category('hoodies', 'Hoodies', 'Худі'),
     imgUrls: ['https://images.unsplash.com/photo-1539533018447-63fcce2678e3?auto=format&fit=crop&w=800&q=80'],
     isActive: true,
     productOptions: [
@@ -44,7 +47,7 @@ export const products: Product[] = [
     storeId: 'store_tatami',
     name: 'Performance T-shirt',
     description: 'Легка футболка, що відводить вологу та не сковує рухи.',
-    category: 'T-shirts',
+    primaryCategory: category('t-shirts', 'T-shirts', 'Футболки'),
     imgUrls: ['https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=800&q=80'],
     isActive: true,
     productOptions: [
@@ -57,7 +60,7 @@ export const products: Product[] = [
     storeId: 'store_tatami',
     name: 'Everyday joggers',
     description: 'М’які джогери із високою посадкою для залу й міста.',
-    category: 'Bottoms',
+    primaryCategory: category('bottoms', 'Bottoms', 'Штани'),
     imgUrls: ['https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=800&q=80'],
     isActive: true,
     productOptions: [
@@ -70,12 +73,12 @@ export const products: Product[] = [
     storeId: 'store_tatami',
     name: 'Seamless training top',
     description: 'Безшовний топ середньої підтримки для функціональних тренувань.',
-    category: 'Training tops',
+    primaryCategory: category('training-tops', 'Training tops', 'Спортивні топи'),
     imgUrls: ['https://images.unsplash.com/photo-1434389677669-e08b4cac3105?auto=format&fit=crop&w=800&q=80'],
     isActive: true,
     productOptions: [
-      { id: 'o_top_s', name: 'S', price: 1190, isPreOrder: true, isDiscount: false, discountPercent: 0, isLimited: false, quantity: 0 },
-      { id: 'o_top_m', name: 'M', price: 1190, isPreOrder: true, isDiscount: false, discountPercent: 0, isLimited: false, quantity: 0 },
+      { id: 'o_top_s', name: 'S', price: 1190, isPreOrder: true, isDiscount: false, discountPercent: 0, isLimited: false, quantity: null },
+      { id: 'o_top_m', name: 'M', price: 1190, isPreOrder: true, isDiscount: false, discountPercent: 0, isLimited: false, quantity: null },
     ],
   },
   {
@@ -83,7 +86,7 @@ export const products: Product[] = [
     storeId: 'store_tatami',
     name: 'Gym tote',
     description: 'Легка містка сумка для форми, води та кросівок.',
-    category: 'Accessories',
+    primaryCategory: category('accessories', 'Accessories', 'Аксесуари'),
     imgUrls: ['https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=800&q=80'],
     isActive: true,
     productOptions: [
@@ -95,7 +98,7 @@ export const products: Product[] = [
     storeId: 'store_tatami',
     name: 'Move leggings',
     description: 'Еластичні легінси з високим поясом для бігу, йоги та силових вправ.',
-    category: 'Leggings',
+    primaryCategory: category('leggings', 'Leggings', 'Легінси'),
     imgUrls: ['https://images.unsplash.com/photo-1608256246200-53e635b5b65f?auto=format&fit=crop&w=800&q=80'],
     isActive: true,
     productOptions: [

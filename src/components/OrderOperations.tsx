@@ -1,12 +1,13 @@
 import { ItemReturns } from './ItemReturns'
 import { SalesBreakdown } from './SalesBreakdown'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { supabaseRequest } from '../lib/supabase'
 import { fetchAll } from '../lib/crm'
 import { formatPrice } from '../lib/format'
 import { OrderActivity } from './OrderActivity'
 import { calculateAnalytics } from '../lib/analytics'
+import { useDrawer } from '../lib/useDrawer'
 
 export type MetricOrder = { id: string; user_id: string | null; customer_phone: string; customer_email: string; status: string; payment_status: string; total_price: number; currency: string }
 type Cost = { order_id: string; cost_amount: number }
@@ -14,12 +15,7 @@ type Return = { id: string; order_id: string; amount: number; reason: string }
 
 export function OrderOperations({ order, token, onClose }: { order: MetricOrder & { receipt_code: string }; token: string; onClose: () => void }) {
   const { t } = useTranslation()
-  const dialog = useRef<HTMLDialogElement>(null)
-  useEffect(() => {
-    const panel = dialog.current
-    panel?.showModal()
-    return () => panel?.close()
-  }, [])
+  const { ref: dialogRef, close: closeDrawer, onCancel, onClick } = useDrawer({ openOnMount: true, onClose })
   const [cost, setCost] = useState('')
   const [returns, setReturns] = useState<Return[]>([])
   const [revision, setRevision] = useState(0)
@@ -43,16 +39,15 @@ export function OrderOperations({ order, token, onClose }: { order: MetricOrder 
       setRevision(value => value + 1)
     } catch (cause) { setError(cause instanceof Error ? cause.message : t('Action failed')) } finally { setBusy(false) }
   }
-  return <dialog ref={dialog} className="order-drawer" aria-labelledby="order-drawer-title"
-    onCancel={event => { event.preventDefault(); onClose() }}
-    onClick={event => { if (event.target === event.currentTarget) onClose() }}>
+  return <dialog ref={dialogRef} className="order-drawer" aria-labelledby="order-drawer-title"
+    onCancel={onCancel} onClick={onClick}>
     <header className="order-drawer__header">
       <div className="order-drawer__identity">
         <span className="order-drawer__eyebrow">CRM / {t("Orders")}</span>
         <h2 id="order-drawer-title">{t('Order operations')}</h2>
         <div className="order-drawer__meta"><span>#{order.receipt_code}</span><span>{t(order.status)}</span></div>
       </div>
-      <button type="button" className="btn btn--ghost" onClick={onClose}>{t('Close')}</button>
+      <button type="button" className="btn btn--ghost" onClick={() => closeDrawer()}>{t('Close')}</button>
     </header>
     <div className="order-drawer__body">
       {error && <p className="error" role="alert">{error}</p>}

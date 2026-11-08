@@ -1,6 +1,7 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { fetchAll } from '../lib/crm'
+import { useDrawer } from '../lib/useDrawer'
 import { CrmCustomerCard, type CrmCustomer, type CrmOrder } from './CrmCustomerCard'
 import type { OrderStatus, PaymentStatus } from '../types'
 
@@ -18,29 +19,6 @@ export type CustomerOrder = {
   created_at: string
 }
 
-function CustomerDrawer({ children, onClose }: { children: ReactNode; onClose: () => void }) {
-  const { t } = useTranslation()
-  const titleId = useId()
-  const dialog = useRef<HTMLDialogElement>(null)
-  useEffect(() => {
-    const panel = dialog.current
-    panel?.showModal()
-    return () => panel?.close()
-  }, [])
-  return <dialog ref={dialog} className="order-drawer customer-drawer" aria-labelledby={titleId}
-    onCancel={event => { event.preventDefault(); onClose() }}
-    onClick={event => { if (event.target === event.currentTarget) onClose() }}>
-    <header className="order-drawer__header">
-      <div className="order-drawer__identity">
-        <span className="order-drawer__eyebrow">CRM / {t('Customers')}</span>
-        <h2 id={titleId}>{t('Customer')}</h2>
-      </div>
-      <button type="button" className="btn btn--ghost" onClick={onClose}>{t('Close')}</button>
-    </header>
-    <div className="order-drawer__body">{children}</div>
-  </dialog>
-}
-
 export type CustomerPanelTarget = { kind: 'order' | 'customer'; id: string }
 
 export function CustomerPanel({ target, storeId, token, onSaved, onClose }: {
@@ -51,6 +29,8 @@ export function CustomerPanel({ target, storeId, token, onSaved, onClose }: {
   onClose: () => void
 }) {
   const { t } = useTranslation()
+  const titleId = useId()
+  const { ref: dialogRef, close: closeDrawer, onCancel, onClick } = useDrawer({ openOnMount: true, onClose })
   const [customers, setCustomers] = useState<CrmCustomer[]>([])
   const [orders, setOrders] = useState<CrmOrder[]>([])
   const [loading, setLoading] = useState(true)
@@ -74,11 +54,21 @@ export function CustomerPanel({ target, storeId, token, onSaved, onClose }: {
     ? target.id
     : orders.find(order => order.id === target.id)?.crm_customer_id
   const customer = customers.find(item => item.id === customerId)
-  return <CustomerDrawer onClose={onClose}>
-    {error && <p className="error" role="alert">{error}</p>}
-    {loading ? <p>{t('Loading…')}</p> : customer ? (
-      <CrmCustomerCard key={customer.id} customer={customer} customers={customers} orders={orders}
-        storeId={storeId} token={token} onSaved={() => { setRevision(value => value + 1); onSaved() }} onClose={onClose} />
-    ) : !error && <p>{t('Customer not found')}</p>}
-  </CustomerDrawer>
+  return <dialog ref={dialogRef} className="order-drawer customer-drawer" aria-labelledby={titleId}
+    onCancel={onCancel} onClick={onClick}>
+    <header className="order-drawer__header">
+      <div className="order-drawer__identity">
+        <span className="order-drawer__eyebrow">CRM / {t('Customers')}</span>
+        <h2 id={titleId}>{t('Customer')}</h2>
+      </div>
+      <button type="button" className="btn btn--ghost" onClick={() => closeDrawer()}>{t('Close')}</button>
+    </header>
+    <div className="order-drawer__body">
+      {error && <p className="error" role="alert">{error}</p>}
+      {loading ? <p>{t('Loading…')}</p> : customer ? (
+        <CrmCustomerCard key={customer.id} customer={customer} customers={customers} orders={orders}
+          storeId={storeId} token={token} onSaved={() => { setRevision(value => value + 1); onSaved() }} onClose={closeDrawer} />
+      ) : !error && <p>{t('Customer not found')}</p>}
+    </div>
+  </dialog>
 }
