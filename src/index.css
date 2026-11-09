@@ -547,9 +547,19 @@ textarea {
 .payment-method { display: flex; align-items: center; gap: 11px; padding: 12px 14px; border: 1px solid var(--line); cursor: pointer; }
 .payment-method:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, #808080 7%, var(--card)); }
 .payment-method input { position: absolute; opacity: 0; pointer-events: none; }
-.payment-method__radio { width: 18px; height: 18px; border: 1px solid var(--muted); border-radius: 50%; }
+.payment-method__radio { flex: none; width: 18px; height: 18px; border: 1px solid var(--muted); border-radius: 50%; }
 .payment-method input:checked + .payment-method__radio { border: 5px solid var(--accent); }
-.payment-method span:last-child { display: grid; gap: 1px; }
+.payment-method__text { display: grid; gap: 1px; min-width: 0; overflow-wrap: anywhere; }
+.payment-method__icon {
+  flex: none;
+  width: clamp(80px, 23vw, 104px);
+  height: 36px;
+  margin-inline-start: auto;
+  padding: 5px 8px;
+  border-radius: 4px;
+  background: #fff;
+  object-fit: contain;
+}
 .payment-method small { color: var(--muted); }
 
 .checkout-summary {

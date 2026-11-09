@@ -173,7 +173,8 @@ export function CheckoutPage() {
           {availableMethods.map(method => <label className="payment-method" key={method.id}>
             <input type="radio" name="provider" value={method.id} checked={provider === method.id} onChange={() => { setPreferredProvider(method.id); setError(null) }} />
             <span className="payment-method__radio" aria-hidden="true" />
-            <span><strong>{t(method.name)}</strong><small>{t(method.description)}</small></span>
+            <span className="payment-method__text"><strong>{t(method.name)}</strong><small>{t(method.description)}</small></span>
+            {method.icon && <img className="payment-method__icon" src={method.icon} alt="" />}
           </label>)}
           {paymentSettingsFailed ? <div role="alert">
             <p className="error">{t('Could not load payment methods.')}</p>

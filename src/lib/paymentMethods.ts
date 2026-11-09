@@ -1,10 +1,12 @@
 import { supabaseConfigured, supabaseRequest } from './supabase'
 import { liqPayEnabled, monobankEnabled, novaPoshtaEnabled } from './payments'
+import liqPayIcon from '../assets/liqpay.svg'
+import monoIcon from '../assets/plata-by-mono.svg'
 
 export const paymentMethods = [
-  { id: 'MONOBANK', field: 'monobank', name: 'monobank', description: 'Secure payment page', configured: supabaseConfigured && monobankEnabled },
-  { id: 'LIQPAY', field: 'liqpay', name: 'LiqPay', description: 'Secure payment page', configured: supabaseConfigured && liqPayEnabled },
-  { id: 'CASH_ON_DELIVERY', field: 'cash_on_delivery', name: 'Payment on delivery', description: novaPoshtaEnabled ? 'Pay when receiving at Nova Poshta' : 'Pay when receiving your order', configured: novaPoshtaEnabled || (!monobankEnabled && !liqPayEnabled) },
+  { id: 'MONOBANK', field: 'monobank', name: 'monobank', icon: monoIcon, description: 'Secure payment page', configured: supabaseConfigured && monobankEnabled },
+  { id: 'LIQPAY', field: 'liqpay', name: 'LiqPay', icon: liqPayIcon, description: 'Secure payment page', configured: supabaseConfigured && liqPayEnabled },
+  { id: 'CASH_ON_DELIVERY', field: 'cash_on_delivery', name: 'Payment on delivery', icon: null, description: novaPoshtaEnabled ? 'Pay when receiving at Nova Poshta' : 'Pay when receiving your order', configured: novaPoshtaEnabled || (!monobankEnabled && !liqPayEnabled) },
 ] as const
 
 export type PaymentProvider = (typeof paymentMethods)[number]['id']
