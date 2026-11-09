@@ -21,6 +21,9 @@ Deno.serve(async (request) => {
 
   try {
     const body = await request.json() as Body
+    const email = typeof body.checkout.email === 'string' ? body.checkout.email.trim() : ''
+    const customerEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : ''
+    body.checkout.email = customerEmail
     const serviceClient = createClient(supabaseUrl, serviceRoleKey)
     const order = await createOnlineOrder(serviceClient, request, anonKey, 'MONOBANK', body)
     const { data: items, error: itemsError } = await serviceClient.from('order_items').select('product_name,variant_name,quantity,unit_price').eq('order_id', order.id)
@@ -30,7 +33,7 @@ Deno.serve(async (request) => {
       amount: Number(order.total_price), ccy: 980, validity: 3600, paymentType: 'debit',
       merchantPaymInfo: {
         reference: order.id, destination: `tatami.culture order ${order.receipt_code}`, comment: body.checkout.note || `tatami.culture order ${order.receipt_code}`,
-        customerEmails: [body.checkout.email],
+        ...(customerEmail ? { customerEmails: [customerEmail] } : {}),
         basketOrder: items.map((item) => ({ name: `${item.product_name} (${item.variant_name})`, qty: item.quantity, sum: Number(item.unit_price), total: Number(item.unit_price) * item.quantity, unit: 'pcs' })),
       },
       ...(siteUrl && !/^https?:\/\/(localhost|127\.0\.0\.1)(?::\d+)?$/i.test(siteUrl) ? { redirectUrl: `${siteUrl}/receipt/${order.receipt_code}?payment=return` } : {}),
