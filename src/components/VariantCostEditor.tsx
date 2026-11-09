@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { supabaseRequest } from '../lib/supabase'
 
-export function VariantCostEditor({ variantId, token }: { variantId: string; token: string }) {
+export function VariantCostEditor({ variantId, token, onSaved }: { variantId: string; token: string; onSaved: (cost: number) => void }) {
   const { t } = useTranslation()
   const [amount, setAmount] = useState('')
   const [message, setMessage] = useState('')
@@ -23,6 +23,7 @@ export function VariantCostEditor({ variantId, token }: { variantId: string; tok
     setMessage('')
     try {
       await supabaseRequest('/rest/v1/variant_costs?on_conflict=variant_id', { method: 'POST', token, headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ variant_id: variantId, cost_amount: minor }) })
+      onSaved(minor)
       setMessage(t('Saved'))
     } catch (cause) { setMessage(cause instanceof Error ? cause.message : t('Action failed')) } finally { setBusy(false) }
   }}>

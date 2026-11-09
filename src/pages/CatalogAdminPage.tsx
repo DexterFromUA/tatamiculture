@@ -22,9 +22,10 @@ type Variant = {
   stock_quantity: number
   low_stock_threshold: number
   is_preorder: boolean
+  variant_costs: { cost_amount: number } | null
 }
 type ProductImage = { id: string; public_url: string; storage_path: string; position: number }
-type DraftVariant = Omit<Variant, 'price'> & { key: string }
+type DraftVariant = Omit<Variant, 'price' | 'variant_costs'> & { key: string; unitCost: string; unitCostEdited: boolean }
 type CatalogProduct = ProductText & {
   size_guide?: string
   size_guide_image_url?: string
@@ -35,6 +36,7 @@ type CatalogProduct = ProductText & {
   product_categories: Array<{ category_id: string }>
   is_active: boolean
   is_new: boolean
+  weight_grams: number | null
   product_images: ProductImage[]
   product_variants: Variant[]
 }
@@ -50,6 +52,7 @@ type Draft = {
   names: Record<'uk' | 'en', string>
   descriptions: Record<'uk' | 'en', string>
   price: string
+  weightGrams: string
   categoryIds: string[]
   isActive: boolean
   isNew: boolean
@@ -60,8 +63,8 @@ type Draft = {
 }
 
 const defaultLowStockThreshold = 3
-const blankVariant = (): DraftVariant => ({ key: crypto.randomUUID(), name: 'M', sku: '', compare_at_price: null, stock_quantity: 0, low_stock_threshold: defaultLowStockThreshold, is_preorder: false })
-const blankDraft = (): Draft => ({ key: crypto.randomUUID(), newImagesFirst: false, sizeGuide: '', sizeGuideImageUrl: '', sizeGuideImageFile: null, composition: '', careInstructions: '', names: { uk: '', en: '' }, descriptions: { uk: '', en: '' }, price: '0', categoryIds: [], isActive: true, isNew: false, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
+const blankVariant = (): DraftVariant => ({ key: crypto.randomUUID(), name: 'M', sku: '', compare_at_price: null, stock_quantity: 0, low_stock_threshold: defaultLowStockThreshold, is_preorder: false, unitCost: '', unitCostEdited: false })
+const blankDraft = (): Draft => ({ key: crypto.randomUUID(), newImagesFirst: false, sizeGuide: '', sizeGuideImageUrl: '', sizeGuideImageFile: null, composition: '', careInstructions: '', names: { uk: '', en: '' }, descriptions: { uk: '', en: '' }, price: '0', weightGrams: '', categoryIds: [], isActive: true, isNew: false, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
 const categorySlug = (name: string) => `${name.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'category'}-${crypto.randomUUID().slice(0, 8)}`
 
 function assignedCategoryIds(product: CatalogProduct) {
@@ -92,14 +95,17 @@ function toDraft(product: CatalogProduct, language?: string): Draft {
     names,
     descriptions,
     price: String(Number(product.product_variants[0]?.price ?? 0) / 100),
+    weightGrams: product.weight_grams == null ? '' : String(product.weight_grams),
     categoryIds: assignedCategoryIds(product),
     isActive: product.is_active,
     isNew: product.is_new === true,
     images: [...product.product_images].sort((a, b) => a.position - b.position),
     newImageFiles: [],
     removedImageIds: [],
-    variants: product.product_variants.map(({ id, name, sku, compare_at_price, stock_quantity, low_stock_threshold, is_preorder }) => ({
+    variants: product.product_variants.map(({ id, name, sku, compare_at_price, stock_quantity, low_stock_threshold, is_preorder, variant_costs }) => ({
       key: id ?? crypto.randomUUID(), id, name, sku, compare_at_price, stock_quantity, low_stock_threshold, is_preorder,
+      unitCost: variant_costs ? String(variant_costs.cost_amount / 100) : '',
+      unitCostEdited: false,
     })),
   }
 }
@@ -222,7 +228,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
         return
       }
       const productQuery = (includeThreshold: boolean) =>
-        fetchAll<CatalogProduct>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=*,product_categories(category_id),product_images(id,public_url,storage_path,position),product_variants(id,name,sku,price,compare_at_price,stock_quantity,is_preorder${includeThreshold ? ',low_stock_threshold' : ''})&order=position.asc,id.asc&product_variants.order=position.asc,id.asc`, token)
+        fetchAll<CatalogProduct>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=*,product_categories(category_id),product_images(id,public_url,storage_path,position),product_variants(id,name,sku,price,compare_at_price,stock_quantity,is_preorder,variant_costs(cost_amount)${includeThreshold ? ',low_stock_threshold' : ''})&order=position.asc,id.asc&product_variants.order=position.asc,id.asc`, token)
       const [catalog, nextCategories] = await Promise.all([
         productQuery(true).then(products => ({ products, hasThreshold: true })).catch(async (cause: unknown) => {
           if (!(cause instanceof Error) || !/column .*low_stock_threshold.*does not exist/i.test(cause.message)) throw cause
@@ -252,10 +258,12 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
     return () => window.clearTimeout(timer)
   }, [load])
 
-  const updateVariant = (index: number, field: keyof DraftVariant, value: string | number | boolean | null) => {
+  const updateVariant = (index: number, field: Exclude<keyof DraftVariant, 'unitCostEdited'>, value: string | number | boolean | null) => {
     setDraft((current) => current ? {
       ...current,
-      variants: current.variants.map((variant, itemIndex) => itemIndex === index ? { ...variant, [field]: value } : variant),
+      variants: current.variants.map((variant, itemIndex) => itemIndex === index
+        ? { ...variant, [field]: value, unitCostEdited: variant.unitCostEdited || field === 'unitCost' }
+        : variant),
     } : current)
   }
 
@@ -392,6 +400,26 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
       setError('Enter a valid price')
       return
     }
+    const weightGrams = draft.weightGrams === '' ? null : Number(draft.weightGrams)
+    if (weightGrams !== null && (!Number.isInteger(weightGrams) || weightGrams <= 0 || weightGrams > 2147483647)) {
+      setError(t('Enter a positive weight in whole grams.'))
+      return
+    }
+    const costs: { variant_id: string; cost_amount: number }[] = []
+    const clearedCostIds: string[] = []
+    for (const variant of draft.variants.filter(variant => variant.unitCostEdited)) {
+      if (!variant.unitCost.trim()) {
+        clearedCostIds.push(variant.key)
+        continue
+      }
+      const amount = Number(variant.unitCost)
+      const cost = Math.round(amount * 100)
+      if (!Number.isSafeInteger(cost) || amount < 0 || cost > 2147483647) {
+        setError(t('Enter a valid unit cost.'))
+        return
+      }
+      costs.push({ variant_id: variant.key, cost_amount: cost })
+    }
     setSaving(true)
     setError(null)
     try {
@@ -404,6 +432,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
         size_guide: draft.sizeGuide, composition: draft.composition, care_instructions: draft.careInstructions,
         is_active: draft.isActive,
         is_new: draft.isNew,
+        weight_grams: weightGrams,
       }
       const productId = draft.key
       const productPath = `/rest/v1/products?id=eq.${encodeURIComponent(productId)}&store_id=eq.${encodeURIComponent(store.id)}`
@@ -473,6 +502,14 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
           }),
         }),
       ))
+      if (costs.length > 0) {
+        await supabaseRequest('/rest/v1/variant_costs?on_conflict=variant_id', {
+          method: 'POST', token, headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify(costs),
+        })
+      }
+      if (clearedCostIds.length > 0) {
+        await supabaseRequest(`/rest/v1/variant_costs?variant_id=in.(${clearedCostIds.join(',')})`, { method: 'DELETE', token })
+      }
 
       const removedImages = draft.images.filter((image) => draft.removedImageIds.includes(image.id))
       const retainedImages = draft.images.filter((image) => !draft.removedImageIds.includes(image.id))
@@ -716,7 +753,12 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
               </div>
               <div className="catalog-stock-row__actions" key={variant.id}>
                 <button type="button" className="text-btn" onClick={() => openProduct(product)}>{t('Edit')}</button>
-                {variant.id && token && <VariantCostEditor variantId={variant.id} token={token} />}
+                {variant.id && token && <VariantCostEditor variantId={variant.id} token={token} onSaved={cost_amount => {
+                  setProducts(current => current.map(item => item.id === product.id ? {
+                    ...item,
+                    product_variants: item.product_variants.map(size => size.id === variant.id ? { ...size, variant_costs: { cost_amount } } : size),
+                  } : item))
+                }} />}
                 {stockSchemaReady && !variant.is_preorder && variant.id && token && <StockAdjustment variantId={variant.id} token={token} reload={load} />}
               </div>
             </li>
@@ -752,6 +794,11 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
             <span>{t('Price, UAH')}</span>
             <input type="number" min="0" step="0.01" value={draft.price} disabled={saving} onChange={event => setDraft({ ...draft, price: event.target.value })} />
             {hasDifferentPrices && <small>{t('Sizes currently have different prices. Saving applies this price to all sizes.')}</small>}
+          </label>
+          <label className="field">
+            <span>{t('Item weight, g')}</span>
+            <input type="number" min="1" max="2147483647" step="1" value={draft.weightGrams} disabled={saving}
+              onChange={event => setDraft({ ...draft, weightGrams: event.target.value })} />
           </label>
           <details className="customer-section"><summary>{t('Product information')}</summary>
             <label className="field">{t('Size guide and measurements')}<textarea rows={5} maxLength={10000} value={draft.sizeGuide} onChange={event => setDraft({ ...draft, sizeGuide: event.target.value })} /></label>
@@ -813,6 +860,8 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
                 <label className="variant-field"><span>{t('Stock, units')}</span><input type="number" min="0" disabled={stockSchemaReady && Boolean(variant.id)} value={variant.stock_quantity} onChange={event => updateVariant(index, 'stock_quantity', Number(event.target.value))} /></label>
                 {stockSchemaReady && <label className="variant-field"><span>{t('Low stock threshold')}</span><input type="number" min="0" value={variant.low_stock_threshold} onChange={event => updateVariant(index, 'low_stock_threshold', Number(event.target.value))} /></label>}
               </>}
+              <label className="variant-field"><span>{t('Unit cost, UAH')}</span><input type="number" min="0" max="21474836.47" step="0.01"
+                value={variant.unitCost} disabled={saving} onChange={event => updateVariant(index, 'unitCost', event.target.value)} /></label>
               <label title={t('Pre-order')}><input type="checkbox" checked={variant.is_preorder} onChange={(event) => updateVariant(index, 'is_preorder', event.target.checked)} /> {t('Pre-order')}</label>
               <button type="button" className="text-btn" disabled={draft.variants.length === 1} onClick={() => removeVariant(index)}>{t('Remove')}</button>
             </div>)}

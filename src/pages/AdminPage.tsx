@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CustomerPanel, type CustomerPanelTarget } from '../components/CustomerPanel'
+import { CreateTtnDrawer } from '../components/CreateTtnDrawer'
 import { NovaPoshtaTrackingLink } from '../components/NovaPoshtaTrackingLink'
 import { AdminTabs } from '../components/AdminTabs'
 import type { AdminSection } from '../components/AdminTabs'
@@ -39,7 +40,7 @@ export function AdminPage() {
   const [member, setMember] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
-  const [creatingTtnId, setCreatingTtnId] = useState<string | null>(null)
+  const [ttnOrder, setTtnOrder] = useState<AdminOrder | null>(null)
   const [trackingId, setTrackingId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'ALL' | OrderStatus>('ALL')
@@ -146,22 +147,6 @@ export function AdminPage() {
     }
   }
 
-  const createTtn = async (id: string) => {
-    if (!token) return
-    setCreatingTtnId(id)
-    setError(null)
-    try {
-      const result = await supabaseRequest<{ ttn: string }>('/functions/v1/nova-poshta-create-ttn', {
-        method: 'POST', token, body: JSON.stringify({ orderId: id }),
-      })
-      setOrders((current) => current.map((order) => order.id === id ? { ...order, nova_poshta_ttn: result.ttn } : order))
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not create TTN')
-    } finally {
-      setCreatingTtnId(null)
-    }
-  }
-
   const refreshTracking = async (id: string) => {
     if (!token) return
     setTrackingId(id); setError(null)
@@ -226,7 +211,7 @@ export function AdminPage() {
                     <button type="button" className="text-btn" disabled={trackingId === order.id} onClick={() => void refreshTracking(order.id)}>{trackingId === order.id ? t('Updating…') : t('Update status')}</button>
                   </span>
                 ) : (
-                  <button type="button" className="text-btn" disabled={creatingTtnId === order.id || order.status.startsWith('CANCELLED')} onClick={() => void createTtn(order.id)}>{creatingTtnId === order.id ? t('Creating TTN…') : t('Create TTN')}</button>
+                  <button type="button" className="text-btn" aria-haspopup="dialog" disabled={order.status.startsWith('CANCELLED')} onClick={() => setTtnOrder(order)}>{t('Create TTN')}</button>
                 )}
                 {order.status === 'PENDING' && order.payment_status !== 'PAID' ? <button type="button" className="text-btn crm-order__cancel" disabled={updatingId === order.id} onClick={() => void cancelAndRestoreStock(order.id)}>{t(order.payment_test_mode ? 'Cancel test order' : 'Cancel & restore stock')}</button> : null}</div>
               </li>
@@ -241,6 +226,12 @@ export function AdminPage() {
         onSaved={() => setCustomerRevision(value => value + 1)} onClose={() => setSelectedCustomer(null)} />}
       {section === 'overview' && token && <FinancialAnalytics orders={liveOrders} storeId={store.id} token={token} />}
       {selectedOrder && token && <OrderOperations key={selectedOrder.id} order={selectedOrder} token={token} onClose={() => setSelectedOrderId(null)} />}
+      {ttnOrder && token && <CreateTtnDrawer key={ttnOrder.id} orderId={ttnOrder.id} receiptCode={ttnOrder.receipt_code}
+        token={token} onClose={() => setTtnOrder(null)} onCreated={({ ttn, documentRef }) => {
+          setOrders(current => current.map(order => order.id === ttnOrder.id
+            ? { ...order, nova_poshta_ttn: ttn, nova_poshta_document_ref: documentRef }
+            : order))
+        }} />}
     </section>
   )
 }

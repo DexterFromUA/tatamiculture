@@ -34,10 +34,8 @@ export function OrderOperations({ order, token, onClose }: { order: OrderDetails
   const { ref: dialogRef, close: closeDrawer, onCancel, onClick } = useDrawer({ openOnMount: true, onClose })
   const [details, setDetails] = useState<OrderDetails | null>(null)
   const [detailsFailed, setDetailsFailed] = useState(false)
-  const [cost, setCost] = useState('')
   const [returns, setReturns] = useState<Return[]>([])
   const [revision, setRevision] = useState(0)
-  const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   useEffect(() => {
     const abort = new AbortController()
@@ -53,22 +51,16 @@ export function OrderOperations({ order, token, onClose }: { order: OrderDetails
   }, [order.id, token])
   useEffect(() => {
     const abort = new AbortController()
-    void Promise.all([
-      supabaseRequest<Cost[]>(`/rest/v1/order_financials?order_id=eq.${order.id}&select=cost_amount`, { token, signal: abort.signal }),
-      supabaseRequest<Return[]>(`/rest/v1/order_returns?order_id=eq.${order.id}&select=id,order_id,amount,reason&order=created_at.desc`, { token, signal: abort.signal }),
-    ]).then(([costs, items]) => { setCost(costs[0] ? String(costs[0].cost_amount / 100) : ''); setReturns(items) }).catch(cause => { if (!abort.signal.aborted) setError(cause.message) })
+    void supabaseRequest<Return[]>(`/rest/v1/order_returns?order_id=eq.${order.id}&select=id,order_id,amount,reason&order=created_at.desc`, { token, signal: abort.signal })
+      .then(items => {
+        if (!abort.signal.aborted) {
+          setReturns(items)
+          setError('')
+        }
+      }).catch(cause => { if (!abort.signal.aborted) setError(cause.message) })
     return () => abort.abort()
   }, [order.id, token, revision])
-  const save = async () => {
-    const raw = cost
-    const minor = Math.round(Number(raw) * 100)
-    if (!raw.trim() || !Number.isFinite(minor) || minor < 0) { setError(t('Invalid amount')); return }
-    setBusy(true); setError('')
-    try {
-      await supabaseRequest('/rest/v1/rpc/set_order_cost', { method: 'POST', token, body: JSON.stringify({ p_order_id: order.id, p_amount: minor }) })
-      setRevision(value => value + 1)
-    } catch (cause) { setError(cause instanceof Error ? cause.message : t('Action failed')) } finally { setBusy(false) }
-  }
+  const canManageReturns = order.status === 'DELIVERED' && details
   return <dialog ref={dialogRef} className="order-drawer" aria-labelledby="order-drawer-title"
     onCancel={onCancel} onClick={onClick}>
     <header className="order-drawer__header">
@@ -119,18 +111,9 @@ export function OrderOperations({ order, token, onClose }: { order: OrderDetails
         </section>
       </> : detailsFailed ? <p className="error" role="alert">{t('Could not load order details')}</p> : <p role="status">{t('Loading…')}</p>}
       {error && <p className="error" role="alert">{error}</p>}
-      <section className="order-drawer__card order-drawer__card--cost">
-        <div className="order-drawer__section-heading"><span className="order-drawer__section-number">01</span><h3>{t('Order cost')}</h3></div>
-        <form className="order-drawer__cost" onSubmit={event => { event.preventDefault(); void save() }}>
-          <label className="field">{t('Order cost')} ({order.currency})
-            <input required type="number" min="0" step="0.01" value={cost} onChange={event => setCost(event.target.value)} />
-          </label>
-          <button className="btn" disabled={busy}>{t(busy ? 'Saving…' : 'Save')}</button>
-        </form>
-      </section>
-      {order.status === 'DELIVERED' && details && <ItemReturns orderId={order.id} items={details.order_items} token={token} currency={order.currency} onChange={() => setRevision(value => value + 1)} />}
+      {canManageReturns && <ItemReturns orderId={order.id} items={details.order_items} token={token} currency={order.currency} onChange={() => setRevision(value => value + 1)} />}
       <section className="order-drawer__card">
-        <div className="order-drawer__section-heading"><span className="order-drawer__section-number">03</span><h3>{t('Confirmed refunds')}</h3></div>
+        <div className="order-drawer__section-heading"><span className="order-drawer__section-number">{canManageReturns ? '02' : '01'}</span><h3>{t('Confirmed refunds')}</h3></div>
         {returns.length ? <ul className="note-list">{returns.map(item => <li key={item.id}><strong>{formatPrice(item.amount / 100, order.currency)}</strong><p>{item.reason}</p></li>)}</ul> : <p className="muted">{t('No confirmed refunds yet')}</p>}
       </section>
       <OrderActivity key={revision} orderId={order.id} token={token} currency={order.currency} />

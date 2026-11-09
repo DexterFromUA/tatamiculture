@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { BannerSettings } from './BannerSettings'
 import { ContactSettings } from './ContactSettings'
 import { PaymentSettings } from './PaymentSettings'
-import { NovaPostModeToggle } from './NovaPostModeToggle'
 import { DeliverySettingsPage } from '../pages/DeliverySettingsPage'
 
 export function SettingsWorkspace() {
@@ -17,7 +16,7 @@ export function SettingsWorkspace() {
     </nav>
     <div className="settings-workspace__content">
       <div hidden={section !== 'storefront'}><BannerSettings /><ContactSettings /></div>
-      <div hidden={section !== 'delivery'}><div className="settings-workspace__heading"><p className="eyebrow">02 / {t('Settings')}</p><h2>{t('Nova Poshta settings')}</h2></div><NovaPostModeToggle /><DeliverySettingsPage embedded /></div>
+      <div hidden={section !== 'delivery'}><div className="settings-workspace__heading"><p className="eyebrow">02 / {t('Settings')}</p><h2>{t('Nova Poshta settings')}</h2></div><DeliverySettingsPage embedded /></div>
       {section === 'payments' && <PaymentSettings />}
     </div>
   </div>
