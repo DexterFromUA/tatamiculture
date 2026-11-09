@@ -15,8 +15,8 @@ export function CreateTtnDrawer({ orderId, receiptCode, token, onClose, onCreate
   const { t } = useTranslation()
   const titleId = useId()
   const { ref, close, onCancel, onClick } = useDrawer({ openOnMount: true, onClose })
-  const [description, setDescription] = useState(`tatami.culture order ${receiptCode}`)
-  const [internalOrderNumber, setInternalOrderNumber] = useState('')
+  const [description, setDescription] = useState('')
+  const [internalOrderNumber, setInternalOrderNumber] = useState(receiptCode)
   const [weight, setWeight] = useState('')
   const [declaredValue, setDeclaredValue] = useState('')
   const [loading, setLoading] = useState(true)
@@ -89,7 +89,8 @@ export function CreateTtnDrawer({ orderId, receiptCode, token, onClose, onCreate
       <form className="form order-drawer__card" onSubmit={event => void submit(event)}>
         <label className="field">
           <span>{t('Parcel description')}</span>
-          <textarea required value={description} disabled={saving} onChange={event => setDescription(event.target.value)} />
+          <textarea required placeholder="речі від tatami.culture" value={description} disabled={saving}
+            onChange={event => setDescription(event.target.value)} />
         </label>
         <label className="field">
           <span>{t('Internal order number (optional)')}</span>
