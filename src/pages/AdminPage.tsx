@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CustomerPanel, type CustomerOrder, type CustomerPanelTarget } from '../components/CustomerPanel'
+import { CustomerPanel, type CustomerPanelTarget } from '../components/CustomerPanel'
 import { AdminTabs } from '../components/AdminTabs'
 import type { AdminSection } from '../components/AdminTabs'
 import { CatalogAdminPage } from './CatalogAdminPage'
@@ -14,14 +14,11 @@ import { supabaseConfigured, supabaseRequest } from '../lib/supabase'
 import type { OrderStatus } from '../types'
 import { useTranslation } from 'react-i18next'
 import { downloadCsv, fetchAll, hasStoreMembership } from '../lib/crm'
-import { FinancialAnalytics, OrderOperations } from '../components/OrderOperations'
+import { FinancialAnalytics, OrderOperations, type OrderDetailsOrder } from '../components/OrderOperations'
 
-type AdminOrder = CustomerOrder & {
-  nova_poshta_ttn: string | null
+type AdminOrder = OrderDetailsOrder & {
   nova_poshta_document_ref: string | null
-  nova_poshta_status: string | null
   nova_poshta_status_code: string | null
-  payment_method: 'ONLINE' | 'CASH_ON_DELIVERY'
 }
 
 type InventoryProduct = {
@@ -52,7 +49,7 @@ export function AdminPage() {
   const [section, setSection] = useState<AdminSection>('overview')
   const [catalogView, setCatalogView] = useState<'products' | 'stock'>('products')
   const [page, setPage] = useState(1)
-  const [operations, setOperations] = useState<AdminOrder | null>(null)
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const { t } = useTranslation()
 
   useEffect(() => {
@@ -65,7 +62,7 @@ export function AdminPage() {
           return
         }
         const [nextOrders, nextInventory] = await Promise.all([
-          fetchAll<AdminOrder>(`/rest/v1/orders?store_id=eq.${encodeURIComponent(store.id)}&select=id,user_id,receipt_code,customer_name,customer_email,customer_phone,total_price,currency,status,payment_status,created_at,nova_poshta_ttn,nova_poshta_document_ref,nova_poshta_status,nova_poshta_status_code,payment_method&order=created_at.desc,id.desc`, token),
+          fetchAll<AdminOrder>(`/rest/v1/orders?store_id=eq.${encodeURIComponent(store.id)}&select=id,user_id,receipt_code,customer_name,customer_email,customer_phone,note,total_price,currency,status,payment_status,created_at,nova_poshta_ttn,nova_poshta_document_ref,nova_poshta_status,nova_poshta_status_code,payment_method&order=created_at.desc,id.desc`, token),
           supabaseRequest<InventoryProduct[]>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=id,name,product_variants(*)&order=position.asc`, { token }),
         ])
         if (!cancelled) {
@@ -96,6 +93,7 @@ export function AdminPage() {
   const pages = Math.max(1, Math.ceil(visibleOrders.length / 20))
   const currentPage = Math.min(page, pages)
   const pageOrders = visibleOrders.slice((currentPage - 1) * 20, currentPage * 20)
+  const selectedOrder = orders.find(order => order.id === selectedOrderId)
   const exportOrders = () => downloadCsv('tatami.culture-orders.csv', [
     [t('Receipt'), t('Name'), t('Email'), t('Phone'), t('Order status'), t('Total'), 'Currency', 'Created'],
     ...visibleOrders.map(order => [order.receipt_code, order.customer_name, order.customer_email, order.customer_phone, t(order.status), Number(order.total_price) / 100, order.currency, order.created_at]),
@@ -202,12 +200,13 @@ export function AdminPage() {
           <div className="crm-pagination"><button className="text-btn" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t('Previous')}</button><span>{currentPage} / {pages}</span><button className="text-btn" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>{t('Next')}</button></div>
           {orders.length === 0 ? <p className="muted">{t('No orders yet.')}</p> : visibleOrders.length === 0 ? <p className="muted">{t('No orders match these filters.')}</p> : <ul className="admin-list">{pageOrders.map((order) => {
             const receiptPath = `/receipt/${encodeURIComponent(order.receipt_code)}`
+            const note = order.note?.trim()
             return (
               <li key={order.id} className="crm-order">
                 <div className="crm-order__identity">
                   <span className="crm-order__reference"><Link to={receiptPath} target="_blank" rel="noreferrer">#{order.receipt_code}</Link> · {formatDate(order.created_at)}</span>
-                  <strong>{order.customer_name}</strong>
-                  <span>{order.customer_email} {order.customer_phone ? `· ${order.customer_phone}` : ''}</span>
+                  {note && <p className="crm-order__note"><strong>{t('Note')}</strong> {note}</p>}
+                  {order.customer_email && <span className="crm-order__email">{order.customer_email}</span>}
                 </div>
                 <div className="crm-order__amount"><strong>{formatPrice(Number(order.total_price) / 100, order.currency)}</strong><span>{order.payment_method === 'CASH_ON_DELIVERY' ? t('Payment on delivery') : t('Online payment')}</span></div>
                 <div className="crm-order__status"><span>{t('Order status')}</span>
@@ -216,7 +215,7 @@ export function AdminPage() {
                   {statuses.map((status) => <option key={status} value={status}>{t(status)}</option>)}
                 </select></div>
                 {order.nova_poshta_status ? <p className="crm-order__delivery">{order.nova_poshta_status}</p> : null}
-                <div className="crm-order__actions"><button type="button" className="text-btn" onClick={() => setOperations(order)}>{t('Order operations')}</button>
+                <div className="crm-order__actions"><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => setSelectedOrderId(order.id)}>{t('Order details')}</button>
                 <button type="button" className="text-btn" onClick={() => void copyReceiptLink(receiptPath)}>{t('Copy receipt link')}</button>
                 <button type="button" className="text-btn" aria-haspopup="dialog" title={t('Open customer card')} onClick={() => setSelectedCustomer({ kind: 'order', id: order.id })}>{t('Customer')}</button>
                 {order.nova_poshta_ttn ? <span className="ttn-actions"><a className="text-btn" href={`https://novaposhta.ua/tracking/?cargo_number=${encodeURIComponent(order.nova_poshta_ttn)}`} target="_blank" rel="noreferrer">TTN {order.nova_poshta_ttn}</a><button type="button" className="text-btn" disabled={trackingId === order.id} onClick={() => void refreshTracking(order.id)}>{trackingId === order.id ? t('Updating…') : t('Update status')}</button></span> : <button type="button" className="text-btn" disabled={creatingTtnId === order.id || order.status.startsWith('CANCELLED')} onClick={() => void createTtn(order.id)}>{creatingTtnId === order.id ? t('Creating TTN…') : t('Create TTN')}</button>}
@@ -232,7 +231,7 @@ export function AdminPage() {
         target={selectedCustomer} storeId={store.id} token={token}
         onSaved={() => setCustomerRevision(value => value + 1)} onClose={() => setSelectedCustomer(null)} />}
       {section === 'overview' && token && <FinancialAnalytics orders={orders} storeId={store.id} token={token} />}
-      {operations && token && <OrderOperations key={operations.id} order={operations} token={token} onClose={() => setOperations(null)} />}
+      {selectedOrder && token && <OrderOperations key={selectedOrder.id} order={selectedOrder} token={token} onClose={() => setSelectedOrderId(null)} />}
     </section>
   )
 }

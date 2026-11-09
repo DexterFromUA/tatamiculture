@@ -3,12 +3,13 @@ import { useTranslation } from 'react-i18next'
 import { supabaseRequest } from '../lib/supabase'
 import { formatPrice } from '../lib/format'
 
-type Item = { id: string; product_id: string | null; variant_id: string | null; product_name: string; variant_name: string; quantity: number; unit_price: number }
+export type ReturnableOrderItem = { id: string; product_id: string | null; variant_id: string | null; product_name: string; variant_name: string; quantity: number; unit_price: number }
 type Return = { id: string; item_id: string; quantity: number; reason: string; status: string; replacement_variant: string | null; refund_amount: number; restock: boolean }
 type Variant = { id: string; product_id: string; name: string; price: number; stock_quantity: number }
-export function ItemReturns({ orderId, token, currency, onChange }: { orderId: string; token: string; currency: string; onChange: () => void }) {
+export function ItemReturns({ orderId, items, token, currency, onChange }: {
+  orderId: string; items: ReturnableOrderItem[]; token: string; currency: string; onChange: () => void
+}) {
   const { t } = useTranslation()
-  const [items, setItems] = useState<Item[]>([])
   const [returns, setReturns] = useState<Return[]>([])
   const [variants, setVariants] = useState<Variant[]>([])
   const [selected, setSelected] = useState('')
@@ -19,10 +20,8 @@ export function ItemReturns({ orderId, token, currency, onChange }: { orderId: s
   const requestId = useRef(crypto.randomUUID())
   useEffect(() => {
     const abort = new AbortController()
-    Promise.all([
-      supabaseRequest<Item[]>(`/rest/v1/order_items?order_id=eq.${orderId}&select=id,product_id,variant_id,product_name,variant_name,quantity,unit_price`, { token, signal: abort.signal }),
-      supabaseRequest<Return[]>(`/rest/v1/item_returns?order_id=eq.${orderId}&select=*&order=created_at.desc`, { token, signal: abort.signal }),
-    ]).then(([nextItems, nextReturns]) => { setItems(nextItems); setReturns(nextReturns) })
+    void supabaseRequest<Return[]>(`/rest/v1/item_returns?order_id=eq.${orderId}&select=*&order=created_at.desc`, { token, signal: abort.signal })
+      .then(nextReturns => { if (!abort.signal.aborted) setReturns(nextReturns) })
       .catch(cause => { if (!abort.signal.aborted) setError(cause.message) })
     return () => abort.abort()
   }, [orderId, token, revision])

@@ -1,26 +1,54 @@
-import { ItemReturns } from './ItemReturns'
+import { ItemReturns, type ReturnableOrderItem } from './ItemReturns'
+import type { CustomerOrder } from './CustomerPanel'
 import { SalesBreakdown } from './SalesBreakdown'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { supabaseRequest } from '../lib/supabase'
 import { fetchAll } from '../lib/crm'
-import { formatPrice } from '../lib/format'
+import { formatDate, formatPrice } from '../lib/format'
 import { OrderActivity } from './OrderActivity'
 import { calculateAnalytics } from '../lib/analytics'
 import { useDrawer } from '../lib/useDrawer'
 
 export type MetricOrder = { id: string; user_id: string | null; customer_phone: string; customer_email: string; status: string; payment_status: string; total_price: number; currency: string }
+export type OrderDetailsOrder = CustomerOrder & {
+  note: string | null
+  payment_method: 'ONLINE' | 'CASH_ON_DELIVERY'
+  nova_poshta_ttn: string | null
+  nova_poshta_status: string | null
+}
+
+type OrderDetails = {
+  delivery_city: string | null
+  delivery_address: string | null
+  order_items: Array<ReturnableOrderItem & { line_total: number }>
+}
 type Cost = { order_id: string; cost_amount: number }
 type Return = { id: string; order_id: string; amount: number; reason: string }
 
-export function OrderOperations({ order, token, onClose }: { order: MetricOrder & { receipt_code: string }; token: string; onClose: () => void }) {
+export function OrderOperations({ order, token, onClose }: { order: OrderDetailsOrder; token: string; onClose: () => void }) {
   const { t } = useTranslation()
+  const note = order.note?.trim()
   const { ref: dialogRef, close: closeDrawer, onCancel, onClick } = useDrawer({ openOnMount: true, onClose })
+  const [details, setDetails] = useState<OrderDetails | null>(null)
+  const [detailsFailed, setDetailsFailed] = useState(false)
   const [cost, setCost] = useState('')
   const [returns, setReturns] = useState<Return[]>([])
   const [revision, setRevision] = useState(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  useEffect(() => {
+    const abort = new AbortController()
+    const fields = 'delivery_city,delivery_address,order_items(id,product_id,variant_id,product_name,variant_name,quantity,unit_price,line_total)'
+    void supabaseRequest<OrderDetails[]>(`/rest/v1/orders?id=eq.${encodeURIComponent(order.id)}&select=${fields}`, { token, signal: abort.signal })
+      .then(([result]) => {
+        if (abort.signal.aborted) return
+        setDetails(result ?? null)
+        setDetailsFailed(!result)
+      })
+      .catch(() => { if (!abort.signal.aborted) setDetailsFailed(true) })
+    return () => abort.abort()
+  }, [order.id, token])
   useEffect(() => {
     const abort = new AbortController()
     void Promise.all([
@@ -43,13 +71,51 @@ export function OrderOperations({ order, token, onClose }: { order: MetricOrder 
     onCancel={onCancel} onClick={onClick}>
     <header className="order-drawer__header">
       <div className="order-drawer__identity">
-        <span className="order-drawer__eyebrow">CRM / {t("Orders")}</span>
-        <h2 id="order-drawer-title">{t('Order operations')}</h2>
+        <span className="order-drawer__eyebrow">CRM / {t('Orders')}</span>
+        <h2 id="order-drawer-title">{t('Order details')}</h2>
         <div className="order-drawer__meta"><span>#{order.receipt_code}</span><span>{t(order.status)}</span></div>
       </div>
       <button type="button" className="btn btn--ghost" onClick={() => closeDrawer()}>{t('Close')}</button>
     </header>
     <div className="order-drawer__body">
+      <section className="order-drawer__card">
+        <h3>{t('Order summary')}</h3>
+        <dl className="order-drawer__details">
+          <div><dt>{t('Name')}</dt><dd>{order.customer_name || '—'}</dd></div>
+          <div><dt>{t('Phone')}</dt><dd>{order.customer_phone ? <a href={`tel:${order.customer_phone}`}>{order.customer_phone}</a> : '—'}</dd></div>
+          {order.customer_email && <div><dt>{t('Email')}</dt><dd>{order.customer_email}</dd></div>}
+          <div><dt>{t('Order date')}</dt><dd><time dateTime={order.created_at}>{formatDate(order.created_at)}</time></dd></div>
+          <div><dt>{t('Payment method')}</dt><dd>{t(order.payment_method === 'CASH_ON_DELIVERY' ? 'Payment on delivery' : 'Online payment')}</dd></div>
+          <div><dt>{t('Payment status')}</dt><dd>{t(`payment_${order.payment_status}`)}</dd></div>
+          <div><dt>{t('Total')}</dt><dd><strong>{formatPrice(order.total_price / 100, order.currency)}</strong></dd></div>
+        </dl>
+      </section>
+      {details ? <>
+        <section className="order-drawer__card">
+          <h3>{t('Order items')}</h3>
+          {details.order_items.length ? <ul className="order-drawer__items">
+            {details.order_items.map(item => <li key={item.id}>
+              <div>
+                <strong>{item.product_name}</strong>
+                <small>{item.variant_name} · {item.quantity} × {formatPrice(item.unit_price / 100, order.currency)}</small>
+              </div>
+              <strong>{formatPrice(item.line_total / 100, order.currency)}</strong>
+            </li>)}
+          </ul> : <p className="muted">{t('No items in this order')}</p>}
+        </section>
+        <section className="order-drawer__card">
+          <h3>{t('Delivery')}</h3>
+          <dl className="order-drawer__details">
+            <div><dt>{t('City')}</dt><dd>{details.delivery_city || '—'}</dd></div>
+            <div><dt>{t('Address')}</dt><dd>{details.delivery_address || '—'}</dd></div>
+            {order.nova_poshta_ttn && <div><dt>{t('TTN')}</dt><dd>
+              <a href={`https://novaposhta.ua/tracking/?cargo_number=${encodeURIComponent(order.nova_poshta_ttn)}`} target="_blank" rel="noreferrer">{order.nova_poshta_ttn}</a>
+            </dd></div>}
+            {order.nova_poshta_status && <div><dt>{t('Shipment status')}</dt><dd>{order.nova_poshta_status}</dd></div>}
+            {note && <div className="order-drawer__note"><dt>{t('Note')}</dt><dd>{note}</dd></div>}
+          </dl>
+        </section>
+      </> : detailsFailed ? <p className="error" role="alert">{t('Could not load order details')}</p> : <p role="status">{t('Loading…')}</p>}
       {error && <p className="error" role="alert">{error}</p>}
       <section className="order-drawer__card order-drawer__card--cost">
         <div className="order-drawer__section-heading"><span className="order-drawer__section-number">01</span><h3>{t('Order cost')}</h3></div>
@@ -60,7 +126,7 @@ export function OrderOperations({ order, token, onClose }: { order: MetricOrder 
           <button className="btn" disabled={busy}>{t(busy ? 'Saving…' : 'Save')}</button>
         </form>
       </section>
-      {order.status === 'DELIVERED' && <ItemReturns key={order.id} orderId={order.id} token={token} currency={order.currency} onChange={() => setRevision(value => value + 1)} />}
+      {order.status === 'DELIVERED' && details && <ItemReturns orderId={order.id} items={details.order_items} token={token} currency={order.currency} onChange={() => setRevision(value => value + 1)} />}
       <section className="order-drawer__card">
         <div className="order-drawer__section-heading"><span className="order-drawer__section-number">03</span><h3>{t('Confirmed refunds')}</h3></div>
         {returns.length ? <ul className="note-list">{returns.map(item => <li key={item.id}><strong>{formatPrice(item.amount / 100, order.currency)}</strong><p>{item.reason}</p></li>)}</ul> : <p className="muted">{t('No confirmed refunds yet')}</p>}
