@@ -1,4 +1,20 @@
-import { sha3_256 } from 'npm:js-sha3@0.9.3'
+const unsetLiveKey = '__LIQPAY_LIVE_KEY_NOT_CONFIGURED__'
+
+function readPair(prefix: string) {
+  const publicKey = Deno.env.get(`${prefix}_PUBLIC_KEY`)?.trim()
+  const privateKey = Deno.env.get(`${prefix}_PRIVATE_KEY`)?.trim()
+  if (!publicKey || !privateKey || publicKey === unsetLiveKey || privateKey === unsetLiveKey) return
+  return { publicKey, privateKey }
+}
+
+export function legacyLiqPayKeys() {
+  return readPair('LIQPAY')
+}
+
+export function liqPayKeys(testMode: boolean) {
+  const pair = testMode ? legacyLiqPayKeys() : readPair('LIQPAY_LIVE') ?? legacyLiqPayKeys()
+  if (pair?.publicKey.startsWith('sandbox_') === testMode && pair?.privateKey.startsWith('sandbox_') === testMode) return pair
+}
 
 function toBase64(bytes: Uint8Array) {
   let binary = ''
@@ -10,8 +26,10 @@ export function encodeLiqPayData(payload: Record<string, unknown>) {
   return toBase64(new TextEncoder().encode(JSON.stringify(payload)))
 }
 
-export function liqPaySignature(privateKey: string, data: string) {
-  return toBase64(new Uint8Array(sha3_256.arrayBuffer(`${privateKey}${data}${privateKey}`)))
+// The existing merchant checkout uses LiqPay's legacy SHA-1 signature.
+export async function liqPaySignature(privateKey: string, data: string) {
+  const hash = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(`${privateKey}${data}${privateKey}`))
+  return toBase64(new Uint8Array(hash))
 }
 
 export function secureEqual(left: string, right: string) {

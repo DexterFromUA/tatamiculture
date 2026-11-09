@@ -74,6 +74,7 @@ function mapOrder(row: Row): Order {
     deliveryCity: text(row.delivery_city), deliveryAddress: text(row.delivery_address), note: text(row.note),
     createdAt: text(row.created_at),
     paymentMethod: row.payment_method === 'ONLINE' ? 'ONLINE' : 'CASH_ON_DELIVERY',
+    paymentTestMode: row.payment_test_mode === true,
     novaPoshtaTtn: row.nova_poshta_ttn ? text(row.nova_poshta_ttn) : undefined,
     novaPoshtaStatus: row.nova_poshta_status ? text(row.nova_poshta_status) : undefined,
   }

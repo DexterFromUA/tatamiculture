@@ -8,7 +8,7 @@ import { formatPrice, optionPrice } from '../lib/format'
 import { productName } from '../lib/productText'
 import { api } from '../lib/api'
 import { novaPoshtaEnabled, redirectToLiqPay, startLiqPayCheckout, startMonobankCheckout } from '../lib/payments'
-import { getPaymentSettings, paymentMethods, paymentUnavailable, type PaymentProvider, type PaymentSettings } from '../lib/paymentMethods'
+import { getPaymentSettings, paymentMethods, paymentSettingsChanged, paymentUnavailable, type PaymentProvider, type PaymentSettings } from '../lib/paymentMethods'
 import { supabaseRequest } from '../lib/supabase'
 import type { CheckoutInput } from '../types'
 import { useTranslation } from 'react-i18next'
@@ -27,6 +27,7 @@ export function CheckoutPage() {
   const [paymentSettingsFailed, setPaymentSettingsFailed] = useState(false)
   const [paymentAttempt, setPaymentAttempt] = useState(0)
   const availableMethods = paymentSettings ? paymentMethods.filter(method => method.configured && paymentSettings[method.field]) : []
+  const testMode = paymentSettings?.payment_test_mode ?? null
   const selectedMethod = availableMethods.find(method => method.id === preferredProvider) ?? availableMethods[0]
   const provider = selectedMethod?.id
   const [error, setError] = useState<string | null>(null)
@@ -110,13 +111,13 @@ export function CheckoutPage() {
       if (novaPoshtaEnabled && (!cityRef || !addressRef || !form.address)) throw new Error(t('Choose a city and Nova Poshta branch'))
       const checkout = novaPoshtaEnabled ? { ...form, cityRef: cityRef ?? undefined, addressRef: addressRef ?? undefined, deliveryServiceType } : form
       if (provider === 'MONOBANK') {
-        const { pageUrl, receiptCode } = await startMonobankCheckout({ store, items, checkout, token })
+        const { pageUrl, receiptCode } = await startMonobankCheckout({ store, items, checkout, token, testMode })
         rememberOnlineCheckout(receiptCode)
         window.location.assign(pageUrl)
         return
       }
       if (provider === 'LIQPAY') {
-        const { data, signature, receiptCode } = await startLiqPayCheckout({ store, items, checkout, token })
+        const { data, signature, receiptCode } = await startLiqPayCheckout({ store, items, checkout, token, testMode })
         rememberOnlineCheckout(receiptCode)
         redirectToLiqPay(data, signature)
         return
@@ -128,7 +129,7 @@ export function CheckoutPage() {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Checkout failed'
       setError(message)
-      if (message === paymentUnavailable) {
+      if (message === paymentUnavailable || message === paymentSettingsChanged) {
         setPreferredProvider(null)
         refreshPaymentSettings()
       }
@@ -173,7 +174,7 @@ export function CheckoutPage() {
           {availableMethods.map(method => <label className="payment-method" key={method.id}>
             <input type="radio" name="provider" value={method.id} checked={provider === method.id} onChange={() => { setPreferredProvider(method.id); setError(null) }} />
             <span className="payment-method__radio" aria-hidden="true" />
-            <span className="payment-method__text"><strong>{t(method.name)}</strong><small>{t(method.description)}</small></span>
+            <span className="payment-method__text"><strong>{t(method.name)}</strong><small>{t(method.id !== 'CASH_ON_DELIVERY' && testMode ? 'Test payment' : method.description)}</small></span>
             {method.icon && <img className="payment-method__icon" src={method.icon} alt="" />}
           </label>)}
           {paymentSettingsFailed ? <div role="alert">

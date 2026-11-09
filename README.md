@@ -31,7 +31,7 @@ yarn dev
 Для украинского бизнеса проект подготовлен к LiqPay hosted checkout. Карточные данные не попадают в приложение: Edge Function создаёт подписанную ссылку на страницу LiqPay, а отдельный webhook меняет статус заказа только после callback от провайдера.
 
 1. Применить [миграцию платежей](supabase/migrations/20261031010000_payments.sql).
-2. В Supabase Edge Function Secrets добавить `LIQPAY_PUBLIC_KEY`, `LIQPAY_PRIVATE_KEY` и `SITE_URL` (адрес опубликованного магазина без завершающего `/`).
+2. В Supabase Edge Function Secrets добавить тестовую пару `LIQPAY_PUBLIC_KEY` и `LIQPAY_PRIVATE_KEY` с префиксом `sandbox_`, боевую пару `LIQPAY_LIVE_PUBLIC_KEY` и `LIQPAY_LIVE_PRIVATE_KEY` и `SITE_URL` (адрес опубликованного магазина без завершающего `/`).
 3. Развернуть `liqpay-create-checkout` и `liqpay-webhook` из `supabase/functions/`. Для webhook уже задано отключение JWT-проверки в `supabase/config.toml`, а сам callback проверяется криптографической подписью LiqPay.
 4. В `.env.local` задать `VITE_LIQPAY_ENABLED=true` и перезапустить Vite.
 
@@ -39,7 +39,7 @@ yarn dev
 
 ```bash
 supabase link --project-ref YOUR_PROJECT_REF
-supabase secrets set LIQPAY_PUBLIC_KEY=... LIQPAY_PRIVATE_KEY=... SITE_URL=https://your-domain.example
+supabase secrets set LIQPAY_PUBLIC_KEY=... LIQPAY_PRIVATE_KEY=... LIQPAY_LIVE_PUBLIC_KEY=... LIQPAY_LIVE_PRIVATE_KEY=... SITE_URL=https://your-domain.example
 supabase functions deploy liqpay-create-checkout --use-api
 supabase functions deploy liqpay-webhook --use-api
 ```
@@ -48,12 +48,18 @@ supabase functions deploy liqpay-webhook --use-api
 
 ## Monobank
 
-1. Apply migration `supabase/migrations/20261031030000_monobank_payments.sql`.
-2. Add `MONOBANK_TOKEN` to Supabase Edge Function Secrets. Keep this merchant token private.
+1. Apply the Supabase migrations with the CLI.
+2. Set `MONOBANK_TOKEN` to the live acquiring token and `MONOBANK_TEST_TOKEN` to a separate test token from [Monobank's API portal](https://api.monobank.ua/) in Supabase Edge Function Secrets.
 3. Deploy `monobank-create-invoice` and `monobank-webhook` functions.
 4. Set `VITE_MONOBANK_ENABLED=true` in `.env.local`, then restart Vite.
 
 Checkout creates a Monobank invoice, opens its returned `pay.mbnk.biz` page and confirms the final payment state with Monobank before marking an order as paid.
+
+## Payment mode
+
+Deploy `set-payment-mode` along with the checkout and webhook functions. In CRM → Settings → Payments, the **Test mode** switch saves immediately and controls new Monobank and LiqPay checkouts. A mode change requires the corresponding credentials for every enabled online provider. Until the first switch, existing stores keep their previous provider settings, including `LIQPAY_TEST_MODE`. Keep the original LiqPay pair available to verify callbacks for orders created before the switch was introduced.
+
+Each new order keeps its mode for webhook verification. Test orders are labeled and excluded from stock reservations, shipments and revenue.
 
 ## Nova Poshta
 
@@ -67,9 +73,8 @@ In CRM → Settings, choose the sender and parcel defaults, then select test or 
 
 ### Тестовый режим LiqPay
 
-1. В кабинете LiqPay включить тестовый режим и использовать пару ключей с префиксом `sandbox_`.
-2. В Edge Function Secrets установить `LIQPAY_TEST_MODE=true` вместе с тестовыми ключами и развернуть функции.
-3. В `.env.local` задать `VITE_LIQPAY_ENABLED=true`, затем перезапустить Vite.
-4. Оформить заказ и на странице LiqPay использовать тестовую карту `4242 4242 4242 4242`, любую будущую дату и любой трёхзначный CVV.
+1. Скопировать ключи с префиксом `sandbox_` из кабинета LiqPay в тестовую пару Supabase.
+2. Включить тестовый режим в CRM → Настройки → Оплата.
+3. Оформить заказ и на странице LiqPay использовать тестовую карту `4242 4242 4242 4242`, любую будущую дату и любой трёхзначный CVV.
 
-Тестовый callback имеет статус `sandbox`; функция обработает его как успешную тестовую оплату и переведёт заказ в `PAID`. Перед настоящими оплатами замените ключи на боевые, установите `LIQPAY_TEST_MODE=false` и заново разверните функции.
+Подписанный статус `sandbox` переводит тестовый заказ в `PAID`. После добавления боевой пары ключей для приёма реальных платежей выключите переключатель в CRM.

@@ -10,19 +10,27 @@ export const paymentMethods = [
 ] as const
 
 export type PaymentProvider = (typeof paymentMethods)[number]['id']
-export type PaymentSettings = Record<(typeof paymentMethods)[number]['field'], boolean>
+export type PaymentMethodSettings = Record<(typeof paymentMethods)[number]['field'], boolean>
+export type PaymentSettings = PaymentMethodSettings & { payment_test_mode: boolean | null }
 export const paymentUnavailable = 'This payment method is no longer available.'
+export const paymentSettingsChanged = 'Payment settings changed. Please try again.'
 
-const defaults: PaymentSettings = { cash_on_delivery: true, liqpay: true, monobank: true }
+const defaults: PaymentSettings = { cash_on_delivery: true, liqpay: true, monobank: true, payment_test_mode: null }
 
 export async function getPaymentSettings(storeId: string): Promise<PaymentSettings> {
-  const rows = await supabaseRequest<PaymentSettings[]>(`/rest/v1/store_payment_methods?store_id=eq.${encodeURIComponent(storeId)}&select=cash_on_delivery,liqpay,monobank`, { cache: 'no-store' })
+  const rows = await supabaseRequest<PaymentSettings[]>(`/rest/v1/store_payment_methods?store_id=eq.${encodeURIComponent(storeId)}&select=cash_on_delivery,liqpay,monobank,payment_test_mode`, { cache: 'no-store' })
   return rows[0] ?? defaults
 }
 
-export async function savePaymentSettings(storeId: string, settings: PaymentSettings, token: string) {
+export async function savePaymentSettings(storeId: string, settings: PaymentMethodSettings, token: string) {
   await supabaseRequest('/rest/v1/store_payment_methods?on_conflict=store_id', {
     method: 'POST', token, headers: { Prefer: 'resolution=merge-duplicates' },
     body: JSON.stringify({ store_id: storeId, ...settings }),
+  })
+}
+
+export async function setPaymentTestMode(storeId: string, testMode: boolean, token: string) {
+  await supabaseRequest('/functions/v1/set-payment-mode', {
+    method: 'POST', token, body: JSON.stringify({ storeId, testMode }),
   })
 }

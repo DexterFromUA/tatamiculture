@@ -4,6 +4,9 @@ verify_jwt = false
 [functions.monobank-webhook]
 verify_jwt = false
 
+[functions.set-payment-mode]
+verify_jwt = false
+
 [functions.nova-poshta-create-ttn]
 verify_jwt = true
 

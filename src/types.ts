@@ -113,6 +113,7 @@ export type Order = {
   createdAt: string
   shortLinkId?: string
   paymentMethod?: 'ONLINE' | 'CASH_ON_DELIVERY'
+  paymentTestMode?: boolean
   novaPoshtaTtn?: string
   novaPoshtaStatus?: string
 }

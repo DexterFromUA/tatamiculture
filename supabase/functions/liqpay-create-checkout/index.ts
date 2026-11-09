@@ -1,9 +1,11 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { CheckoutOrderError, createOnlineOrder } from '../_shared/checkout-order.ts'
+import { CheckoutOrderError, createOnlineOrder, getCheckoutTestMode } from '../_shared/checkout-order.ts'
+import { encodeLiqPayData, legacyLiqPayKeys, liqPayKeys, liqPaySignature } from '../_shared/liqpay.ts'
 
 type CheckoutBody = {
   diagnostic?: boolean
   storeId: string
+  testMode?: boolean | null
   items: Array<{ optionId: string; quantity: number }>
   checkout: { name: string; email: string; phone: string; city: string; address: string; note: string; cityRef?: string; addressRef?: string; deliveryServiceType?: string }
 }
@@ -12,10 +14,6 @@ function toBase64(bytes: Uint8Array) {
   let binary = ''
   for (const byte of bytes) binary += String.fromCharCode(byte)
   return btoa(binary)
-}
-
-function encodeLiqPayData(payload: Record<string, unknown>) {
-  return toBase64(new TextEncoder().encode(JSON.stringify(payload)))
 }
 
 const SHA3_ROUNDS = [
@@ -73,13 +71,6 @@ function liqPaySha3Signature(privateKey: string, data: string) {
   return toBase64(sha3_256(`${privateKey}${data}${privateKey}`))
 }
 
-// The merchant's current LiqPay sandbox validates the legacy SHA-1 scheme.
-// Keep SHA3 above only for the non-payment diagnostic vector.
-async function liqPaySignature(privateKey: string, data: string) {
-  const hash = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(`${privateKey}${data}${privateKey}`))
-  return toBase64(new Uint8Array(hash))
-}
-
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
   headers: {
@@ -96,13 +87,8 @@ Deno.serve(async (request) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('SUPABASE_PUBLISHABLE_KEY')
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SECRET_KEY')
-  // Dashboard copy/paste can leave a trailing line break in a secret. It would
-  // change the SHA3 input and make LiqPay reject an otherwise valid key pair.
-  const publicKey = Deno.env.get('LIQPAY_PUBLIC_KEY')?.trim()
-  const privateKey = Deno.env.get('LIQPAY_PRIVATE_KEY')?.trim()
-  const testMode = Deno.env.get('LIQPAY_TEST_MODE') === 'true'
   const siteUrl = Deno.env.get('SITE_URL')?.replace(/\/$/, '')
-  if (!supabaseUrl || !anonKey || !serviceRoleKey || !publicKey || !privateKey) {
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
     return json({ error: 'Payment service is not configured' }, 503)
   }
 
@@ -111,6 +97,10 @@ Deno.serve(async (request) => {
     // Safe one-off diagnostic for configuring Edge Function secrets. It never
     // creates an order and never returns a private key or its digest.
     if (body.diagnostic === true) {
+      const keys = legacyLiqPayKeys()
+      if (!keys) return json({ error: 'Payment service is not configured' }, 503)
+      const { publicKey, privateKey } = keys
+      const testMode = Deno.env.get('LIQPAY_TEST_MODE') === 'true'
       const exampleData = 'eyJwdWJsaWNfa2V5IjoiaTAwMDAwMDAwIiwidmVyc2lvbiI6NywiYWN0aW9uIjoicGF5IiwiYW1vdW50IjoiMyIsImN1cnJlbmN5IjoiVUFIIiwiZGVzY3JpcHRpb24iOiJ0ZXN0Iiwib3JkZXJfaWQiOiIwMDAwMDEifQ=='
       const examplePrivateKey = 'a4825234f4bae72a0be04eafe9e8e2bada209255'
       const providerData = encodeLiqPayData({
@@ -147,7 +137,11 @@ Deno.serve(async (request) => {
       })
     }
     const serviceClient = createClient(supabaseUrl, serviceRoleKey)
-    const order = await createOnlineOrder(serviceClient, request, anonKey, 'LIQPAY', body)
+    const testMode = await getCheckoutTestMode(serviceClient, body.storeId, 'LIQPAY', body.testMode)
+    const keys = liqPayKeys(testMode)
+    if (!keys) return json({ error: testMode ? 'LiqPay test keys are not configured.' : 'LiqPay live keys are not configured.' }, 503)
+    const { publicKey, privateKey } = keys
+    const order = await createOnlineOrder(serviceClient, request, anonKey, 'LIQPAY', body, testMode)
 
     const { data: items, error: itemsError } = await serviceClient
       .from('order_items')
@@ -161,7 +155,7 @@ Deno.serve(async (request) => {
       action: 'pay',
       amount: Number(order.total_price) / 100,
       currency: String(order.currency),
-      description: `tatami.culture order ${order.receipt_code}`,
+      description: `${testMode ? 'TEST · ' : ''}tatami.culture order ${order.receipt_code}`,
       order_id: order.id,
       // LiqPay does not need a return URL to complete the payment: the webhook
       // below is authoritative. A browser-local URL is not reachable by LiqPay,

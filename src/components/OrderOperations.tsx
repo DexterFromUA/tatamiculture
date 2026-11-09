@@ -13,6 +13,7 @@ import { useDrawer } from '../lib/useDrawer'
 export type MetricOrder = { id: string; user_id: string | null; customer_phone: string; customer_email: string; status: string; payment_status: string; total_price: number; currency: string }
 export type OrderDetailsOrder = CustomerOrder & {
   note: string | null
+  payment_test_mode: boolean | null
   payment_method: 'ONLINE' | 'CASH_ON_DELIVERY'
   nova_poshta_ttn: string | null
   nova_poshta_status: string | null
@@ -73,7 +74,7 @@ export function OrderOperations({ order, token, onClose }: { order: OrderDetails
       <div className="order-drawer__identity">
         <span className="order-drawer__eyebrow">CRM / {t('Orders')}</span>
         <h2 id="order-drawer-title">{t('Order details')}</h2>
-        <div className="order-drawer__meta"><span>#{order.receipt_code}</span><span>{t(order.status)}</span></div>
+        <div className="order-drawer__meta"><span>#{order.receipt_code}</span>{order.payment_test_mode && <span>{t('Test order')}</span>}<span>{t(order.status)}</span></div>
       </div>
       <button type="button" className="btn btn--ghost" onClick={() => closeDrawer()}>{t('Close')}</button>
     </header>
