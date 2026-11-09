@@ -46,7 +46,6 @@ Deno.serve(async (request) => {
     if (orderError || !order) return json({ error: 'Order was not found' }, 404)
     const { data: membership } = await db.from('store_members').select('role').eq('store_id', order.store_id).eq('user_id', userData.user.id).maybeSingle()
     if (!membership) return json({ error: 'You do not have access to this order' }, 403)
-    if (order.payment_test_mode || order.monobank_test_mode) return json({ error: 'A TTN cannot be created for a test order' }, 409)
     if (String(order.status).startsWith('CANCELLED')) throw new Error('A TTN cannot be created for a cancelled order')
     if (order.nova_poshta_ttn) return json({ ttn: order.nova_poshta_ttn, documentRef: order.nova_poshta_document_ref, existing: true })
     if (!order.delivery_city_ref || !order.delivery_address_ref) throw new Error('This order lacks Nova Poshta branch references. Create a new order after enabling delivery, or set its destination again.')

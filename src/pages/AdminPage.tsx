@@ -219,7 +219,14 @@ export function AdminPage() {
                 <div className="crm-order__actions"><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => setSelectedOrderId(order.id)}>{t('Order details')}</button>
                 <button type="button" className="text-btn" onClick={() => void copyReceiptLink(receiptPath)}>{t('Copy receipt link')}</button>
                 {!order.payment_test_mode && <button type="button" className="text-btn" aria-haspopup="dialog" title={t('Open customer card')} onClick={() => setSelectedCustomer({ kind: 'order', id: order.id })}>{t('Customer')}</button>}
-                {!order.payment_test_mode && (order.nova_poshta_ttn ? <span className="ttn-actions"><a className="text-btn" href={`https://novaposhta.ua/tracking/?cargo_number=${encodeURIComponent(order.nova_poshta_ttn)}`} target="_blank" rel="noreferrer">TTN {order.nova_poshta_ttn}</a><button type="button" className="text-btn" disabled={trackingId === order.id} onClick={() => void refreshTracking(order.id)}>{trackingId === order.id ? t('Updating…') : t('Update status')}</button></span> : <button type="button" className="text-btn" disabled={creatingTtnId === order.id || order.status.startsWith('CANCELLED')} onClick={() => void createTtn(order.id)}>{creatingTtnId === order.id ? t('Creating TTN…') : t('Create TTN')}</button>)}
+                {order.nova_poshta_ttn ? (
+                  <span className="ttn-actions">
+                    <a className="text-btn" href={`https://novaposhta.ua/tracking/?cargo_number=${encodeURIComponent(order.nova_poshta_ttn)}`} target="_blank" rel="noreferrer">TTN {order.nova_poshta_ttn}</a>
+                    <button type="button" className="text-btn" disabled={trackingId === order.id} onClick={() => void refreshTracking(order.id)}>{trackingId === order.id ? t('Updating…') : t('Update status')}</button>
+                  </span>
+                ) : (
+                  <button type="button" className="text-btn" disabled={creatingTtnId === order.id || order.status.startsWith('CANCELLED')} onClick={() => void createTtn(order.id)}>{creatingTtnId === order.id ? t('Creating TTN…') : t('Create TTN')}</button>
+                )}
                 {order.status === 'PENDING' && order.payment_status !== 'PAID' ? <button type="button" className="text-btn crm-order__cancel" disabled={updatingId === order.id} onClick={() => void cancelAndRestoreStock(order.id)}>{t(order.payment_test_mode ? 'Cancel test order' : 'Cancel & restore stock')}</button> : null}</div>
               </li>
             )

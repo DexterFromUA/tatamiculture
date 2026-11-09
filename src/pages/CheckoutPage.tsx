@@ -160,7 +160,7 @@ export function CheckoutPage() {
         </label>
         <label className="field">
           <span>{t('Phone')}</span>
-          <input required value={form.phone} onChange={setField('phone')} />
+          <input type="tel" autoComplete="tel" required value={form.phone} onChange={setField('phone')} />
         </label>
         </div>
         <div className="field"><label htmlFor="checkout-city">{t('City')}</label><input id="checkout-city" required value={form.city} onChange={(event) => { setCityRef(null); setAddressRef(null); setForm((current) => ({ ...current, city: event.target.value, address: '' })) }} />{novaPoshtaEnabled && cities.length > 0 ? <div className="city-results" role="listbox">{cities.map((city) => <button type="button" role="option" key={city.ref} onClick={() => { setCityRef(city.ref); setAddressRef(null); setForm((current) => ({ ...current, city: city.name, address: '' })); setCities([]) }}><strong>{city.name}</strong>{city.area ? <small>{city.area}</small> : null}</button>)}</div> : null}{novaPoshtaEnabled && deliveryError ? <small className="error">Nova Poshta: {deliveryError}</small> : null}</div>

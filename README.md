@@ -59,7 +59,7 @@ Checkout creates a Monobank invoice, opens its returned `pay.mbnk.biz` page and 
 
 Deploy `set-payment-mode` along with the checkout and webhook functions. In CRM → Settings → Payments, the **Test mode** switch saves immediately and controls new Monobank and LiqPay checkouts. A mode change requires the corresponding credentials for every enabled online provider. Until the first switch, existing stores keep their previous provider settings, including `LIQPAY_TEST_MODE`. Keep the original LiqPay pair available to verify callbacks for orders created before the switch was introduced.
 
-Each new order keeps its mode for webhook verification. Test orders are labeled and excluded from stock reservations, shipments and revenue.
+Each new order keeps its mode for webhook verification. Test orders are labeled and excluded from stock reservations and revenue. TTN creation uses the separate Nova Poshta delivery settings.
 
 ## Nova Poshta
 
