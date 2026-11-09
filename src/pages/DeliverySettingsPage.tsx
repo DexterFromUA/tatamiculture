@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { supabaseRequest } from '../lib/supabase'
+import { NovaPostModeToggle } from '../components/NovaPostModeToggle'
 
 type Warehouse = { ref: string; name: string }
 type City = Warehouse & { area: string }
@@ -14,7 +15,6 @@ type Settings = {
   city_name: string
   warehouse_ref: string
   warehouse_name: string
-  default_weight_grams: number
   length_cm: number
   width_cm: number
   height_cm: number
@@ -29,7 +29,6 @@ const blank = (storeId: string): Settings => ({
   city_name: '',
   warehouse_ref: '',
   warehouse_name: '',
-  default_weight_grams: 1000,
   length_cm: 20,
   width_cm: 20,
   height_cm: 10,
@@ -55,7 +54,7 @@ export function DeliverySettingsPage({ embedded = false }: { embedded?: boolean 
   useEffect(() => {
     if (!storeId || !token || !userId) return
     const controller = new AbortController()
-    const fields = 'store_id,sender_name,sender_phone,city_ref,city_name,warehouse_ref,warehouse_name,default_weight_grams,length_cm,width_cm,height_cm,delivery_payer'
+    const fields = 'store_id,sender_name,sender_phone,city_ref,city_name,warehouse_ref,warehouse_name,length_cm,width_cm,height_cm,delivery_payer'
     void supabaseRequest<Settings[]>(`/rest/v1/delivery_settings?store_id=eq.${encodeURIComponent(storeId)}&select=${fields}`, {
       token, signal: controller.signal,
     }).then(rows => {
@@ -140,8 +139,9 @@ export function DeliverySettingsPage({ embedded = false }: { embedded?: boolean 
     <section className="settings-page">
       {!embedded && <header className="page-head"><p className="eyebrow">{t('Shipping')}</p><h1>{t('Nova Poshta settings')}</h1></header>}
       {error && <p className="error" role="alert">{error}</p>}
-      <div className="settings-grid">
-        <section className="settings-card">
+      <section className="settings-card">
+        <NovaPostModeToggle />
+        <form onSubmit={event => { event.preventDefault(); void save() }}>
           <h2>{t('Sender')}</h2>
           <label className="field">
             <span>{t('Sender name or company')}</span>
@@ -177,18 +177,25 @@ export function DeliverySettingsPage({ embedded = false }: { embedded?: boolean 
             </select>
           </label>}
           {directoryError && <p className="error" role="alert">{directoryError}</p>}
-        </section>
-        <section className="settings-card">
-          <h2>{t('Parcel defaults')}</h2>
-          <label className="field">
-            <span>{t('Weight, g')}</span>
-            <input type="number" min="1" value={settings.default_weight_grams} onChange={event => update({ default_weight_grams: Number(event.target.value) })} />
-          </label>
+          <fieldset className="parcel-dimensions">
+            <legend>{t('Parcel dimensions')}</legend>
+            {([
+              ['length_cm', 'Length, cm'],
+              ['width_cm', 'Width, cm'],
+              ['height_cm', 'Height, cm'],
+            ] as const).map(([field, label]) => (
+              <label className="field" key={field}>
+                <span>{t(label)}</span>
+                <input type="number" required min="1" max="2147483647" step="1" value={settings[field] || ''}
+                  onChange={event => update({ [field]: Number(event.target.value) })} />
+              </label>
+            ))}
+          </fieldset>
           <p className="muted">{t('The declared value is set automatically from the order total when the TTN is created.')}</p>
-          <button type="button" className="btn" onClick={() => void save()}>{t('Save settings')}</button>
+          <button type="submit" className="btn">{t('Save settings')}</button>
           {saved && <p className="success" role="status">{t('Saved')}</p>}
-        </section>
-      </div>
+        </form>
+      </section>
     </section>
   )
 }
