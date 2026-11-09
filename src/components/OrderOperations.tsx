@@ -1,4 +1,5 @@
 import { ItemReturns, type ReturnableOrderItem } from './ItemReturns'
+import { NovaPoshtaTrackingLink } from './NovaPoshtaTrackingLink'
 import type { CustomerOrder } from './CustomerPanel'
 import { SalesBreakdown } from './SalesBreakdown'
 import { useEffect, useState } from 'react'
@@ -110,7 +111,7 @@ export function OrderOperations({ order, token, onClose }: { order: OrderDetails
             <div><dt>{t('City')}</dt><dd>{details.delivery_city || '—'}</dd></div>
             <div><dt>{t('Address')}</dt><dd>{details.delivery_address || '—'}</dd></div>
             {order.nova_poshta_ttn && <div><dt>{t('TTN')}</dt><dd>
-              <a href={`https://novaposhta.ua/tracking/?cargo_number=${encodeURIComponent(order.nova_poshta_ttn)}`} target="_blank" rel="noreferrer">{order.nova_poshta_ttn}</a>
+              <NovaPoshtaTrackingLink ttn={order.nova_poshta_ttn}>{order.nova_poshta_ttn}</NovaPoshtaTrackingLink>
             </dd></div>}
             {order.nova_poshta_status && <div><dt>{t('Shipment status')}</dt><dd>{order.nova_poshta_status}</dd></div>}
             {note && <div className="order-drawer__note"><dt>{t('Note')}</dt><dd>{note}</dd></div>}
