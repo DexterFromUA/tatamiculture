@@ -179,7 +179,7 @@ const uk = {
   'Everyday movement': 'Рух щодня', 'Explore collection': 'До колекції', 'The collection': 'Колекція', 'All products': 'Усі товари', 'Find your essentials': 'Обирайте речі для свого ритму',
   'From {{price}}': 'Від {{price}}',
   'Mark all as read': 'Позначити всі як прочитані',
-  System: 'Система', Currency: 'Валюта', Created: 'Створено',
+  System: 'Система', 'Unknown user': 'Невідомий користувач', Currency: 'Валюта', Created: 'Створено',
   'Search products': 'Пошук товарів за назвою',
   'Search by name or SKU': 'Пошук товарів за назвою або артикулом',
   'Order activity': 'Історія подій замовлення', 'No events yet': 'Подій поки немає', event_status: 'Статус замовлення', event_payment_status: 'Статус оплати', event_cost: 'Собівартість', event_return: 'Повернення',

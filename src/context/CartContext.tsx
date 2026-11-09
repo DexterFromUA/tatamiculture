@@ -13,8 +13,10 @@ type CartContextValue = {
   removeItem: (productId: string, optionId: string) => void
   clear: () => void
   rememberOnlineCheckout: (receiptCode?: string) => void
-  completeOnlineCheckout: (order: Order) => void
+  completeOnlineCheckout: (order: Order, fromPaymentProvider?: boolean) => void
 }
+
+type CheckoutMarker = true | number | { settledAt: number }
 
 const CartContext = createContext<CartContextValue | null>(null)
 
@@ -31,6 +33,14 @@ function pendingCheckouts(storeId: string) {
   try {
     return Object.keys(localStorage)
       .filter(key => key.startsWith(prefix))
+      .filter(key => {
+        const marker = readJson<CheckoutMarker | null>(key, null)
+        if (marker && typeof marker === 'object') {
+          if (Date.now() - marker.settledAt > 24 * 60 * 60 * 1000) removeKey(key)
+          return false
+        }
+        return Boolean(marker)
+      })
       .map(key => key.slice(prefix.length))
   } catch {
     return []
@@ -38,10 +48,10 @@ function pendingCheckouts(storeId: string) {
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const { store } = useStore()
+  const { store, products } = useStore()
   const { pathname } = useLocation()
   const storeId = store?.id
-  const [items, setItems] = useState<CartItem[]>([])
+  const [storedItems, setItems] = useState<CartItem[]>([])
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
@@ -56,8 +66,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!store || !ready) return
-    writeJson(cartKey(store.id), items)
-  }, [items, store, ready])
+    writeJson(cartKey(store.id), storedItems)
+  }, [storedItems, store, ready])
 
   useEffect(() => {
     if (!storeId || !ready) return
@@ -105,20 +115,30 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [storeId])
 
-  const completeOnlineCheckout = useCallback((order: Order) => {
+  const completeOnlineCheckout = useCallback((order: Order, fromPaymentProvider = false) => {
     if (!ready || !storeId || order.storeId !== storeId || order.paymentMethod !== 'ONLINE' || order.paymentStatus !== 'PAID') return
     const key = checkoutPrefix(storeId) + order.receiptCode
-    if (!readJson<boolean | number>(key, false)) return
+    const marker = readJson<CheckoutMarker | null>(key, null)
+    if (marker && typeof marker === 'object') return
 
     const paidQuantities = new Map<string, number>()
     for (const item of order.items) {
       paidQuantities.set(item.productOptionId, (paidQuantities.get(item.productOptionId) ?? 0) + item.quantity)
     }
-    const next = readJson<CartItem[]>(cartKey(storeId), [])
+    const current = readJson<CartItem[]>(cartKey(storeId), [])
+    if (!marker) {
+      // Some payment flows reopen the shop without the original checkout marker.
+      // Only recover a recent bank return if the entire cart matches that order.
+      const orderAge = Date.now() - Date.parse(order.createdAt)
+      const matchesOrder = current.length > 0 && current.length === paidQuantities.size
+        && current.every(item => paidQuantities.get(item.optionId) === item.quantity)
+      if (!fromPaymentProvider || !(orderAge >= 0 && orderAge < 2 * 60 * 60 * 1000) || !matchesOrder) return
+    }
+    const next = current
       .map(item => ({ ...item, quantity: item.quantity - (paidQuantities.get(item.optionId) ?? 0) }))
       .filter(item => item.quantity > 0)
     writeJson(cartKey(storeId), next)
-    removeKey(key)
+    writeJson(key, { settledAt: Date.now() })
     setItems(next)
   }, [ready, storeId])
 
@@ -171,17 +191,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [storeId, ready, pathname, completeOnlineCheckout])
 
   const value = useMemo(
-    () => ({
-      items,
-      count: items.reduce((sum, item) => sum + item.quantity, 0),
-      addItem,
-      setQuantity,
-      removeItem,
-      clear,
-      rememberOnlineCheckout,
-      completeOnlineCheckout,
-    }),
-    [items, rememberOnlineCheckout, completeOnlineCheckout],
+    () => {
+      const items = storedItems.filter(item => {
+        const product = products.find(product => product.id === item.productId)
+        return product?.productOptions.some(option => option.id === item.optionId)
+      })
+      return {
+        items,
+        count: items.reduce((sum, item) => sum + item.quantity, 0),
+        addItem,
+        setQuantity,
+        removeItem,
+        clear,
+        rememberOnlineCheckout,
+        completeOnlineCheckout,
+      }
+    },
+    [storedItems, products, rememberOnlineCheckout, completeOnlineCheckout],
   )
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>

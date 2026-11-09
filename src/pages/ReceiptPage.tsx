@@ -8,6 +8,17 @@ import { api } from '../lib/api'
 import { normalizePhone } from '../lib/phone'
 import type { Order } from '../types'
 import { useTranslation } from 'react-i18next'
+import { OrderActivity } from '../components/OrderActivity'
+
+const paymentProviderOrigins = new Set(['https://pay.monobank.ua', 'https://pay.mbnk.biz', 'https://www.liqpay.ua', 'https://liqpay.ua'])
+
+function returnedFromPaymentProvider(referrer: string) {
+  try {
+    return paymentProviderOrigins.has(new URL(referrer).origin)
+  } catch {
+    return false
+  }
+}
 
 export function ReceiptPage() {
   const { code } = useParams()
@@ -55,8 +66,10 @@ export function ReceiptPage() {
   }, [code, returningFromPayment])
 
   useEffect(() => {
-    if (order && order.receiptCode === code) completeOnlineCheckout(order)
-  }, [order, code, completeOnlineCheckout])
+    if (order && order.receiptCode === code?.trim().toLowerCase()) {
+      completeOnlineCheckout(order, returningFromPayment && returnedFromPaymentProvider(document.referrer))
+    }
+  }, [order, code, completeOnlineCheckout, returningFromPayment])
 
   if (!store) return null
   if (loading) return <div className="page-status">{t('Looking up receipt…')}</div>
@@ -119,7 +132,14 @@ export function ReceiptPage() {
       </ul>
       <div className="receipt-total"><span>{t('Total')}</span><strong>{formatPrice(order.totalPrice, order.currency)}</strong></div></section>
       <section className="receipt-card receipt-delivery"><p className="eyebrow">{t('Deliver to')}</p><h2>{t('Delivery')}</h2><p>{[order.deliveryCity, order.deliveryAddress].filter(Boolean).join(', ')}</p>{order.novaPoshtaTtn ? <><p><strong>ТТН: {order.novaPoshtaTtn}</strong></p>{order.novaPoshtaStatus ? <p className="muted">{order.novaPoshtaStatus}</p> : <p className="muted">{t('TTN created — status will appear after dispatch.')}</p>}<a className="receipt-link" href={`https://novaposhta.ua/tracking/?cargo_number=${encodeURIComponent(order.novaPoshtaTtn)}`} target="_blank" rel="noreferrer">{t('Track shipment')} ↗</a></> : <p className="muted">{t('TTN will be added after dispatch.')}</p>}</section>
-      </div><aside className="receipt-card receipt-summary"><p className="eyebrow">{t('Receipt')} · {order.receiptCode}</p><h2>{t('Order details')}</h2><dl><div><dt>{t('Order status')}</dt><dd>{t(order.status)}</dd></div><div><dt>{t('Payment status')}</dt><dd>{t(`payment_${order.paymentStatus}`)}</dd></div>{order.paymentMethod ? <div><dt>{t('Payment method')}</dt><dd>{t(order.paymentMethod === 'CASH_ON_DELIVERY' ? 'Payment on delivery' : 'Online payment')}</dd></div> : null}</dl>
+      <OrderActivity key={`${order.receiptCode}:${order.status}`} receiptCode={order.receiptCode} currency={order.currency} />
+      </div><aside className="receipt-card receipt-summary">
+        <p className="eyebrow">{t('Receipt')} · {order.receiptCode}</p>
+        <h2>{t('Order details')}</h2>
+        <dl>
+          <div><dt>{t('Order status')}</dt><dd>{t(order.status)}</dd></div>
+          {order.paymentMethod && <div><dt>{t('Payment method')}</dt><dd>{t(order.paymentMethod === 'CASH_ON_DELIVERY' ? 'Payment on delivery' : 'Online payment')}</dd></div>}
+        </dl>
         {!initializing && (guestOrder || ownOrder) && <div className="receipt-claim">
           {ownOrder ? (
             <Link to="/account" className="text-btn">{t('View in order history')} ↗</Link>
