@@ -44,7 +44,7 @@ Deno.serve(async (request) => {
     if (!invoiceResponse.ok || !invoice.invoiceId || !invoice.pageUrl) throw new Error(invoice.errText ?? 'Monobank could not create an invoice')
     const { error: paymentError } = await serviceClient.from('payments').insert({ order_id: order.id, provider: 'MONOBANK', provider_order_id: invoice.invoiceId, status: 'PENDING' })
     if (paymentError) throw new Error(paymentError.message)
-    return json({ pageUrl: invoice.pageUrl })
+    return json({ pageUrl: invoice.pageUrl, receiptCode: order.receipt_code })
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : 'Checkout could not be started' }, error instanceof CheckoutOrderError ? error.status : 400)
   }

@@ -185,7 +185,7 @@ Deno.serve(async (request) => {
       status: 'PENDING',
     })
     if (paymentError) throw new Error(paymentError.message)
-    return json({ data, signature })
+    return json({ data, signature, receiptCode: order.receipt_code })
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : 'Checkout could not be started' }, error instanceof CheckoutOrderError ? error.status : 400)
   }

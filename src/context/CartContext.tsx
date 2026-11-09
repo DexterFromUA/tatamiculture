@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { readJson, writeJson } from '../lib/storage'
-import type { CartItem } from '../types'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { readJson, removeKey, writeJson } from '../lib/storage'
+import type { CartItem, Order } from '../types'
 import { useStore } from './StoreContext'
 
 type CartContextValue = {
@@ -10,6 +10,8 @@ type CartContextValue = {
   setQuantity: (productId: string, optionId: string, quantity: number) => void
   removeItem: (productId: string, optionId: string) => void
   clear: () => void
+  rememberOnlineCheckout: (receiptCode?: string) => void
+  completeOnlineCheckout: (order: Order) => void
 }
 
 const CartContext = createContext<CartContextValue | null>(null)
@@ -18,8 +20,13 @@ function cartKey(storeId: string) {
   return `shop.store.cart.${storeId}`
 }
 
+function checkoutKey(storeId: string, receiptCode: string) {
+  return `${cartKey(storeId)}.checkout.${receiptCode}`
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const { store } = useStore()
+  const storeId = store?.id
   const [items, setItems] = useState<CartItem[]>([])
   const [ready, setReady] = useState(false)
 
@@ -66,6 +73,30 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const clear = () => setItems([])
 
+  const rememberOnlineCheckout = useCallback((receiptCode?: string) => {
+    if (!storeId || !receiptCode) return
+    try {
+      writeJson(checkoutKey(storeId, receiptCode), true)
+    } catch {
+      // The buyer can still continue to payment when storage is unavailable.
+    }
+  }, [storeId])
+
+  const completeOnlineCheckout = useCallback((order: Order) => {
+    if (!ready || !storeId || order.storeId !== storeId || order.paymentMethod !== 'ONLINE' || order.paymentStatus !== 'PAID') return
+    const key = checkoutKey(storeId, order.receiptCode)
+    if (readJson<boolean>(key, false) !== true) return
+    removeKey(key)
+
+    const paidQuantities = new Map<string, number>()
+    for (const item of order.items) {
+      paidQuantities.set(item.productOptionId, (paidQuantities.get(item.productOptionId) ?? 0) + item.quantity)
+    }
+    setItems(current => current
+      .map(item => ({ ...item, quantity: item.quantity - (paidQuantities.get(item.optionId) ?? 0) }))
+      .filter(item => item.quantity > 0))
+  }, [ready, storeId])
+
   const value = useMemo(
     () => ({
       items,
@@ -74,8 +105,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
       setQuantity,
       removeItem,
       clear,
+      rememberOnlineCheckout,
+      completeOnlineCheckout,
     }),
-    [items],
+    [items, rememberOnlineCheckout, completeOnlineCheckout],
   )
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>

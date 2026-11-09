@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next'
 
 export function CheckoutPage() {
   const { store, products } = useStore()
-  const { items, clear } = useCart()
+  const { items, clear, rememberOnlineCheckout } = useCart()
   const { user, token } = useAuth()
   const { addToast } = useToast()
   const navigate = useNavigate()
@@ -110,12 +110,14 @@ export function CheckoutPage() {
       if (novaPoshtaEnabled && (!cityRef || !addressRef || !form.address)) throw new Error(t('Choose a city and Nova Poshta branch'))
       const checkout = novaPoshtaEnabled ? { ...form, cityRef: cityRef ?? undefined, addressRef: addressRef ?? undefined, deliveryServiceType } : form
       if (provider === 'MONOBANK') {
-        const { pageUrl } = await startMonobankCheckout({ store, items, checkout, token })
+        const { pageUrl, receiptCode } = await startMonobankCheckout({ store, items, checkout, token })
+        rememberOnlineCheckout(receiptCode)
         window.location.assign(pageUrl)
         return
       }
       if (provider === 'LIQPAY') {
-        const { data, signature } = await startLiqPayCheckout({ store, items, checkout, token })
+        const { data, signature, receiptCode } = await startLiqPayCheckout({ store, items, checkout, token })
+        rememberOnlineCheckout(receiptCode)
         redirectToLiqPay(data, signature)
         return
       }

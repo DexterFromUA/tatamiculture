@@ -6,7 +6,7 @@ export const monobankEnabled = import.meta.env.VITE_MONOBANK_ENABLED === 'true'
 export const novaPoshtaEnabled = import.meta.env.VITE_NOVAPOSHTA_ENABLED === 'true'
 
 export async function startLiqPayCheckout(input: { store: Store; items: CartItem[]; checkout: CheckoutInput; token: string | null }) {
-  return supabaseRequest<{ data: string; signature: string }>('/functions/v1/liqpay-create-checkout', {
+  return supabaseRequest<{ data: string; signature: string; receiptCode?: string }>('/functions/v1/liqpay-create-checkout', {
     method: 'POST',
     token: input.token,
     body: JSON.stringify({ storeId: input.store.id, items: input.items, checkout: input.checkout }),
@@ -30,7 +30,7 @@ export function redirectToLiqPay(data: string, signature: string) {
 }
 
 export async function startMonobankCheckout(input: { store: Store; items: CartItem[]; checkout: CheckoutInput; token: string | null }) {
-  return supabaseRequest<{ pageUrl: string }>('/functions/v1/monobank-create-invoice', {
+  return supabaseRequest<{ pageUrl: string; receiptCode?: string }>('/functions/v1/monobank-create-invoice', {
     method: 'POST', token: input.token,
     body: JSON.stringify({ storeId: input.store.id, items: input.items, checkout: input.checkout }),
   })

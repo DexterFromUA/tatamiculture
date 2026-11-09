@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useCart } from '../context/CartContext'
 import { useStore } from '../context/StoreContext'
 import { formatDate, formatPrice } from '../lib/format'
 import { api } from '../lib/api'
@@ -12,8 +13,10 @@ import { OrderActivity } from '../components/OrderActivity'
 export function ReceiptPage() {
   const { code } = useParams()
   const { store } = useStore()
+  const { completeOnlineCheckout } = useCart()
   const { user, token, initializing, logout } = useAuth()
   const location = useLocation()
+  const returningFromPayment = new URLSearchParams(location.search).get('payment') === 'return'
   const navigate = useNavigate()
   const returnError = (location.state as { claimError?: string } | null)?.claimError
   const [order, setOrder] = useState<Order | null>(null)
@@ -23,22 +26,38 @@ export function ReceiptPage() {
   const { t } = useTranslation()
 
   useEffect(() => {
+    if (!code) return
     let cancelled = false
+    let timer: number | undefined
+    let retries = returningFromPayment ? 15 : 0
 
     const load = async () => {
-      if (!code) return
-      const next = await api.getOrderByReceipt(code)
-      if (!cancelled) {
+      try {
+        const next = await api.getOrderByReceipt(code)
+        if (cancelled) return
         setOrder(next)
         setLoading(false)
+        if (next?.paymentMethod !== 'ONLINE' || next.paymentStatus !== 'PENDING') return
+      } catch {
+        if (cancelled) return
+        if (!retries) setLoading(false)
+      }
+      if (retries > 0) {
+        retries -= 1
+        timer = window.setTimeout(() => void load(), 2000)
       }
     }
 
     void load()
     return () => {
       cancelled = true
+      window.clearTimeout(timer)
     }
-  }, [code])
+  }, [code, returningFromPayment])
+
+  useEffect(() => {
+    if (order && order.receiptCode === code) completeOnlineCheckout(order)
+  }, [order, code, completeOnlineCheckout])
 
   if (!store) return null
   if (loading) return <div className="page-status">{t('Looking up receipt…')}</div>
