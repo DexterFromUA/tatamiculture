@@ -214,6 +214,7 @@ const uk = {
   'Checking…': 'Перевірка…', 'Sending…': 'Надсилання…',
   Name: 'Ім’я', Email: 'Електронна пошта', Phone: 'Телефон', City: 'Місто', Address: 'Адреса', Note: 'Коментар',
   'Start typing your city': 'Почніть вводити місто', 'Choose branch': 'Оберіть відділення', 'Loading branches…': 'Завантаження відділень…',
+  'Type city in Ukrainian': 'Введіть назву міста українською', 'No cities found': 'Міст не знайдено', 'No branches found': 'Відділень не знайдено',
   Payments: 'Оплата', 'Payment methods': 'Способи оплати',
   'Choose which payment methods customers can use at checkout.': 'Оберіть, які способи оплати будуть доступні покупцям під час оформлення замовлення.',
   'Integration is disabled in this deployment.': 'Інтеграцію вимкнено в конфігурації магазину.',
