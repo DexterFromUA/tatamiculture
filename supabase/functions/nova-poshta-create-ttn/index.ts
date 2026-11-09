@@ -25,6 +25,35 @@ async function novaPost(apiKey: string, modelName: string, calledMethod: string,
   return result.data ?? []
 }
 
+function senderPhone(value: unknown) {
+  const digits = String(value ?? '').replace(/\D/g, '')
+  return /^0\d{9}$/.test(digits) ? `38${digits}` : digits
+}
+
+async function resolveSender(apiKey: string, cityRef: string, name: string, phone: string) {
+  // The Sender directory can omit valid counterparties when FindByString is sent.
+  const senders = (await novaPost(apiKey, 'Counterparty', 'getCounterparties', {
+    CounterpartyProperty: 'Sender', City: cityRef, Page: '1', Limit: '20',
+  })).filter(sender => typeof sender.Ref === 'string' && sender.Ref)
+  if (!senders.length) throw new Error('The Nova Poshta API key has no sender for the configured dispatch city.')
+
+  const normalizeName = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
+  const nameMatches = senders.filter(sender => normalizeName(sender.Description) === normalizeName(name))
+  const candidates = nameMatches.length ? nameMatches : senders
+  const matches = (await Promise.all(candidates.map(async sender => {
+    const contacts = await novaPost(apiKey, 'Counterparty', 'getCounterpartyContactPersons', { Ref: sender.Ref, Page: '1' })
+    return contacts.filter(contact => typeof contact.Ref === 'string' && contact.Ref &&
+      [contact.Phones, contact.Phone].some(value =>
+        String(value ?? '').split(/[,;/]/).some(number => senderPhone(number) === phone),
+      )).map(contact => ({ senderRef: sender.Ref, contactRef: contact.Ref, name: normalizeName(contact.Description) }))
+  }))).flat()
+  if (matches.length === 1) return matches[0]
+  const namedContacts = matches.filter(contact => contact.name === normalizeName(name))
+  if (namedContacts.length === 1) return namedContacts[0]
+  if (matches.length > 1) throw new Error('Multiple Nova Poshta sender contacts use this phone. Check the sender name or company in delivery settings.')
+  throw new Error('No Nova Poshta sender contact matches the phone in delivery settings.')
+}
+
 async function orderWeightGrams(db: ReturnType<typeof createClient>, orderId: string) {
   const { data, error } = await db.rpc('nova_poshta_order_weight_grams', { p_order_id: orderId })
   if (error) throw new Error('Could not calculate the order weight.')
@@ -100,15 +129,9 @@ Deno.serve(async (request) => {
     const apiKey = settings.nova_post_test_mode ? Deno.env.get('NOVA_POSHTA_TEST_API_KEY')?.trim() : Deno.env.get('NOVA_POSHTA_API_KEY')?.trim()
     if (!apiKey) throw new Error(settings.nova_post_test_mode ? 'NOVA_POSHTA_TEST_API_KEY is not configured' : 'NOVA_POSHTA_API_KEY is not configured')
 
-    const senders = await novaPost(apiKey, 'Counterparty', 'getCounterparties', { CounterpartyProperty: 'Sender', FindByString: settings.sender_name, CityRef: settings.city_ref, Page: '1', Limit: '20' })
-    const sender = senders.find((item) => String(item.Description ?? '').trim().toLowerCase() === String(settings.sender_name).trim().toLowerCase()) ?? senders[0]
-    if (!sender?.Ref) throw new Error('Nova Poshta sender was not found for the configured name and city')
-    let contactSender = (sender.ContactPerson as { data?: NovaData[] } | undefined)?.data?.[0]?.Ref
-    if (!contactSender) {
-      const contacts = await novaPost(apiKey, 'Counterparty', 'getCounterpartyContactPersons', { Ref: sender.Ref, Page: '1' })
-      contactSender = contacts[0]?.Ref
-    }
-    if (!contactSender) throw new Error('Nova Poshta sender contact was not found')
+    const dispatchPhone = senderPhone(settings.sender_phone)
+    if (!dispatchPhone) throw new Error('Enter a valid sender phone in delivery settings.')
+    const sender = await resolveSender(apiKey, settings.city_ref, settings.sender_name, dispatchPhone)
 
     const person = nameParts(String(order.customer_name))
     const recipients = await novaPost(apiKey, 'Counterparty', 'save', {
@@ -126,8 +149,8 @@ Deno.serve(async (request) => {
       DateTime: dateForNovaPost(), CargoType: 'Parcel', Weight: weightKg, SeatsAmount: '1',
       Description: parcelDescription.trim(), Cost: String(declaredValueUah),
       ...(orderNumber ? { InfoRegClientBarcodes: orderNumber } : {}),
-      CitySender: settings.city_ref, Sender: sender.Ref, SenderAddress: settings.warehouse_ref, ContactSender: contactSender,
-      SendersPhone: String(settings.sender_phone).replace(/\D/g, ''), CityRecipient: order.delivery_city_ref,
+      CitySender: settings.city_ref, Sender: sender.senderRef, SenderAddress: settings.warehouse_ref, ContactSender: sender.contactRef,
+      SendersPhone: dispatchPhone, CityRecipient: order.delivery_city_ref,
       Recipient: recipient.Ref, RecipientAddress: order.delivery_address_ref, ContactRecipient: recipientContact,
       RecipientsPhone: String(order.customer_phone).replace(/\D/g, ''), ServiceType: order.delivery_service_type === 'WarehousePostomat' ? 'WarehousePostomat' : 'WarehouseWarehouse',
       ...(order.payment_method === 'CASH_ON_DELIVERY' ? { BackwardDeliveryData: [{ PayerType: 'Recipient', CargoType: 'Money', RedeliveryString: String(Math.max(1, Math.round(Number(order.total_price) / 100))) }] } : {}),

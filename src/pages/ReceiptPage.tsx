@@ -9,6 +9,7 @@ import { normalizePhone } from '../lib/phone'
 import type { Order } from '../types'
 import { useTranslation } from 'react-i18next'
 import { OrderActivity } from '../components/OrderActivity'
+import { NovaPoshtaTrackingLink } from '../components/NovaPoshtaTrackingLink'
 
 const paymentProviderOrigins = new Set(['https://pay.monobank.ua', 'https://pay.mbnk.biz', 'https://www.liqpay.ua', 'https://liqpay.ua'])
 
@@ -131,7 +132,16 @@ export function ReceiptPage() {
         ))}
       </ul>
       <div className="receipt-total"><span>{t('Total')}</span><strong>{formatPrice(order.totalPrice, order.currency)}</strong></div></section>
-      <section className="receipt-card receipt-delivery"><p className="eyebrow">{t('Deliver to')}</p><h2>{t('Delivery')}</h2><p>{[order.deliveryCity, order.deliveryAddress].filter(Boolean).join(', ')}</p>{order.novaPoshtaTtn ? <><p><strong>ТТН: {order.novaPoshtaTtn}</strong></p>{order.novaPoshtaStatus ? <p className="muted">{order.novaPoshtaStatus}</p> : <p className="muted">{t('TTN created — status will appear after dispatch.')}</p>}<a className="receipt-link" href={`https://novaposhta.ua/tracking/?cargo_number=${encodeURIComponent(order.novaPoshtaTtn)}`} target="_blank" rel="noreferrer">{t('Track shipment')} ↗</a></> : <p className="muted">{t('TTN will be added after dispatch.')}</p>}</section>
+      <section className="receipt-card receipt-delivery">
+        <p className="eyebrow">{t('Deliver to')}</p>
+        <h2>{t('Delivery')}</h2>
+        <p>{[order.deliveryCity, order.deliveryAddress].filter(Boolean).join(', ')}</p>
+        {order.novaPoshtaTtn ? <>
+          <p><strong>ТТН: {order.novaPoshtaTtn}</strong></p>
+          <p className="muted">{order.novaPoshtaStatus || t('TTN created — status will appear after dispatch.')}</p>
+          <NovaPoshtaTrackingLink className="receipt-link" ttn={order.novaPoshtaTtn}>{t('Track shipment')} ↗</NovaPoshtaTrackingLink>
+        </> : <p className="muted">{t('TTN will be added after dispatch.')}</p>}
+      </section>
       <OrderActivity key={`${order.receiptCode}:${order.status}`} receiptCode={order.receiptCode} currency={order.currency} />
       </div><aside className="receipt-card receipt-summary">
         <p className="eyebrow">{t('Receipt')} · {order.receiptCode}</p>

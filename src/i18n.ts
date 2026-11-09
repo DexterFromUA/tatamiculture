@@ -254,6 +254,8 @@ const uk = {
   'Loading orders…': 'Завантаження замовлень…', 'No orders yet.': 'Замовлень ще немає.',
   'Looking up receipt…': 'Шукаємо замовлення…', 'Receipt not found': 'Замовлення не знайдено', Receipt: 'Замовлення', 'Thank you, {{name}}': 'Дякуємо, {{name}}',
   'Deliver to': 'Доставити до', 'TTN created — status will appear after dispatch.': 'ТТН створено — статус з’явиться після відправлення.', 'TTN will be added after dispatch.': 'ТТН буде додано після відправлення.', 'Track shipment': 'Відстежити відправлення',
+  'Tracking number copied': 'Номер ТТН скопійовано',
+  'Could not copy the tracking number. You can copy it manually.': 'Не вдалося скопіювати номер ТТН. Скопіюйте його вручну.',
   'CRM needs Supabase': 'CRM потребує Supabase', 'Manager access required': 'Потрібен доступ менеджера', 'Loading CRM…': 'Завантаження CRM…', management: 'керування',
   'Management sections': 'Розділи керування', 'Configure `.env.local` and apply the project migration first.': 'Налаштуйте `.env.local` і спочатку застосуйте міграцію проєкту.', 'Ask the store owner to add your account to this store.': 'Попросіть власника магазину додати ваш акаунт до команди.',
   Revenue: 'Виручка', 'Delivered revenue': 'Виручка за доставленими', 'Needs attention': 'Потребує уваги', 'pending orders': 'очікують обробки', 'failed payments': 'невдалі оплати', 'Open orders': 'Відкрити замовлення', 'Inventory alerts': 'Попередження про залишки', 'Manage catalogue': 'Керувати каталогом', Stock: 'Залишки',
