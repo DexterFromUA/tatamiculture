@@ -22,7 +22,7 @@ export async function fetchAll<T>(path: string, token: string, signal?: AbortSig
 export function downloadCsv(filename: string, rows: unknown[][]) {
   const quote = (value: unknown) => {
     let text = String(value ?? '')
-    if (/^\s*[=+@-]/.test(text)) text = `'${text}`
+    if (typeof value === 'string' && /^[\s\uFEFF]*[=+@\-\t\r\n]/.test(text)) text = `'${text}`
     return `"${text.replaceAll('"', '""')}"`
   }
   const url = URL.createObjectURL(new Blob(['\uFEFF', rows.map(row => row.map(quote).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' }))

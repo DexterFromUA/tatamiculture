@@ -16,7 +16,8 @@ import { formatDate, formatPrice } from '../lib/format'
 import { SupabaseError, supabaseConfigured, supabaseRequest } from '../lib/supabase'
 import type { OrderStatus } from '../types'
 import { useTranslation } from 'react-i18next'
-import { downloadCsv, fetchAll, hasStoreMembership } from '../lib/crm'
+import { fetchAll, hasStoreMembership } from '../lib/crm'
+import { downloadOrdersCsv } from '../lib/crmExport'
 import { FinancialAnalytics, OrderOperations, type OrderDetailsOrder } from '../components/OrderOperations'
 import { normalizePhone } from '../lib/phone'
 import { createTtn, defaultParcelDescription, getTtnPreview, type TtnShipment } from '../lib/ttn'
@@ -51,6 +52,7 @@ export function AdminPage() {
   const [inventory, setInventory] = useState<InventoryProduct[]>([])
   const [member, setMember] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [exportingOrders, setExportingOrders] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [confirmation, setConfirmation] = useState<{
     content: ConfirmationDialogContent
@@ -139,10 +141,23 @@ export function AdminPage() {
   const selectedOrders = groupedOrders.filter(order => selectedOrderIds.includes(order.id))
   const selectedTtnCandidates = selectedOrders.filter(canCreateTtn)
   const selectedOrder = groupedOrders.find(order => order.id === selectedOrderId)
-  const exportOrders = () => downloadCsv('tatami.culture-orders.csv', [
-    [t('Receipt'), t('Name'), t('Email'), t('Phone'), t('Order status'), t('Total'), 'Currency', 'Created'],
-    ...visibleOrders.map(order => [order.receipt_code, order.customer_name, order.customer_email, order.customer_phone, t(order.status), Number(order.total_price) / 100, order.currency, order.created_at]),
-  ])
+  const exportOrders = async () => {
+    if (!token || !visibleOrders.length || exportingOrders) return
+    setExportingOrders(true)
+    setError(null)
+    try {
+      const refs = visibleOrders.flatMap(order => {
+        const ids = [order.id, ...groupIds(order.id).filter(id => id !== order.id)]
+        const primaryReceipt = ids.length > 1 ? order.receipt_code : undefined
+        return ids.map(id => ({ id, primaryReceipt }))
+      })
+      await downloadOrdersCsv(refs, token, t)
+    } catch (cause) {
+      setError(`${t('Could not export orders')}. ${cause instanceof Error ? cause.message : ''}`.trim())
+    } finally {
+      setExportingOrders(false)
+    }
+  }
 
   const copyReceiptLink = async (path: string) => {
     try {
@@ -413,7 +428,9 @@ export function AdminPage() {
       <div className="crm-grid crm-grid--orders">
         <section className="crm-panel">
           <div className="order-filters"><label className="search-field"><span>{t('Search orders by name, order number, TTN or phone')}</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} /></label><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'ALL' | OrderStatus)}><option value="ALL">{t('All statuses')}</option>{statuses.map((status) => <option key={status} value={status}>{t(status)}</option>)}</select><input aria-label={t('Orders from date')} type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /><input aria-label={t('Orders to date')} type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} /></div>
-          <button className="text-btn" disabled={!visibleOrders.length} onClick={exportOrders}>{t('Export CSV')} ({visibleOrders.length})</button>
+          <button className="text-btn" disabled={!visibleOrders.length || exportingOrders} onClick={() => void exportOrders()}>
+            {exportingOrders ? t('Preparing CSV…') : `${t('Export CSV')} (${visibleOrders.length})`}
+          </button>
           {selectedOrderIds.length > 0 && <div className="catalog-bulk" role="group" aria-label={t('Bulk action')}>
             <div className="catalog-bulk__selection" aria-live="polite">
               <span className="catalog-bulk__count">{selectedOrderIds.length}</span>

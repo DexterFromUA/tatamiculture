@@ -2,16 +2,17 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
-import { downloadCsv, fetchAll, customerPhone } from '../lib/crm'
+import { fetchAll, customerPhone } from '../lib/crm'
+import { downloadCustomersCsv, type CustomerExportOrder } from '../lib/crmExport'
 import { formatPrice } from '../lib/format'
-import type { CrmCustomer, CrmOrder } from '../components/CrmCustomerCard'
+import type { CrmCustomer } from '../components/CrmCustomerCard'
 
 export function CustomersPage({ onOpenCustomer, revision }: { onOpenCustomer: (id: string) => void; revision: number }) {
   const { store } = useStore()
   const { token } = useAuth()
   const { t } = useTranslation()
   const [customers, setCustomers] = useState<CrmCustomer[]>([])
-  const [orders, setOrders] = useState<CrmOrder[]>([])
+  const [orders, setOrders] = useState<CustomerExportOrder[]>([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -22,7 +23,7 @@ export function CustomersPage({ onOpenCustomer, revision }: { onOpenCustomer: (i
     const abort = new AbortController()
     Promise.all([
       fetchAll<CrmCustomer>(`/rest/v1/crm_customers?store_id=eq.${store.id}&select=*&order=created_at.desc,id`, token, abort.signal),
-      fetchAll<CrmOrder>(`/rest/v1/orders?store_id=eq.${store.id}&select=id,crm_customer_id,user_id,receipt_code,total_price,currency,status,created_at&order=created_at.desc,id`, token, abort.signal),
+      fetchAll<CustomerExportOrder>(`/rest/v1/orders?store_id=eq.${store.id}&select=id,crm_customer_id,user_id,receipt_code,total_price,currency,status,payment_status,payment_test_mode,monobank_test_mode,created_at&order=created_at.desc,id`, token, abort.signal),
     ]).then(([people, purchases]) => { setCustomers(people); setOrders(purchases); setError('') })
       .catch(cause => { if (!abort.signal.aborted) setError(cause.message) })
       .finally(() => { if (!abort.signal.aborted) setLoading(false) })
@@ -48,7 +49,9 @@ export function CustomersPage({ onOpenCustomer, revision }: { onOpenCustomer: (i
       <div className="customers-toolbar">
         <label className="search-field"><span>{t('Search customers')}</span><input type="search" value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} /></label>
         <label className="check"><input type="checkbox" checked={duplicatesOnly} onChange={event => { setDuplicatesOnly(event.target.checked); setPage(1) }} />{t('Matching phone numbers')}</label>
-        <button className="text-btn" onClick={() => downloadCsv('tatami.culture-customers.csv', [[t('Name'), t('Phone'), t('Email'), t('Orders'), t('Total')], ...rows.map(row => [row.name, row.phone, row.email, row.count, row.total])])}>{t('Export CSV')}</button>
+        <button className="text-btn" disabled={!store || !rows.length} onClick={() => {
+          if (store) downloadCustomersCsv(rows, orders, store.currency, t)
+        }}>{t('Export CSV')}</button>
       </div>
       <ul className="customers-list">{rows.slice((current - 1) * 20, current * 20).map(customer => <li key={customer.id}>
         <div><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => onOpenCustomer(customer.id)}>{customer.name}</button><span>{customer.phone || customer.email} · {customer.tags.join(' · ')}</span></div>
