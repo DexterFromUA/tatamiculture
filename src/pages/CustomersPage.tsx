@@ -47,11 +47,14 @@ export function CustomersPage({ onOpenCustomer, revision }: { onOpenCustomer: (i
     {loading ? <p>{t('Loading…')}</p> : <section className="crm-panel">
       <h2>{t('Customers')} · {customers.length}</h2>
       <div className="customers-toolbar">
-        <label className="search-field"><span>{t('Search customers')}</span><input type="search" value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} /></label>
-        <label className="check"><input type="checkbox" checked={duplicatesOnly} onChange={event => { setDuplicatesOnly(event.target.checked); setPage(1) }} />{t('Matching phone numbers')}</label>
+        <label className="search-field"><span className="sr-only">{t('Search customers')}</span><input type="search" placeholder={t('Search customers')} value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} /></label>
+        <label className="order-select-all"><input type="checkbox" checked={duplicatesOnly} onChange={event => { setDuplicatesOnly(event.target.checked); setPage(1) }} />{t('Matching phone numbers')}</label>
+      </div>
+      <div className="orders-list-toolbar">
         <button className="text-btn" disabled={!store || !rows.length} onClick={() => {
           if (store) downloadCustomersCsv(rows, orders, store.currency, t)
         }}>{t('Export CSV')}</button>
+        <div className="crm-pagination"><button className="text-btn" disabled={current === 1} onClick={() => setPage(current - 1)}>{t('Previous')}</button><span>{current} / {pages}</span><button className="text-btn" disabled={current === pages} onClick={() => setPage(current + 1)}>{t('Next')}</button></div>
       </div>
       <ul className="customers-list">{rows.slice((current - 1) * 20, current * 20).map(customer => <li key={customer.id}>
         <div><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => onOpenCustomer(customer.id)}>{customer.name}</button><span>{customer.phone || customer.email} · {customer.tags.join(' · ')}</span></div>
