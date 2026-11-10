@@ -685,49 +685,50 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
       <div className="catalog-toolbar">
         <input type="search" aria-label={t('Search by name or SKU')} placeholder={t('Search by name or SKU')} value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} />
         {view === 'products' ? <select aria-label={t('Category')} value={categoryFilter} onChange={event => { setCategoryFilter(event.target.value); setPage(1) }}><option value="all">{t('All categories')}</option>{categoryOptions.map(({ category, label }) => <option key={category.id} value={category.id}>{label}</option>)}</select> : <select aria-label={t('Stock filter')} value={stockFilter} onChange={event => { setStockFilter(event.target.value as StockFilter); setPage(1) }}><option value="all">{t('All stock')}</option><option value="low">{t('Low stock')}</option><option value="out">{t('Out of stock')}</option></select>}
+        {pages > 1 && <div className="crm-pagination"><button className="text-btn" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t('Previous')}</button><span>{currentPage} / {pages}</span><button className="text-btn" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>{t('Next')}</button></div>}
       </div>
-        {view === 'products' && selected.length > 0 && <div className="catalog-bulk" role="group" aria-label={t('Bulk action')}>
-          <div className="catalog-bulk__selection" aria-live="polite">
-            <span className="catalog-bulk__count">{selected.length}</span>
-            <div className="catalog-bulk__selection-label">
-              <span>{t('Selected products')}</span>
-              {selectedOutsidePage > 0 && <small>{t('Outside this page: {{count}}', { count: selectedOutsidePage })}</small>}
+        {view === 'products' && (pageProducts.length > 0 || selected.length > 0) && <div className="order-bulk" role="group" aria-label={t('Bulk action')}>
+          <label className="order-select-all">
+            <input type="checkbox" checked={pageSelected} disabled={saving || !pageProducts.length}
+              ref={input => { if (input) input.indeterminate = !pageSelected && selected.length > selectedOutsidePage }}
+              onChange={event => {
+                const checked = event.target.checked
+                setSelected(current => checked
+                  ? [...new Set([...current, ...pageProductIds])]
+                  : current.filter(id => !pageProductIds.has(id)))
+              }}
+            />
+            {t('Select all on this page')}
+          </label>
+          <div className="order-bulk__actions" aria-hidden={!selected.length} inert={!selected.length}>
+            <div className="catalog-bulk__selection" aria-live="polite">
+              <span className="catalog-bulk__count">{selected.length}</span>
+              <div className="catalog-bulk__selection-label">
+                <span>{t('Selected products')}</span>
+                {selectedOutsidePage > 0 && <small>{t('Outside this page: {{count}}', { count: selectedOutsidePage })}</small>}
+              </div>
             </div>
-          </div>
-          <div className="catalog-bulk__controls">
-          <select aria-label={t('Bulk action')} disabled={saving} value={bulkAction} onChange={event => setBulkAction(event.target.value)}>
-            <option value="">{t('Bulk action')}</option>
-            <option value="publish">{t('Publish')}</option>
-            <option value="hide">{t('Hide')}</option>
-            <option value="uncategorized">{t('Clear categories')}</option>
-            {categoryOptions.map(({ category, label }) => <option key={category.id} value={category.id}>{t('Replace categories with {{category}}', { category: label })}</option>)}
-          </select>
-          <button type="button" className="btn" disabled={saving || !bulkAction} onClick={() => void applyBulk()}>{t(saving ? 'Saving…' : 'Apply')}</button>
-          <button type="button" className="catalog-bulk__clear" disabled={saving} onClick={() => setSelected([])}>{t('Clear selection')}</button>
+            <div className="catalog-bulk__controls">
+              <select aria-label={t('Bulk action')} disabled={saving} value={bulkAction} onChange={event => setBulkAction(event.target.value)}>
+                <option value="">{t('Bulk action')}</option>
+                <option value="publish">{t('Publish')}</option>
+                <option value="hide">{t('Hide')}</option>
+                <option value="uncategorized">{t('Clear categories')}</option>
+                {categoryOptions.map(({ category, label }) => <option key={category.id} value={category.id}>{t('Replace categories with {{category}}', { category: label })}</option>)}
+              </select>
+              <button type="button" className="btn" disabled={saving || !bulkAction} onClick={() => void applyBulk()}>{t(saving ? 'Saving…' : 'Apply')}</button>
+              <button type="button" className="catalog-bulk__clear" disabled={saving} onClick={() => setSelected([])}>{t('Clear selection')}</button>
+            </div>
           </div>
         </div>}
         <ul className="catalog-admin__list">
-          {view === 'products' && pageProducts.length > 1 && <li className="catalog-admin__selection-row">
-            <label>
-              <input type="checkbox" checked={pageSelected} disabled={saving}
-                ref={input => { if (input) input.indeterminate = !pageSelected && selected.length > selectedOutsidePage }}
-                onChange={event => {
-                  const checked = event.target.checked
-                  setSelected(current => checked
-                    ? [...new Set([...current, ...pageProductIds])]
-                    : current.filter(id => !pageProductIds.has(id)))
-                }}
-              />
-              {t('Select all on this page')}
-            </label>
-          </li>}
           {view === 'products' ? pageProducts.map(product => {
             const unavailable = product.product_variants.filter(variant => !variant.is_preorder && variant.stock_quantity === 0).length
             return <li key={product.id} className={selected.includes(product.id) ? 'catalog-admin__selected' : undefined}>
+              <label className="order-select"><input type="checkbox" aria-label={`${t('Select product')} · ${productName(product, language)}`} checked={selected.includes(product.id)} disabled={saving} onChange={event => { const checked = event.target.checked; setSelected(current => checked ? [...current, product.id] : current.filter(id => id !== product.id)) }} /></label>
               {product.product_images[0] && <img className="catalog-admin__thumb" src={product.product_images[0].public_url} alt="" />}
               <div className="catalog-admin__item"><strong>{productName(product, language)}</strong><span>{categoryPaths(categories, assignedCategoryIds(product), language).join(' · ') || t('Uncategorized')} · {product.is_active ? t('Published') : t('Hidden')}{product.is_new && ` · ${t('New arrival')}`}</span><span>{product.product_variants.length} {t('variants')}{unavailable ? ` · ${unavailable} ${t('out of stock')}` : ''}</span></div>
               <div className="actions">
-                <input type="checkbox" aria-label={`${t('Select product')} · ${productName(product, language)}`} checked={selected.includes(product.id)} disabled={saving} onChange={event => setSelected(current => event.target.checked ? [...current, product.id] : current.filter(id => id !== product.id))} />
                 <button type="button" className="text-btn" onClick={() => openProduct(product)}>{t('Edit')}</button>
                 {stockSchemaReady && <button type="button" className="text-btn" disabled={saving} onClick={() => void duplicate(product)}>{t('Duplicate')}</button>}
               </div>
