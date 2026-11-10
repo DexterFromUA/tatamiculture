@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { CustomerPanel, type CustomerPanelTarget } from '../components/CustomerPanel'
 import { CreateTtnDrawer } from '../components/CreateTtnDrawer'
 import { MergeOrdersDrawer } from '../components/MergeOrdersDrawer'
-import { OrderPaymentConfirmation } from '../components/OrderPaymentConfirmation'
+import { ConfirmationDialog, type ConfirmationDialogContent } from '../components/ConfirmationDialog'
 import { NovaPoshtaTrackingLink } from '../components/NovaPoshtaTrackingLink'
 import { AdminTabs } from '../components/AdminTabs'
 import type { AdminSection } from '../components/AdminTabs'
@@ -18,10 +18,15 @@ import type { OrderStatus } from '../types'
 import { useTranslation } from 'react-i18next'
 import { downloadCsv, fetchAll, hasStoreMembership } from '../lib/crm'
 import { FinancialAnalytics, OrderOperations, type OrderDetailsOrder } from '../components/OrderOperations'
+import { normalizePhone } from '../lib/phone'
+import { createTtn, defaultParcelDescription, getTtnPreview, type TtnShipment } from '../lib/ttn'
+import { invalidTtnRecipientName, parseTtnRecipientName } from '../../supabase/functions/_shared/ttn-recipient.ts'
 
 type AdminOrder = OrderDetailsOrder & {
   nova_poshta_document_ref: string | null
   nova_poshta_status_code: string | null
+  delivery_city_ref: string | null
+  delivery_address_ref: string | null
 }
 
 type InventoryProduct = {
@@ -31,6 +36,8 @@ type InventoryProduct = {
 }
 
 const statuses: OrderStatus[] = ['PENDING', 'PAID', 'IN_PROGRESS', 'READY_FOR_PICKUP', 'DELIVERED', 'CANCELLED_BY_USER', 'CANCELLED_BY_STORE']
+const canCreateTtn = (order: AdminOrder) =>
+  !order.nova_poshta_ttn && !order.nova_poshta_document_ref && !order.status.startsWith('CANCELLED')
 
 export function AdminPage() {
   const { store } = useStore()
@@ -45,12 +52,11 @@ export function AdminPage() {
   const [member, setMember] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
-  const [paymentConfirmation, setPaymentConfirmation] = useState<{
-    message: string
+  const [confirmation, setConfirmation] = useState<{
+    content: ConfirmationDialogContent
     resolve: (confirmed: boolean) => void
   } | null>(null)
   const [ttnOrder, setTtnOrder] = useState<AdminOrder | null>(null)
-  const [ttnQueue, setTtnQueue] = useState<AdminOrder[]>([])
   const [trackingId, setTrackingId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'ALL' | OrderStatus>('ALL')
@@ -77,7 +83,7 @@ export function AdminPage() {
           return
         }
         const [nextOrders, nextInventory, nextMergeMembers] = await Promise.all([
-          fetchAll<AdminOrder>(`/rest/v1/orders?store_id=eq.${encodeURIComponent(store.id)}&select=id,user_id,receipt_code,customer_name,customer_email,customer_phone,note,payment_test_mode,total_price,currency,status,payment_status,created_at,nova_poshta_ttn,nova_poshta_document_ref,nova_poshta_status,nova_poshta_status_code,payment_method&order=created_at.desc,id.desc`, token),
+          fetchAll<AdminOrder>(`/rest/v1/orders?store_id=eq.${encodeURIComponent(store.id)}&select=id,user_id,receipt_code,customer_name,customer_email,customer_phone,note,payment_test_mode,total_price,currency,status,payment_status,created_at,nova_poshta_ttn,nova_poshta_document_ref,nova_poshta_status,nova_poshta_status_code,payment_method,delivery_city_ref,delivery_address_ref&order=created_at.desc,id.desc`, token),
           supabaseRequest<InventoryProduct[]>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=id,name,product_variants(*)&order=position.asc`, { token }),
           fetchAll<{ order_id: string; root_id: string }>(`/rest/v1/order_merge_members?select=order_id,root_id,orders!order_merge_members_order_id_fkey!inner(store_id)&orders.store_id=eq.${encodeURIComponent(store.id)}&order=order_id`, token),
         ])
@@ -131,6 +137,7 @@ export function AdminPage() {
   const pageSelected = pageOrders.length > 0 && pageOrders.every(order => selectedOrderIds.includes(order.id))
   const selectedOutsidePage = selectedOrderIds.filter(id => !pageOrderIds.has(id)).length
   const selectedOrders = groupedOrders.filter(order => selectedOrderIds.includes(order.id))
+  const selectedTtnCandidates = selectedOrders.filter(canCreateTtn)
   const selectedOrder = groupedOrders.find(order => order.id === selectedOrderId)
   const exportOrders = () => downloadCsv('tatami.culture-orders.csv', [
     [t('Receipt'), t('Name'), t('Email'), t('Phone'), t('Order status'), t('Total'), 'Currency', 'Created'],
@@ -146,6 +153,9 @@ export function AdminPage() {
     }
   }
 
+  const confirmAction = (content: ConfirmationDialogContent) =>
+    new Promise<boolean>(resolve => setConfirmation({ content, resolve }))
+
   const updateOrderStatus = async (ids: string[], status: OrderStatus, restoreStock = false) => {
     if (!token) return false
     const request = (confirmed: boolean) => supabaseRequest<Array<Pick<AdminOrder, 'id' | 'status' | 'payment_status'>>>(
@@ -160,7 +170,7 @@ export function AdminPage() {
       const message = restoreStock
         ? t('There is a payment record for at least one of these orders. Cancel and restore stock anyway?')
         : t('There is a payment record for at least one of these orders. Change the status to {{status}} anyway?', { status: t(status) })
-      const confirmed = await new Promise<boolean>(resolve => setPaymentConfirmation({ message, resolve }))
+      const confirmed = await confirmAction({ title: t('Payment recorded'), message })
       return confirmed ? request(true) : null
     })
     if (!updated) return false
@@ -202,6 +212,108 @@ export function AdminPage() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not update shipment status') } finally { setTrackingId(null) }
   }
 
+  const saveShipment = (id: string, { ttn, documentRef, existing }: TtnShipment) => {
+    const ids = groupIds(id)
+    if (!existing) setSelectedOrderIds(current => current.filter(selectedId => selectedId !== id))
+    setOrders(current => current.map(order => ids.includes(order.id)
+      ? { ...order, nova_poshta_ttn: ttn, nova_poshta_document_ref: documentRef }
+      : order))
+  }
+
+  const createBulkTtns = async () => {
+    if (!token) return
+    setBulkBusy(true)
+    setError(null)
+    let skipped = selectedOrders.length - selectedTtnCandidates.length
+    let refreshOrders = false
+    const ready: Array<{ order: AdminOrder; weightGrams: number; declaredValueMinor: number }> = []
+    const issues: string[] = []
+    const skippedMessage = () => t('TTN skipped for {{count}} orders that already have a TTN or are cancelled', { count: skipped })
+    const issue = (order: AdminOrder, cause: unknown) =>
+      `#${order.receipt_code}: ${t(cause instanceof Error ? cause.message : 'Could not create TTN')}`
+    try {
+      for (let index = 0; index < selectedTtnCandidates.length; index += 6) {
+        const candidates = selectedTtnCandidates.slice(index, index + 6)
+        const previews = await Promise.allSettled(candidates.map(order => getTtnPreview(order.id, token)))
+        previews.forEach((preview, position) => {
+          const order = candidates[position]
+          if (preview.status === 'rejected') {
+            if (preview.reason instanceof SupabaseError && preview.reason.message === 'This order already has a TTN.') {
+              skipped++
+              refreshOrders = true
+            } else {
+              issues.push(issue(order, preview.reason))
+            }
+            return
+          }
+          const { weightGrams, declaredValueMinor } = preview.value
+          const missing = [
+            (weightGrams === null || !Number.isSafeInteger(weightGrams) || weightGrams <= 0) && t('Weight, g'),
+            (!Number.isSafeInteger(declaredValueMinor) || declaredValueMinor < 100) && t('Declared value, UAH'),
+            (!order.delivery_city_ref || !order.delivery_address_ref) && t('Nova Poshta city or branch'),
+            !normalizePhone(order.customer_phone ?? '') && t('Recipient phone'),
+          ].filter(Boolean)
+          const problems = [
+            missing.length ? t('Missing or invalid shipping data: {{fields}}', { fields: missing.join(', ') }) : '',
+            !parseTtnRecipientName(order.customer_name) ? t(invalidTtnRecipientName) : '',
+          ].filter(Boolean)
+          if (problems.length || weightGrams === null) {
+            issues.push(`#${order.receipt_code}: ${problems.join(' ')}`)
+            return
+          }
+          ready.push({ order, weightGrams, declaredValueMinor })
+        })
+      }
+      if (!ready.length && !issues.length) {
+        if (skipped) addToast(skippedMessage())
+        return
+      }
+
+      const summary = ready.length
+        ? t('TTNs will be created automatically using the calculated weights and declared values. Orders to process: {{count}}.', { count: ready.length })
+        : t('No orders are ready for TTN creation. Review the details below and try again.')
+      const message = [
+        summary,
+        skipped ? skippedMessage() : '',
+        ready.length && issues.length ? t('The orders listed below will be skipped.') : '',
+      ].filter(Boolean).join(' ')
+      const confirmed = await confirmAction({
+        title: t(issues.length ? 'Orders need attention before creating TTNs' : 'Create TTNs automatically'),
+        message,
+        details: issues,
+        confirmLabel: t(issues.length ? 'Skip and create TTNs' : 'Create TTNs'),
+        confirmDisabled: !ready.length,
+      })
+      if (!confirmed) return
+
+      let created = 0
+      const failures: string[] = []
+      for (const { order, weightGrams, declaredValueMinor } of ready) {
+        try {
+          const shipment = await createTtn(token, {
+            orderId: order.id,
+            description: defaultParcelDescription,
+            internalOrderNumber: order.receipt_code,
+            weightGrams,
+            declaredValueMinor,
+          })
+          saveShipment(order.id, shipment)
+          if (shipment.existing) skipped++
+          else created++
+        } catch (cause) {
+          failures.push(issue(order, cause))
+        }
+      }
+      if (created) addToast(t('TTNs created: {{count}}', { count: created }))
+      if (skipped) addToast(skippedMessage())
+      if (failures.length) setError(failures.join(' · '))
+      setBulkAction('')
+    } finally {
+      if (refreshOrders) setOrdersRevision(value => value + 1)
+      setBulkBusy(false)
+    }
+  }
+
   const applyBulkAction = async () => {
     if (!token || !bulkAction || bulkBusy || updatingId || selectedOrders.length === 0) return
     if (bulkAction === 'merge') {
@@ -211,14 +323,12 @@ export function AdminPage() {
       return
     }
     if (bulkAction === 'ttn') {
-      const eligible = selectedOrders.filter(order => !order.nova_poshta_ttn && !order.status.startsWith('CANCELLED'))
-      const skipped = selectedOrders.length - eligible.length
-      if (skipped) setError(t('TTN skipped for {{count}} orders that already have a TTN or are cancelled', { count: skipped }))
-      if (eligible.length) {
-        setTtnOrder(eligible[0])
-        setTtnQueue(eligible.slice(1))
+      if (selectedOrders.length > 1) {
+        await createBulkTtns()
+      } else if (selectedTtnCandidates.length) {
+        setTtnOrder(selectedTtnCandidates[0])
+        setBulkAction('')
       }
-      setBulkAction('')
       return
     }
     setBulkBusy(true)
@@ -320,7 +430,7 @@ export function AdminPage() {
                 </optgroup>
                 <option value="tracking">{t('Update shipment statuses')}</option>
                 <option value="cancel">{t('Cancel unpaid & restore stock')}</option>
-                {selectedOrders.some(order => !order.nova_poshta_ttn && !order.status.startsWith('CANCELLED')) && <option value="ttn">{t('Create TTN')}</option>}
+                {selectedTtnCandidates.length > 0 && <option value="ttn">{t('Create TTN')}</option>}
                 {selectedOrders.length > 1 && <option value="merge">{t('Merge orders')}</option>}
               </select>
               <button type="button" className="btn" disabled={bulkBusy || Boolean(updatingId) || Boolean(trackingId) || !bulkAction} onClick={() => void applyBulkAction()}>{t(bulkBusy ? 'Updating…' : 'Apply')}</button>
@@ -375,7 +485,7 @@ export function AdminPage() {
                     <button type="button" className="text-btn" disabled={bulkBusy || trackingId === order.id} onClick={() => void refreshTracking(order.id)}>{trackingId === order.id ? t('Updating…') : t('Update status')}</button>
                   </span>
                 ) : (
-                  <button type="button" className="text-btn" aria-haspopup="dialog" disabled={order.status.startsWith('CANCELLED')} onClick={() => setTtnOrder(order)}>{t('Create TTN')}</button>
+                  <button type="button" className="text-btn" aria-haspopup="dialog" disabled={bulkBusy || !canCreateTtn(order)} onClick={() => setTtnOrder(order)}>{t('Create TTN')}</button>
                 )}
                 {order.status === 'PENDING' && order.payment_status !== 'PAID' ? <button type="button" className="text-btn crm-order__cancel" disabled={bulkBusy || Boolean(updatingId)} onClick={() => void changeStatus(order.id, 'CANCELLED_BY_STORE', true)}>{t(order.payment_test_mode ? 'Cancel test order' : 'Cancel & restore stock')}</button> : null}</div>
               </li>
@@ -389,9 +499,9 @@ export function AdminPage() {
         target={selectedCustomer} storeId={store.id} token={token}
         onSaved={() => setCustomerRevision(value => value + 1)} onClose={() => setSelectedCustomer(null)} />}
       {section === 'overview' && token && <FinancialAnalytics orders={liveOrders} storeId={store.id} token={token} />}
-      {paymentConfirmation && <OrderPaymentConfirmation message={paymentConfirmation.message} onClose={confirmed => {
-        setPaymentConfirmation(null)
-        paymentConfirmation.resolve(confirmed)
+      {confirmation && <ConfirmationDialog {...confirmation.content} onClose={confirmed => {
+        setConfirmation(null)
+        confirmation.resolve(confirmed)
       }} />}
       {selectedOrder && token && <OrderOperations key={selectedOrder.id} order={selectedOrder} orderIds={groupIds(selectedOrder.id)} token={token} onClose={() => setSelectedOrderId(null)} />}
       {mergeOpen && token && <MergeOrdersDrawer orders={selectedOrders} busy={bulkBusy} error={mergeError} onClose={() => setMergeOpen(false)} onMerge={targetId => {
@@ -402,16 +512,8 @@ export function AdminPage() {
           .catch(cause => setMergeError(cause instanceof Error ? cause.message : t('Action failed')))
           .finally(() => setBulkBusy(false))
       }} />}
-      {ttnOrder && token && <CreateTtnDrawer key={ttnOrder.id} orderId={ttnOrder.id} receiptCode={ttnOrder.receipt_code}
-        token={token} onClose={() => {
-          setTtnOrder(ttnQueue[0] ?? null)
-          setTtnQueue(current => current.slice(1))
-        }} onCreated={({ ttn, documentRef }) => {
-          setSelectedOrderIds(current => current.filter(id => id !== ttnOrder.id))
-          setOrders(current => current.map(order => order.id === ttnOrder.id
-            ? { ...order, nova_poshta_ttn: ttn, nova_poshta_document_ref: documentRef }
-            : order))
-        }} />}
+      {ttnOrder && token && <CreateTtnDrawer key={ttnOrder.id} orderId={ttnOrder.id} receiptCode={ttnOrder.receipt_code} customerName={ttnOrder.customer_name}
+        token={token} onClose={() => setTtnOrder(null)} onCreated={shipment => saveShipment(ttnOrder.id, shipment)} />}
     </section>
   )
 }

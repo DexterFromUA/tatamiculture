@@ -1487,7 +1487,7 @@ input[type="date"] { color-scheme: light; }
   input[type="date"] { color-scheme: dark; }
 }
 
-.order-payment-confirmation {
+.confirmation-dialog {
   box-sizing: border-box;
   width: min(460px, calc(100% - 32px));
   max-height: calc(100dvh - 32px);
@@ -1498,10 +1498,19 @@ input[type="date"] { color-scheme: light; }
   box-shadow: 0 20px 70px rgb(0 0 0 / 22%);
 }
 
-.order-payment-confirmation::backdrop { background: rgb(20 20 20 / 62%); backdrop-filter: blur(3px); }
-.order-payment-confirmation h2 { margin: 0; font-size: 1.5rem; letter-spacing: -.035em; }
-.order-payment-confirmation p { margin: 12px 0 24px; line-height: 1.5; }
-.order-payment-confirmation__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.confirmation-dialog::backdrop { background: rgb(20 20 20 / 62%); backdrop-filter: blur(3px); }
+.confirmation-dialog h2 { margin: 0; font-size: 1.5rem; letter-spacing: -.035em; }
+.confirmation-dialog p { margin: 12px 0 24px; line-height: 1.5; }
+.confirmation-dialog__details {
+  max-height: min(30dvh, 180px);
+  overflow: auto;
+  overflow-wrap: anywhere;
+  margin: 0 0 24px;
+  padding-inline-start: 20px;
+  line-height: 1.5;
+}
+.confirmation-dialog__details li + li { margin-top: 8px; }
+.confirmation-dialog__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
 
 .order-drawer {
   --drawer-duration: 220ms;

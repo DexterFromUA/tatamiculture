@@ -1,21 +1,22 @@
 import { useEffect, useId, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { supabaseRequest } from '../lib/supabase'
+import { createTtn, defaultParcelDescription, getTtnPreview, type TtnShipment } from '../lib/ttn'
 import { useDrawer } from '../lib/useDrawer'
+import { invalidTtnRecipientName, parseTtnRecipientName } from '../../supabase/functions/_shared/ttn-recipient.ts'
 
-const endpoint = '/functions/v1/nova-poshta-create-ttn'
-
-export function CreateTtnDrawer({ orderId, receiptCode, token, onClose, onCreated }: {
+export function CreateTtnDrawer({ orderId, receiptCode, customerName, token, onClose, onCreated }: {
   orderId: string
   receiptCode: string
+  customerName: string
   token: string
   onClose: () => void
-  onCreated: (shipment: { ttn: string; documentRef: string }) => void
+  onCreated: (shipment: TtnShipment) => void
 }) {
   const { t } = useTranslation()
   const titleId = useId()
   const { ref, close, onCancel, onClick } = useDrawer({ openOnMount: true, onClose })
-  const [description, setDescription] = useState('')
+  const [recipientName, setRecipientName] = useState(customerName)
+  const [description, setDescription] = useState(defaultParcelDescription)
   const [internalOrderNumber, setInternalOrderNumber] = useState(receiptCode)
   const [weight, setWeight] = useState('')
   const [declaredValue, setDeclaredValue] = useState('')
@@ -27,9 +28,7 @@ export function CreateTtnDrawer({ orderId, receiptCode, token, onClose, onCreate
 
   useEffect(() => {
     const controller = new AbortController()
-    void supabaseRequest<{ weightGrams: number | null; declaredValueMinor: number }>(`${endpoint}?orderId=${encodeURIComponent(orderId)}`, {
-      token, cache: 'no-store', signal: controller.signal,
-    }).then(result => {
+    void getTtnPreview(orderId, token, controller.signal).then(result => {
       if (controller.signal.aborted) return
       if (!Number.isSafeInteger(result.declaredValueMinor)) throw new Error('Could not load the declared value.')
       setCalculatedWeight(result.weightGrams)
@@ -47,6 +46,10 @@ export function CreateTtnDrawer({ orderId, receiptCode, token, onClose, onCreate
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (saving || !previewReady) return
+    if (!parseTtnRecipientName(recipientName)) {
+      setError(invalidTtnRecipientName)
+      return
+    }
     const weightGrams = Number(weight)
     if (!Number.isSafeInteger(weightGrams) || weightGrams <= 0) {
       setError('Enter a positive weight in whole grams.')
@@ -65,9 +68,7 @@ export function CreateTtnDrawer({ orderId, receiptCode, token, onClose, onCreate
     setSaving(true)
     setError(null)
     try {
-      const shipment = await supabaseRequest<{ ttn: string; documentRef: string }>(endpoint, {
-        method: 'POST', token, body: JSON.stringify({ orderId, description, internalOrderNumber, weightGrams, declaredValueMinor }),
-      })
+      const shipment = await createTtn(token, { orderId, description, internalOrderNumber, weightGrams, declaredValueMinor, recipientName })
       close(() => onCreated(shipment))
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not create TTN')
@@ -88,8 +89,13 @@ export function CreateTtnDrawer({ orderId, receiptCode, token, onClose, onCreate
     <div className="order-drawer__body">
       <form className="form order-drawer__card" onSubmit={event => void submit(event)}>
         <label className="field">
+          <span>{t('Recipient surname and first name')}</span>
+          <input required value={recipientName} disabled={saving} onChange={event => setRecipientName(event.target.value)} />
+          <small>{t(invalidTtnRecipientName)}</small>
+        </label>
+        <label className="field">
           <span>{t('Parcel description')}</span>
-          <textarea required placeholder="речі від tatami.culture" value={description} disabled={saving}
+          <textarea required value={description} disabled={saving}
             onChange={event => setDescription(event.target.value)} />
         </label>
         <label className="field">

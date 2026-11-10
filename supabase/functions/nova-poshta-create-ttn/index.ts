@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { invalidTtnRecipientName, parseTtnRecipientName } from '../_shared/ttn-recipient.ts'
 
 type NovaData = Record<string, unknown>
 class NovaPostRejection extends Error {}
@@ -6,25 +7,26 @@ class NovaPostRejection extends Error {}
 const cors = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, apikey, content-type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' }
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: cors })
 
-function nameParts(fullName: string) {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean)
-  return { lastName: parts[0] ?? 'Клієнт', firstName: parts[1] ?? parts[0] ?? 'Клієнт', middleName: parts.slice(2).join(' ') }
-}
-
 function dateForNovaPost() {
   const now = new Date()
   return `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}`
 }
 
 async function novaPost(apiKey: string, modelName: string, calledMethod: string, methodProperties: NovaData) {
-  const response = await fetch('https://api.novaposhta.ua/v2.0/json/', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ apiKey, modelName, calledMethod, methodProperties }),
-  })
-  const result = await response.json() as { success?: boolean; data?: NovaData[]; errors?: string[]; warnings?: string[] }
-  if (response.ok && result.success === false) throw new NovaPostRejection(result.errors?.join(', ') || result.warnings?.join(', ') || 'Nova Poshta request failed')
-  if (!response.ok || !result.success) throw new Error(result.errors?.join(', ') || result.warnings?.join(', ') || 'Nova Poshta request failed')
-  return result.data ?? []
+  const signal = AbortSignal.timeout(8000)
+  try {
+    const response = await fetch('https://api.novaposhta.ua/v2.0/json/', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey, modelName, calledMethod, methodProperties }), signal,
+    })
+    const result = await response.json() as { success?: boolean; data?: NovaData[]; errors?: string[]; warnings?: string[] }
+    if (response.ok && result.success === false) throw new NovaPostRejection(result.errors?.join(', ') || result.warnings?.join(', ') || 'Nova Poshta request failed')
+    if (!response.ok || !result.success) throw new Error(result.errors?.join(', ') || result.warnings?.join(', ') || 'Nova Poshta request failed')
+    return result.data ?? []
+  } catch (error) {
+    if (signal.aborted) throw new Error('Nova Poshta did not respond in time.', { cause: error })
+    throw error
+  }
 }
 
 function senderPhone(value: unknown) {
@@ -72,7 +74,7 @@ Deno.serve(async (request) => {
   let documentSaved = false
   let documentRejected = false
   try {
-    const { orderId, description, internalOrderNumber, weightGrams, declaredValueMinor } = (preview
+    const { orderId, description, internalOrderNumber, weightGrams, declaredValueMinor, recipientName } = (preview
       ? { orderId: new URL(request.url).searchParams.get('orderId') }
       : await request.json()) as {
       orderId?: string | null
@@ -80,6 +82,7 @@ Deno.serve(async (request) => {
       internalOrderNumber?: unknown
       weightGrams?: unknown
       declaredValueMinor?: unknown
+      recipientName?: unknown
     }
     if (!orderId) throw new Error('Order is required')
     const authorization = request.headers.get('Authorization') ?? `Bearer ${anonKey}`
@@ -107,6 +110,8 @@ Deno.serve(async (request) => {
       return json({ weightGrams: shipping.weight_grams, declaredValueMinor: Math.max(100, orderTotalMinor) })
     }
     if (!order.delivery_city_ref || !order.delivery_address_ref) throw new Error('This order lacks Nova Poshta branch references. Create a new order after enabling delivery, or set its destination again.')
+    const person = parseTtnRecipientName(recipientName === undefined ? order.customer_name : recipientName)
+    if (!person) throw new Error(invalidTtnRecipientName)
 
     const parcelDescription = description === undefined ? `tatami.culture order ${order.receipt_code}` : description
     if (typeof parcelDescription !== 'string' || !parcelDescription.trim()) throw new Error('Enter a parcel description.')
@@ -141,7 +146,6 @@ Deno.serve(async (request) => {
     if (!dispatchPhone) throw new Error('Enter a valid sender phone in delivery settings.')
     const sender = await resolveSender(apiKey, settings.city_ref, settings.sender_name, dispatchPhone)
 
-    const person = nameParts(String(order.customer_name))
     const recipients = await novaPost(apiKey, 'Counterparty', 'save', {
       FirstName: person.firstName, MiddleName: person.middleName, LastName: person.lastName,
       Phone: String(order.customer_phone).replace(/\D/g, ''), Email: String(order.customer_email),
