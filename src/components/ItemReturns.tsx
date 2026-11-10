@@ -6,8 +6,8 @@ import { formatPrice } from '../lib/format'
 export type ReturnableOrderItem = { id: string; product_id: string | null; variant_id: string | null; product_name: string; variant_name: string; quantity: number; unit_price: number }
 type Return = { id: string; item_id: string; quantity: number; reason: string; status: string; replacement_variant: string | null; refund_amount: number; restock: boolean }
 type Variant = { id: string; product_id: string; name: string; price: number; stock_quantity: number }
-export function ItemReturns({ orderId, items, token, currency, onChange }: {
-  orderId: string; items: ReturnableOrderItem[]; token: string; currency: string; onChange: () => void
+export function ItemReturns({ orderIds, items, token, currency, onChange }: {
+  orderIds: string[]; items: ReturnableOrderItem[]; token: string; currency: string; onChange: () => void
 }) {
   const { t } = useTranslation()
   const [returns, setReturns] = useState<Return[]>([])
@@ -18,13 +18,14 @@ export function ItemReturns({ orderId, items, token, currency, onChange }: {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const requestId = useRef(crypto.randomUUID())
+  const idList = orderIds.join(',')
   useEffect(() => {
     const abort = new AbortController()
-    void supabaseRequest<Return[]>(`/rest/v1/item_returns?order_id=eq.${orderId}&select=*&order=created_at.desc`, { token, signal: abort.signal })
+    void supabaseRequest<Return[]>(`/rest/v1/item_returns?order_id=in.(${idList})&select=*&order=created_at.desc`, { token, signal: abort.signal })
       .then(nextReturns => { if (!abort.signal.aborted) setReturns(nextReturns) })
       .catch(cause => { if (!abort.signal.aborted) setError(cause.message) })
     return () => abort.abort()
-  }, [orderId, token, revision])
+  }, [idList, token, revision])
   const item = items.find(row => row.id === selected)
   useEffect(() => {
     if (!item?.product_id) return

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CustomerPanel, type CustomerPanelTarget } from '../components/CustomerPanel'
 import { CreateTtnDrawer } from '../components/CreateTtnDrawer'
+import { MergeOrdersDrawer } from '../components/MergeOrdersDrawer'
 import { NovaPoshtaTrackingLink } from '../components/NovaPoshtaTrackingLink'
 import { AdminTabs } from '../components/AdminTabs'
 import type { AdminSection } from '../components/AdminTabs'
@@ -35,6 +36,10 @@ export function AdminPage() {
   const { token, user } = useAuth()
   const { addToast } = useToast()
   const [orders, setOrders] = useState<AdminOrder[]>([])
+  const [mergeMembers, setMergeMembers] = useState<Array<{ order_id: string; root_id: string }>>([])
+  const [ordersRevision, setOrdersRevision] = useState(0)
+  const [mergeOpen, setMergeOpen] = useState(false)
+  const [mergeError, setMergeError] = useState<string | null>(null)
   const [inventory, setInventory] = useState<InventoryProduct[]>([])
   const [member, setMember] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -66,13 +71,15 @@ export function AdminPage() {
           if (!cancelled) setMember(false)
           return
         }
-        const [nextOrders, nextInventory] = await Promise.all([
+        const [nextOrders, nextInventory, nextMergeMembers] = await Promise.all([
           fetchAll<AdminOrder>(`/rest/v1/orders?store_id=eq.${encodeURIComponent(store.id)}&select=id,user_id,receipt_code,customer_name,customer_email,customer_phone,note,payment_test_mode,total_price,currency,status,payment_status,created_at,nova_poshta_ttn,nova_poshta_document_ref,nova_poshta_status,nova_poshta_status_code,payment_method&order=created_at.desc,id.desc`, token),
           supabaseRequest<InventoryProduct[]>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=id,name,product_variants(*)&order=position.asc`, { token }),
+          fetchAll<{ order_id: string; root_id: string }>(`/rest/v1/order_merge_members?select=order_id,root_id,orders!order_merge_members_order_id_fkey!inner(store_id)&orders.store_id=eq.${encodeURIComponent(store.id)}&order=order_id`, token),
         ])
         if (!cancelled) {
           setMember(true)
           setOrders(nextOrders)
+          setMergeMembers(nextMergeMembers)
           setInventory(nextInventory)
         }
       } catch (cause) {
@@ -81,9 +88,18 @@ export function AdminPage() {
     }
     void load()
     return () => { cancelled = true }
-  }, [store, token, user])
+  }, [store, token, user, ordersRevision])
 
   const liveOrders = useMemo(() => orders.filter(order => !order.payment_test_mode), [orders])
+  const groupIds = (id: string) => {
+    const ids = mergeMembers.filter(member => member.root_id === id).map(member => member.order_id)
+    return ids.length ? ids : [id]
+  }
+  const groupedOrders = useMemo(() => orders.filter(order => !mergeMembers.some(member => member.order_id === order.id && member.root_id !== order.id)).map(order => {
+    const ids = mergeMembers.filter(member => member.root_id === order.id).map(member => member.order_id)
+    const members = ids.length ? orders.filter(item => ids.includes(item.id)) : [order]
+    return { ...order, total_price: members.reduce((sum, item) => sum + Number(item.total_price), 0) }
+  }), [orders, mergeMembers])
   const customerCount = useMemo(() => new Set(liveOrders.map((order) => order.customer_email)).size, [liveOrders])
   const revenue = useMemo(() => liveOrders.filter((order) => order.status !== 'CANCELLED_BY_STORE' && order.status !== 'CANCELLED_BY_USER').reduce((sum, order) => sum + Number(order.total_price), 0) / 100, [liveOrders])
   const deliveredRevenue = useMemo(() => liveOrders.filter((order) => order.status === 'DELIVERED').reduce((sum, order) => sum + Number(order.total_price), 0) / 100, [liveOrders])
@@ -92,25 +108,25 @@ export function AdminPage() {
     const query = search.trim().toLowerCase()
     const numberQuery = query.replace(/^#/, '')
     const phoneQuery = /^[+\d\s().-]+$/.test(query) ? query.replace(/\D/g, '') : ''
-    return orders.filter((order) => {
+    return groupedOrders.filter((order) => {
       const phone = (order.customer_phone ?? '').replace(/\D/g, '')
       const matchesPhone = phoneQuery && (phone.includes(phoneQuery) ||
         (phoneQuery.length >= 9 && phoneQuery.length <= 12 && phone.length >= 9 && phone.endsWith(phoneQuery.slice(-9))))
       const matchesQuery = !query || Boolean(matchesPhone) ||
         Boolean(order.customer_name?.toLowerCase().includes(query)) ||
-        Boolean(numberQuery && [order.receipt_code, order.nova_poshta_ttn].some(value => value?.toLowerCase().includes(numberQuery)))
+        Boolean(numberQuery && orders.filter(item => item.id === order.id || mergeMembers.some(member => member.order_id === item.id && member.root_id === order.id)).some(item => [item.receipt_code, item.nova_poshta_ttn].some(value => value?.toLowerCase().includes(numberQuery))))
       const date = order.created_at.slice(0, 10)
       return matchesQuery && (statusFilter === 'ALL' || order.status === statusFilter) && (!fromDate || date >= fromDate) && (!toDate || date <= toDate)
     })
-  }, [orders, search, statusFilter, fromDate, toDate])
+  }, [groupedOrders, orders, mergeMembers, search, statusFilter, fromDate, toDate])
   const pages = Math.max(1, Math.ceil(visibleOrders.length / 20))
   const currentPage = Math.min(page, pages)
   const pageOrders = visibleOrders.slice((currentPage - 1) * 20, currentPage * 20)
   const pageOrderIds = new Set(pageOrders.map(order => order.id))
   const pageSelected = pageOrders.length > 0 && pageOrders.every(order => selectedOrderIds.includes(order.id))
   const selectedOutsidePage = selectedOrderIds.filter(id => !pageOrderIds.has(id)).length
-  const selectedOrders = orders.filter(order => selectedOrderIds.includes(order.id))
-  const selectedOrder = orders.find(order => order.id === selectedOrderId)
+  const selectedOrders = groupedOrders.filter(order => selectedOrderIds.includes(order.id))
+  const selectedOrder = groupedOrders.find(order => order.id === selectedOrderId)
   const exportOrders = () => downloadCsv('tatami.culture-orders.csv', [
     [t('Receipt'), t('Name'), t('Email'), t('Phone'), t('Order status'), t('Total'), 'Currency', 'Created'],
     ...visibleOrders.map(order => [order.receipt_code, order.customer_name, order.customer_email, order.customer_phone, t(order.status), Number(order.total_price) / 100, order.currency, order.created_at]),
@@ -130,10 +146,10 @@ export function AdminPage() {
     setUpdatingId(id)
     setError(null)
     try {
-      const updated = await supabaseRequest<AdminOrder>('/rest/v1/rpc/change_order_status', {
+      const updated = await supabaseRequest<AdminOrder>('/rest/v1/rpc/change_merged_order_status', {
         method: 'POST', token, body: JSON.stringify({ p_order_id: id, p_status: status }),
       })
-      setOrders((current) => current.map((order) => order.id === id ? { ...order, status: updated.status } : order))
+      setOrders((current) => current.map((order) => groupIds(id).includes(order.id) ? { ...order, status: updated.status, ...(status === 'PAID' ? { payment_status: updated.payment_status } : {}) } : order))
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not update order')
     } finally {
@@ -146,10 +162,10 @@ export function AdminPage() {
     setUpdatingId(id)
     setError(null)
     try {
-      const updated = await supabaseRequest<AdminOrder>('/rest/v1/rpc/cancel_unpaid_order', {
+      const updated = await supabaseRequest<AdminOrder>('/rest/v1/rpc/cancel_merged_unpaid_order', {
         method: 'POST', token, body: JSON.stringify({ p_order_id: id }),
       })
-      setOrders((current) => current.map((order) => order.id === id ? { ...order, status: updated.status, payment_status: updated.payment_status } : order))
+      setOrders((current) => current.map((order) => groupIds(id).includes(order.id) ? { ...order, status: updated.status, payment_status: updated.payment_status } : order))
       if (store) {
         const nextInventory = await supabaseRequest<InventoryProduct[]>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=id,name,product_variants(*)&order=position.asc`, { token })
         setInventory(nextInventory)
@@ -172,6 +188,12 @@ export function AdminPage() {
 
   const applyBulkAction = async () => {
     if (!token || !bulkAction || bulkBusy || selectedOrders.length === 0) return
+    if (bulkAction === 'merge') {
+      setMergeError(null)
+      setMergeOpen(true)
+      setBulkAction('')
+      return
+    }
     if (bulkAction === 'ttn') {
       const eligible = selectedOrders.filter(order => !order.nova_poshta_ttn && !order.status.startsWith('CANCELLED'))
       const skipped = selectedOrders.length - eligible.length
@@ -189,14 +211,14 @@ export function AdminPage() {
       if (bulkAction.startsWith('status:')) {
         if (order.payment_test_mode) throw new Error(t('Test order status cannot be changed'))
         const status = bulkAction.slice('status:'.length) as OrderStatus
-        const updated = await supabaseRequest<AdminOrder>('/rest/v1/rpc/change_order_status', {
+        const updated = await supabaseRequest<AdminOrder>('/rest/v1/rpc/change_merged_order_status', {
           method: 'POST', token, body: JSON.stringify({ p_order_id: order.id, p_status: status }),
         })
-        return { id: order.id, changes: { status: updated.status } }
+        return { id: order.id, changes: { status: updated.status, ...(status === 'PAID' ? { payment_status: updated.payment_status } : {}) } }
       }
       if (bulkAction === 'cancel') {
         if (order.status !== 'PENDING' || order.payment_status === 'PAID') throw new Error(t('Only pending unpaid orders can be cancelled with stock restoration'))
-        const updated = await supabaseRequest<AdminOrder>('/rest/v1/rpc/cancel_unpaid_order', {
+        const updated = await supabaseRequest<AdminOrder>('/rest/v1/rpc/cancel_merged_unpaid_order', {
           method: 'POST', token, body: JSON.stringify({ p_order_id: order.id }),
         })
         return { id: order.id, changes: { status: updated.status, payment_status: updated.payment_status } }
@@ -218,7 +240,10 @@ export function AdminPage() {
     const failed = results.flatMap((result, index) => result.status === 'rejected'
       ? [{ order: selectedOrders[index], message: result.reason instanceof Error ? result.reason.message : t('Action failed') }]
       : [])
-    setOrders(current => current.map(order => updated.has(order.id) ? { ...order, ...updated.get(order.id) } : order))
+    setOrders(current => current.map(order => {
+      const root = [...updated.keys()].find(id => groupIds(id).includes(order.id))
+      return root ? { ...order, ...updated.get(root) } : order
+    }))
     setSelectedOrderIds(failed.map(item => item.order.id))
     setBulkAction('')
     if (failed.length) {
@@ -281,6 +306,7 @@ export function AdminPage() {
                 <option value="tracking">{t('Update shipment statuses')}</option>
                 <option value="cancel">{t('Cancel unpaid & restore stock')}</option>
                 {selectedOrders.some(order => !order.nova_poshta_ttn && !order.status.startsWith('CANCELLED')) && <option value="ttn">{t('Create TTN')}</option>}
+                {selectedOrders.length > 1 && <option value="merge">{t('Merge orders')}</option>}
               </select>
               <button type="button" className="btn" disabled={bulkBusy || Boolean(updatingId) || Boolean(trackingId) || !bulkAction} onClick={() => void applyBulkAction()}>{t(bulkBusy ? 'Updating…' : 'Apply')}</button>
               <button type="button" className="catalog-bulk__clear" disabled={bulkBusy} onClick={() => { setSelectedOrderIds([]); setBulkAction('') }}>{t('Clear selection')}</button>
@@ -315,7 +341,7 @@ export function AdminPage() {
                   <span className="sr-only">{t('Select order')} #{order.receipt_code}</span>
                 </label>
                 <div className="crm-order__identity">
-                  <span className="crm-order__reference"><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => setSelectedOrderId(order.id)}>#{order.receipt_code}</button> · {formatDate(order.created_at)}{order.payment_test_mode && ` · ${t('Test order')}`}</span>
+                  <span className="crm-order__reference"><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => setSelectedOrderId(order.id)}>#{order.receipt_code}</button> · {formatDate(order.created_at)}{order.payment_test_mode && ` · ${t('Test order')}`}{groupIds(order.id).length > 1 && ` · ${t('Merged orders: {{count}}', { count: groupIds(order.id).length })}`}</span>
                   {note && <p className="crm-order__note"><strong>{t('Note')}</strong> {note}</p>}
                   {order.customer_email && <span className="crm-order__email">{order.customer_email}</span>}
                 </div>
@@ -348,7 +374,15 @@ export function AdminPage() {
         target={selectedCustomer} storeId={store.id} token={token}
         onSaved={() => setCustomerRevision(value => value + 1)} onClose={() => setSelectedCustomer(null)} />}
       {section === 'overview' && token && <FinancialAnalytics orders={liveOrders} storeId={store.id} token={token} />}
-      {selectedOrder && token && <OrderOperations key={selectedOrder.id} order={selectedOrder} token={token} onClose={() => setSelectedOrderId(null)} />}
+      {selectedOrder && token && <OrderOperations key={selectedOrder.id} order={selectedOrder} orderIds={groupIds(selectedOrder.id)} token={token} onClose={() => setSelectedOrderId(null)} />}
+      {mergeOpen && token && <MergeOrdersDrawer orders={selectedOrders} busy={bulkBusy} error={mergeError} onClose={() => setMergeOpen(false)} onMerge={targetId => {
+        setBulkBusy(true)
+        setMergeError(null)
+        void supabaseRequest('/rest/v1/rpc/merge_orders', { method: 'POST', token, body: JSON.stringify({ p_order_ids: selectedOrders.map(order => order.id), p_target_id: targetId }) })
+          .then(() => { setMergeOpen(false); setSelectedOrderIds([]); setOrdersRevision(value => value + 1); addToast(t('Orders merged')) })
+          .catch(cause => setMergeError(cause instanceof Error ? cause.message : t('Action failed')))
+          .finally(() => setBulkBusy(false))
+      }} />}
       {ttnOrder && token && <CreateTtnDrawer key={ttnOrder.id} orderId={ttnOrder.id} receiptCode={ttnOrder.receipt_code}
         token={token} onClose={() => {
           setTtnOrder(ttnQueue[0] ?? null)

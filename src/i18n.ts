@@ -2,6 +2,14 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 const uk = {
+  'Merge orders': 'Об’єднати замовлення',
+  'Orders merged': 'Замовлення об’єднано',
+  'Merged orders: {{count}}': 'Об’єднаних замовлень: {{count}}',
+  'Merging…': 'Об’єднання…',
+  'Keep customer and delivery details from': 'Взяти клієнта та адресу доставки із замовлення',
+  'The orders have different statuses. The list will show the selected order status: {{status}}.': 'Замовлення мають різні статуси. У списку відображатиметься статус вибраного замовлення: {{status}}.',
+  'Paid and unpaid orders cannot be merged together.': 'Оплачені та неоплачені замовлення неможливо об’єднати.',
+  'Orders with an existing TTN cannot be merged.': 'Замовлення зі створеною ТТН неможливо об’єднати.',
   'If no banner images are added, photos of new products will be shown.': 'Якщо зображення банера не додані, показуватимуться фото новинок.',
   'New arrival': 'Новинка',
   'Mark as new': 'Позначити як новинку',

@@ -28,7 +28,7 @@ type OrderDetails = {
 type Cost = { order_id: string; cost_amount: number }
 type Return = { id: string; order_id: string; amount: number; reason: string }
 
-export function OrderOperations({ order, token, onClose }: { order: OrderDetailsOrder; token: string; onClose: () => void }) {
+export function OrderOperations({ order, orderIds = [order.id], token, onClose }: { order: OrderDetailsOrder; orderIds?: string[]; token: string; onClose: () => void }) {
   const { t } = useTranslation()
   const note = order.note?.trim()
   const { ref: dialogRef, close: closeDrawer, onCancel, onClick } = useDrawer({ openOnMount: true, onClose })
@@ -37,21 +37,23 @@ export function OrderOperations({ order, token, onClose }: { order: OrderDetails
   const [returns, setReturns] = useState<Return[]>([])
   const [revision, setRevision] = useState(0)
   const [error, setError] = useState('')
+  const idList = orderIds.join(',')
   useEffect(() => {
     const abort = new AbortController()
-    const fields = 'delivery_city,delivery_address,order_items(id,product_id,variant_id,product_name,variant_name,quantity,unit_price,line_total)'
-    void supabaseRequest<OrderDetails[]>(`/rest/v1/orders?id=eq.${encodeURIComponent(order.id)}&select=${fields}`, { token, signal: abort.signal })
-      .then(([result]) => {
+    const fields = 'id,delivery_city,delivery_address,order_items(id,product_id,variant_id,product_name,variant_name,quantity,unit_price,line_total)'
+    void supabaseRequest<Array<OrderDetails & { id: string }>>(`/rest/v1/orders?id=in.(${idList})&select=${fields}`, { token, signal: abort.signal })
+      .then(results => {
         if (abort.signal.aborted) return
-        setDetails(result ?? null)
-        setDetailsFailed(!result)
+        const main = results.find(result => result.id === order.id)
+        setDetails(main ? { ...main, order_items: results.flatMap(result => result.order_items) } : null)
+        setDetailsFailed(!main)
       })
       .catch(() => { if (!abort.signal.aborted) setDetailsFailed(true) })
     return () => abort.abort()
-  }, [order.id, token])
+  }, [order.id, token, idList])
   useEffect(() => {
     const abort = new AbortController()
-    void supabaseRequest<Return[]>(`/rest/v1/order_returns?order_id=eq.${order.id}&select=id,order_id,amount,reason&order=created_at.desc`, { token, signal: abort.signal })
+    void supabaseRequest<Return[]>(`/rest/v1/order_returns?order_id=in.(${idList})&select=id,order_id,amount,reason&order=created_at.desc`, { token, signal: abort.signal })
       .then(items => {
         if (!abort.signal.aborted) {
           setReturns(items)
@@ -59,7 +61,7 @@ export function OrderOperations({ order, token, onClose }: { order: OrderDetails
         }
       }).catch(cause => { if (!abort.signal.aborted) setError(cause.message) })
     return () => abort.abort()
-  }, [order.id, token, revision])
+  }, [idList, token, revision])
   const canManageReturns = order.status === 'DELIVERED' && details
   return <dialog ref={dialogRef} className="order-drawer" aria-labelledby="order-drawer-title"
     onCancel={onCancel} onClick={onClick}>
@@ -111,7 +113,7 @@ export function OrderOperations({ order, token, onClose }: { order: OrderDetails
         </section>
       </> : detailsFailed ? <p className="error" role="alert">{t('Could not load order details')}</p> : <p role="status">{t('Loading…')}</p>}
       {error && <p className="error" role="alert">{error}</p>}
-      {canManageReturns && <ItemReturns orderId={order.id} items={details.order_items} token={token} currency={order.currency} onChange={() => setRevision(value => value + 1)} />}
+      {canManageReturns && <ItemReturns orderIds={orderIds} items={details.order_items} token={token} currency={order.currency} onChange={() => setRevision(value => value + 1)} />}
       <section className="order-drawer__card">
         <div className="order-drawer__section-heading"><span className="order-drawer__section-number">{canManageReturns ? '02' : '01'}</span><h3>{t('Confirmed refunds')}</h3></div>
         {returns.length ? <ul className="note-list">{returns.map(item => <li key={item.id}><strong>{formatPrice(item.amount / 100, order.currency)}</strong><p>{item.reason}</p></li>)}</ul> : <p className="muted">{t('No confirmed refunds yet')}</p>}
