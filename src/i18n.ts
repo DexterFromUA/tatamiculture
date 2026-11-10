@@ -198,6 +198,7 @@ const uk = {
   'Financial analytics': 'Фінансова аналітика', 'Repeat customers': 'Повторні покупці', 'Net delivered revenue': 'Виручка за доставленими після повернень', 'Gross margin': 'Валова маржа', 'Cost coverage': 'Замовлення з відомою собівартістю', 'Margin explanation': 'Маржа лише за доставленими замовленнями з введеною собівартістю, мінус повернення. Без комісій, податків та операційних витрат. Повторні покупці — за нескансованими замовленнями.',
   'Export CSV': 'Експорт CSV', Previous: 'Назад', Next: 'Далі', 'Search customers': 'Пошук клієнтів за іменем або телефоном',
   'Preparing CSV…': 'Готуємо CSV…',
+  'Export selected orders': 'Експортувати вибрані замовлення',
   'Could not export orders': 'Не вдалося експортувати замовлення',
   'An order could not be loaded. Refresh the list and try again.': 'Не вдалося завантажити одне із замовлень. Оновіть список і спробуйте ще раз.',
   'Order number': 'Номер замовлення',

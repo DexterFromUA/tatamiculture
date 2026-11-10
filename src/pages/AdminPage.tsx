@@ -139,14 +139,15 @@ export function AdminPage() {
   const pageSelected = pageOrders.length > 0 && pageOrders.every(order => selectedOrderIds.includes(order.id))
   const selectedOutsidePage = selectedOrderIds.filter(id => !pageOrderIds.has(id)).length
   const selectedOrders = groupedOrders.filter(order => selectedOrderIds.includes(order.id))
+  const ordersToExport = selectedOrders.length > 0 ? selectedOrders : visibleOrders
   const selectedTtnCandidates = selectedOrders.filter(canCreateTtn)
   const selectedOrder = groupedOrders.find(order => order.id === selectedOrderId)
   const exportOrders = async () => {
-    if (!token || !visibleOrders.length || exportingOrders) return
+    if (!token || !ordersToExport.length || exportingOrders) return
     setExportingOrders(true)
     setError(null)
     try {
-      const refs = visibleOrders.flatMap(order => {
+      const refs = ordersToExport.flatMap(order => {
         const ids = [order.id, ...groupIds(order.id).filter(id => id !== order.id)]
         const primaryReceipt = ids.length > 1 ? order.receipt_code : undefined
         return ids.map(id => ({ id, primaryReceipt }))
@@ -428,43 +429,47 @@ export function AdminPage() {
       <div className="crm-grid crm-grid--orders">
         <section className="crm-panel">
           <div className="order-filters"><label className="search-field"><span>{t('Search orders by name, order number, TTN or phone')}</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} /></label><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'ALL' | OrderStatus)}><option value="ALL">{t('All statuses')}</option>{statuses.map((status) => <option key={status} value={status}>{t(status)}</option>)}</select><input aria-label={t('Orders from date')} type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /><input aria-label={t('Orders to date')} type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} /></div>
-          <button className="text-btn" disabled={!visibleOrders.length || exportingOrders} onClick={() => void exportOrders()}>
-            {exportingOrders ? t('Preparing CSV…') : `${t('Export CSV')} (${visibleOrders.length})`}
-          </button>
-          {selectedOrderIds.length > 0 && <div className="catalog-bulk" role="group" aria-label={t('Bulk action')}>
-            <div className="catalog-bulk__selection" aria-live="polite">
-              <span className="catalog-bulk__count">{selectedOrderIds.length}</span>
-              <div className="catalog-bulk__selection-label">
-                <span>{t('Selected orders')}</span>
-                {selectedOutsidePage > 0 && <small>{t('Outside this page: {{count}}', { count: selectedOutsidePage })}</small>}
+          <div className="orders-list-toolbar">
+            <button className="text-btn" title={t(selectedOrders.length ? 'Export selected orders' : 'Export CSV')} disabled={!ordersToExport.length || exportingOrders} onClick={() => void exportOrders()}>
+              {exportingOrders ? t('Preparing CSV…') : `${t('Export CSV')} (${ordersToExport.length})`}
+            </button>
+            <div className="crm-pagination"><button className="text-btn" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t('Previous')}</button><span>{currentPage} / {pages}</span><button className="text-btn" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>{t('Next')}</button></div>
+          </div>
+          {(pageOrders.length > 0 || selectedOrderIds.length > 0) && <div className="order-bulk" role="group" aria-label={t('Bulk action')}>
+            <label className="order-select-all">
+              <input type="checkbox" checked={pageSelected} disabled={bulkBusy || !pageOrders.length}
+                ref={input => { if (input) input.indeterminate = !pageSelected && selectedOrderIds.length > selectedOutsidePage }}
+                onChange={event => {
+                  const checked = event.target.checked
+                  setSelectedOrderIds(current => checked ? [...new Set([...current, ...pageOrderIds])] : current.filter(id => !pageOrderIds.has(id)))
+                  setBulkAction('')
+                }} />
+              {t('Select all on this page')}
+            </label>
+            <div className="order-bulk__actions" aria-hidden={!selectedOrderIds.length} inert={!selectedOrderIds.length}>
+              <div className="catalog-bulk__selection" aria-live="polite">
+                <span className="catalog-bulk__count">{selectedOrderIds.length}</span>
+                <div className="catalog-bulk__selection-label">
+                  <span>{t('Selected orders')}</span>
+                  {selectedOutsidePage > 0 && <small>{t('Outside this page: {{count}}', { count: selectedOutsidePage })}</small>}
+                </div>
+              </div>
+              <div className="catalog-bulk__controls">
+                <select aria-label={t('Bulk action')} disabled={bulkBusy} value={bulkAction} onChange={event => setBulkAction(event.target.value)}>
+                  <option value="">{t('Bulk action')}</option>
+                  <optgroup label={t('Order status')}>
+                    {statuses.map(status => <option key={status} value={`status:${status}`}>{t(status)}</option>)}
+                  </optgroup>
+                  <option value="tracking">{t('Update shipment statuses')}</option>
+                  <option value="cancel">{t('Cancel unpaid & restore stock')}</option>
+                  {selectedTtnCandidates.length > 0 && <option value="ttn">{t('Create TTN')}</option>}
+                  {selectedOrders.length > 1 && <option value="merge">{t('Merge orders')}</option>}
+                </select>
+                <button type="button" className="btn" disabled={bulkBusy || Boolean(updatingId) || Boolean(trackingId) || !bulkAction} onClick={() => void applyBulkAction()}>{t(bulkBusy ? 'Updating…' : 'Apply')}</button>
+                <button type="button" className="catalog-bulk__clear" disabled={bulkBusy} onClick={() => { setSelectedOrderIds([]); setBulkAction('') }}>{t('Clear selection')}</button>
               </div>
             </div>
-            <div className="catalog-bulk__controls">
-              <select aria-label={t('Bulk action')} disabled={bulkBusy} value={bulkAction} onChange={event => setBulkAction(event.target.value)}>
-                <option value="">{t('Bulk action')}</option>
-                <optgroup label={t('Order status')}>
-                  {statuses.map(status => <option key={status} value={`status:${status}`}>{t(status)}</option>)}
-                </optgroup>
-                <option value="tracking">{t('Update shipment statuses')}</option>
-                <option value="cancel">{t('Cancel unpaid & restore stock')}</option>
-                {selectedTtnCandidates.length > 0 && <option value="ttn">{t('Create TTN')}</option>}
-                {selectedOrders.length > 1 && <option value="merge">{t('Merge orders')}</option>}
-              </select>
-              <button type="button" className="btn" disabled={bulkBusy || Boolean(updatingId) || Boolean(trackingId) || !bulkAction} onClick={() => void applyBulkAction()}>{t(bulkBusy ? 'Updating…' : 'Apply')}</button>
-              <button type="button" className="catalog-bulk__clear" disabled={bulkBusy} onClick={() => { setSelectedOrderIds([]); setBulkAction('') }}>{t('Clear selection')}</button>
-            </div>
           </div>}
-          <div className="crm-pagination"><button className="text-btn" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t('Previous')}</button><span>{currentPage} / {pages}</span><button className="text-btn" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>{t('Next')}</button></div>
-          {pageOrders.length > 0 && <label className="order-select-all">
-            <input type="checkbox" checked={pageSelected} disabled={bulkBusy}
-              ref={input => { if (input) input.indeterminate = !pageSelected && selectedOrderIds.length > selectedOutsidePage }}
-              onChange={event => {
-                const checked = event.target.checked
-                setSelectedOrderIds(current => checked ? [...new Set([...current, ...pageOrderIds])] : current.filter(id => !pageOrderIds.has(id)))
-                setBulkAction('')
-              }} />
-            {t('Select all on this page')}
-          </label>}
           {orders.length === 0 ? <p className="muted">{t('No orders yet.')}</p> : visibleOrders.length === 0 ? <p className="muted">{t('No orders match these filters.')}</p> : <ul className="admin-list">{pageOrders.map((order) => {
             const receiptPath = `/receipt/${encodeURIComponent(order.receipt_code)}`
             const note = order.note?.trim()
@@ -508,6 +513,11 @@ export function AdminPage() {
               </li>
             )
           })}</ul>}
+          {pageOrders.length > 0 && <div className="crm-pagination">
+            <button className="text-btn" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t('Previous')}</button>
+            <span>{currentPage} / {pages}</span>
+            <button className="text-btn" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>{t('Next')}</button>
+          </div>}
         </section>
       </div>
       </>}
