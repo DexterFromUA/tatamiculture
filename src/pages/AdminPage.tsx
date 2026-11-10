@@ -419,7 +419,7 @@ export function AdminPage() {
         <AdminTabs active={section} onChange={(next) => { if (next === 'catalogue') setCatalogView('products'); setSection(next) }} />
       </header>
       {error ? <div className="crm-error" role="alert"><span>{error}</span><button type="button" className="text-btn" onClick={() => setError(null)}>{t('Close')}</button></div> : null}
-      <div className="crm-section-head"><div><span className="crm-section-head__label"><span>{store.name}</span> / CRM</span><h2>{section === 'overview' ? t('Overview') : section === 'orders' ? t('Orders') : section === 'customers' ? t('Customers') : section === 'catalogue' ? t('Catalogue') : t('Settings')}</h2></div></div>
+      {section !== 'catalogue' && <div className="crm-section-head"><div><span className="crm-section-head__label"><span>{store.name}</span> / CRM</span><h2>{section === 'overview' ? t('Overview') : section === 'orders' ? t('Orders') : section === 'customers' ? t('Customers') : t('Settings')}</h2></div></div>}
       {section === 'customers' ? <CustomersPage revision={customerRevision} onOpenCustomer={id => setSelectedCustomer({ kind: 'customer', id })} /> : section === 'catalogue' ? <CatalogAdminPage key={catalogView} embedded initialView={catalogView} /> : section === 'settings' ? <SettingsWorkspace /> : <>
       {section === 'overview' ? <><div className="crm-stats crm-stats--overview">
         <div><span>{t('Orders')}</span><strong>{liveOrders.length}</strong></div>
