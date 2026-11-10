@@ -44,8 +44,43 @@ begin
   if exists(select 1 from public.orders where id in(first_order,second_order) and payment_status<>'PENDING') then raise exception 'A non-paid status changed payment'; end if;
   perform public.change_merged_order_status(first_order,'PAID');
   if (select count(*) from public.orders where id in(first_order,second_order) and status='PAID' and payment_status='PAID')<>2 then raise exception 'Manual paid status did not confirm all payments'; end if;
-  perform public.change_merged_order_status(first_order,'IN_PROGRESS');
+  begin
+    perform public.change_merged_order_status(first_order,'PENDING');
+    raise exception 'Paid group status changed without confirmation';
+  exception when sqlstate 'PT409' then null;
+  end;
+  perform public.update_admin_orders(array[first_order],'IN_PROGRESS',true);
   if (select count(*) from public.orders where id in(first_order,second_order) and payment_status='PAID')<>2 then raise exception 'Fulfilment status reversed payment'; end if;
+  perform public.update_admin_orders(array[first_order],'PENDING',true);
+  if (select count(*) from public.orders where id in(first_order,second_order) and status='PENDING' and payment_status='PENDING')<>2 then raise exception 'Manual pending status did not reset all payments'; end if;
+  begin
+    perform public.cancel_merged_unpaid_order(first_order);
+    raise exception 'A historical payment was ignored during stock restoration';
+  exception when sqlstate 'PT409' then null;
+  end;
+  update public.orders set status='PENDING', payment_status='PENDING' where id=paid_order;
+  delete from public.order_events where order_id=paid_order;
+  insert into public.payments(order_id,provider,provider_order_id,status)
+  values(paid_order,'LIQPAY',paid_order::text,'PAID');
+  begin
+    perform public.update_admin_orders(array[first_order,paid_order],'DELIVERED');
+    raise exception 'Bulk status changed without confirmation';
+  exception when sqlstate 'PT409' then null;
+  end;
+  if exists(select 1 from public.orders where id in(first_order,second_order,paid_order) and status<>'PENDING') then raise exception 'Unconfirmed bulk status was partially applied'; end if;
+  begin
+    perform public.change_order_status(paid_order,'IN_PROGRESS');
+    raise exception 'Provider payment was ignored';
+  exception when sqlstate 'PT409' then null;
+  end;
+  set local role service_role;
+  -- Simulate the webhook's combined success update and payment-only fallback.
+  update public.orders set status='PAID', payment_status='PAID' where id in(first_order,paid_order);
+  update public.orders set payment_status='PAID' where id=second_order;
+  reset role;
+  if (select count(*) from public.orders where id in(first_order,second_order) and payment_status='PAID')<>2 then raise exception 'Webhook could not update payment after a manual correction'; end if;
+  if not exists(select 1 from public.orders where id=first_order and status='PAID') then raise exception 'Webhook could not update order status after a manual correction'; end if;
+  if not exists(select 1 from public.orders where id=paid_order and status='PAID' and payment_status='PAID') then raise exception 'Automatic payment was blocked for an unmodified order'; end if;
   update public.orders set nova_poshta_ttn='test-ttn' where id=first_order;
   begin
     perform public.merge_orders(array[first_order,paid_order],first_order);

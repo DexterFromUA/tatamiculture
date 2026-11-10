@@ -1487,6 +1487,22 @@ input[type="date"] { color-scheme: light; }
   input[type="date"] { color-scheme: dark; }
 }
 
+.order-payment-confirmation {
+  box-sizing: border-box;
+  width: min(460px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: clamp(20px, 5vw, 32px);
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 20px 70px rgb(0 0 0 / 22%);
+}
+
+.order-payment-confirmation::backdrop { background: rgb(20 20 20 / 62%); backdrop-filter: blur(3px); }
+.order-payment-confirmation h2 { margin: 0; font-size: 1.5rem; letter-spacing: -.035em; }
+.order-payment-confirmation p { margin: 12px 0 24px; line-height: 1.5; }
+.order-payment-confirmation__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+
 .order-drawer {
   --drawer-duration: 220ms;
   position: fixed;

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { CustomerPanel, type CustomerPanelTarget } from '../components/CustomerPanel'
 import { CreateTtnDrawer } from '../components/CreateTtnDrawer'
 import { MergeOrdersDrawer } from '../components/MergeOrdersDrawer'
+import { OrderPaymentConfirmation } from '../components/OrderPaymentConfirmation'
 import { NovaPoshtaTrackingLink } from '../components/NovaPoshtaTrackingLink'
 import { AdminTabs } from '../components/AdminTabs'
 import type { AdminSection } from '../components/AdminTabs'
@@ -12,7 +13,7 @@ import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { useToast } from '../context/ToastContext'
 import { formatDate, formatPrice } from '../lib/format'
-import { supabaseConfigured, supabaseRequest } from '../lib/supabase'
+import { SupabaseError, supabaseConfigured, supabaseRequest } from '../lib/supabase'
 import type { OrderStatus } from '../types'
 import { useTranslation } from 'react-i18next'
 import { downloadCsv, fetchAll, hasStoreMembership } from '../lib/crm'
@@ -44,6 +45,10 @@ export function AdminPage() {
   const [member, setMember] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [paymentConfirmation, setPaymentConfirmation] = useState<{
+    message: string
+    resolve: (confirmed: boolean) => void
+  } | null>(null)
   const [ttnOrder, setTtnOrder] = useState<AdminOrder | null>(null)
   const [ttnQueue, setTtnQueue] = useState<AdminOrder[]>([])
   const [trackingId, setTrackingId] = useState<string | null>(null)
@@ -141,37 +146,48 @@ export function AdminPage() {
     }
   }
 
-  const changeStatus = async (id: string, status: OrderStatus) => {
-    if (!token) return
-    setUpdatingId(id)
-    setError(null)
-    try {
-      const updated = await supabaseRequest<AdminOrder>('/rest/v1/rpc/change_merged_order_status', {
-        method: 'POST', token, body: JSON.stringify({ p_order_id: id, p_status: status }),
-      })
-      setOrders((current) => current.map((order) => groupIds(id).includes(order.id) ? { ...order, status: updated.status, ...(status === 'PAID' ? { payment_status: updated.payment_status } : {}) } : order))
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not update order')
-    } finally {
-      setUpdatingId(null)
-    }
-  }
-
-  const cancelAndRestoreStock = async (id: string) => {
-    if (!token) return
-    setUpdatingId(id)
-    setError(null)
-    try {
-      const updated = await supabaseRequest<AdminOrder>('/rest/v1/rpc/cancel_merged_unpaid_order', {
-        method: 'POST', token, body: JSON.stringify({ p_order_id: id }),
-      })
-      setOrders((current) => current.map((order) => groupIds(id).includes(order.id) ? { ...order, status: updated.status, payment_status: updated.payment_status } : order))
-      if (store) {
+  const updateOrderStatus = async (ids: string[], status: OrderStatus, restoreStock = false) => {
+    if (!token) return false
+    const request = (confirmed: boolean) => supabaseRequest<Array<Pick<AdminOrder, 'id' | 'status' | 'payment_status'>>>(
+      '/rest/v1/rpc/update_admin_orders', {
+        method: 'POST', token, body: JSON.stringify({
+          p_order_ids: ids, p_status: status, p_confirm_paid: confirmed, p_restore_stock: restoreStock,
+        }),
+      },
+    )
+    const updated = await request(false).catch(async cause => {
+      if (!(cause instanceof SupabaseError) || cause.code !== 'PT409') throw cause
+      const message = restoreStock
+        ? t('There is a payment record for at least one of these orders. Cancel and restore stock anyway?')
+        : t('There is a payment record for at least one of these orders. Change the status to {{status}} anyway?', { status: t(status) })
+      const confirmed = await new Promise<boolean>(resolve => setPaymentConfirmation({ message, resolve }))
+      return confirmed ? request(true) : null
+    })
+    if (!updated) return false
+    const byId = new Map(updated.map(order => [order.id, order]))
+    setOrders(current => current.map(order => {
+      const update = byId.get(order.id)
+      return update ? { ...order, ...update } : order
+    }))
+    if (restoreStock && store) {
+      try {
         const nextInventory = await supabaseRequest<InventoryProduct[]>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=id,name,product_variants(*)&order=position.asc`, { token })
         setInventory(nextInventory)
+      } catch (cause) {
+        addToast(cause instanceof Error ? cause.message : t('Could not refresh stock'))
       }
+    }
+    return true
+  }
+
+  const changeStatus = async (id: string, status: OrderStatus, restoreStock = false) => {
+    if (!token || updatingId || bulkBusy) return
+    setUpdatingId(id)
+    setError(null)
+    try {
+      await updateOrderStatus([id], status, restoreStock)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not cancel unpaid order')
+      setError(cause instanceof Error ? cause.message : t('Action failed'))
     } finally {
       setUpdatingId(null)
     }
@@ -187,7 +203,7 @@ export function AdminPage() {
   }
 
   const applyBulkAction = async () => {
-    if (!token || !bulkAction || bulkBusy || selectedOrders.length === 0) return
+    if (!token || !bulkAction || bulkBusy || updatingId || selectedOrders.length === 0) return
     if (bulkAction === 'merge') {
       setMergeError(null)
       setMergeOpen(true)
@@ -207,30 +223,37 @@ export function AdminPage() {
     }
     setBulkBusy(true)
     setError(null)
+    if (bulkAction.startsWith('status:') || bulkAction === 'cancel') {
+      const restoreStock = bulkAction === 'cancel'
+      const status = restoreStock ? 'CANCELLED_BY_STORE' : bulkAction.slice('status:'.length) as OrderStatus
+      const eligible = selectedOrders.filter(order => restoreStock
+        ? order.status === 'PENDING' && order.payment_status !== 'PAID'
+        : !order.payment_test_mode)
+      const skipped = selectedOrders.filter(order => !eligible.includes(order))
+      try {
+        if (eligible.length && !await updateOrderStatus(eligible.map(order => order.id), status, restoreStock)) return
+        setSelectedOrderIds(skipped.map(order => order.id))
+        setBulkAction('')
+        if (skipped.length) {
+          const message = t(restoreStock
+            ? 'Only pending unpaid orders can be cancelled with stock restoration'
+            : 'Test order status cannot be changed')
+          setError(skipped.map(order => `#${order.receipt_code}: ${message}`).join(' · '))
+        }
+        if (eligible.length) addToast(t('Orders updated: {{count}}', { count: eligible.length }))
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : t('Action failed'))
+      } finally {
+        setBulkBusy(false)
+      }
+      return
+    }
     const updateOrder = async (order: AdminOrder) => {
-      if (bulkAction.startsWith('status:')) {
-        if (order.payment_test_mode) throw new Error(t('Test order status cannot be changed'))
-        const status = bulkAction.slice('status:'.length) as OrderStatus
-        const updated = await supabaseRequest<AdminOrder>('/rest/v1/rpc/change_merged_order_status', {
-          method: 'POST', token, body: JSON.stringify({ p_order_id: order.id, p_status: status }),
-        })
-        return { id: order.id, changes: { status: updated.status, ...(status === 'PAID' ? { payment_status: updated.payment_status } : {}) } }
-      }
-      if (bulkAction === 'cancel') {
-        if (order.status !== 'PENDING' || order.payment_status === 'PAID') throw new Error(t('Only pending unpaid orders can be cancelled with stock restoration'))
-        const updated = await supabaseRequest<AdminOrder>('/rest/v1/rpc/cancel_merged_unpaid_order', {
-          method: 'POST', token, body: JSON.stringify({ p_order_id: order.id }),
-        })
-        return { id: order.id, changes: { status: updated.status, payment_status: updated.payment_status } }
-      }
-      if (bulkAction === 'tracking') {
-        if (!order.nova_poshta_ttn) throw new Error(t('This order has no TTN'))
-        const result = await supabaseRequest<{ status: string }>('/functions/v1/nova-poshta-track-ttn', {
-          method: 'POST', token, body: JSON.stringify({ orderId: order.id }),
-        })
-        return { id: order.id, changes: { nova_poshta_status: result.status } }
-      }
-      throw new Error(t('Choose an action'))
+      if (!order.nova_poshta_ttn) throw new Error(t('This order has no TTN'))
+      const result = await supabaseRequest<{ status: string }>('/functions/v1/nova-poshta-track-ttn', {
+        method: 'POST', token, body: JSON.stringify({ orderId: order.id }),
+      })
+      return { id: order.id, changes: { nova_poshta_status: result.status } }
     }
     const results: PromiseSettledResult<Awaited<ReturnType<typeof updateOrder>>>[] = []
     for (let index = 0; index < selectedOrders.length; index += 10) {
@@ -250,14 +273,6 @@ export function AdminPage() {
       setError(failed.map(item => `#${item.order.receipt_code}: ${item.message}`).join(' · '))
     }
     if (updated.size) addToast(t('Orders updated: {{count}}', { count: updated.size }))
-    if (bulkAction === 'cancel' && updated.size && store) {
-      try {
-        const nextInventory = await supabaseRequest<InventoryProduct[]>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=id,name,product_variants(*)&order=position.asc`, { token })
-        setInventory(nextInventory)
-      } catch (cause) {
-        setError(current => [current, cause instanceof Error ? cause.message : t('Could not refresh stock')].filter(Boolean).join(' · '))
-      }
-    }
     setBulkBusy(false)
   }
 
@@ -348,7 +363,7 @@ export function AdminPage() {
                 <div className="crm-order__amount"><strong>{formatPrice(Number(order.total_price) / 100, order.currency)}</strong><span>{order.payment_method === 'CASH_ON_DELIVERY' ? t('Payment on delivery') : t('Online payment')}</span></div>
                 <div className="crm-order__status"><span>{t('Order status')}</span>
                 <label className="sr-only" htmlFor={`status-${order.id}`}>{t('Order status')}</label>
-                <select id={`status-${order.id}`} value={order.status} disabled={bulkBusy || order.payment_test_mode || updatingId === order.id} onChange={(event) => void changeStatus(order.id, event.target.value as OrderStatus)}>
+                <select id={`status-${order.id}`} value={order.status} disabled={bulkBusy || order.payment_test_mode || Boolean(updatingId)} onChange={(event) => void changeStatus(order.id, event.target.value as OrderStatus)}>
                   {statuses.map((status) => <option key={status} value={status}>{t(status)}</option>)}
                 </select></div>
                 {order.nova_poshta_status ? <p className="crm-order__delivery">{order.nova_poshta_status}</p> : null}
@@ -362,7 +377,7 @@ export function AdminPage() {
                 ) : (
                   <button type="button" className="text-btn" aria-haspopup="dialog" disabled={order.status.startsWith('CANCELLED')} onClick={() => setTtnOrder(order)}>{t('Create TTN')}</button>
                 )}
-                {order.status === 'PENDING' && order.payment_status !== 'PAID' ? <button type="button" className="text-btn crm-order__cancel" disabled={bulkBusy || updatingId === order.id} onClick={() => void cancelAndRestoreStock(order.id)}>{t(order.payment_test_mode ? 'Cancel test order' : 'Cancel & restore stock')}</button> : null}</div>
+                {order.status === 'PENDING' && order.payment_status !== 'PAID' ? <button type="button" className="text-btn crm-order__cancel" disabled={bulkBusy || Boolean(updatingId)} onClick={() => void changeStatus(order.id, 'CANCELLED_BY_STORE', true)}>{t(order.payment_test_mode ? 'Cancel test order' : 'Cancel & restore stock')}</button> : null}</div>
               </li>
             )
           })}</ul>}
@@ -374,6 +389,10 @@ export function AdminPage() {
         target={selectedCustomer} storeId={store.id} token={token}
         onSaved={() => setCustomerRevision(value => value + 1)} onClose={() => setSelectedCustomer(null)} />}
       {section === 'overview' && token && <FinancialAnalytics orders={liveOrders} storeId={store.id} token={token} />}
+      {paymentConfirmation && <OrderPaymentConfirmation message={paymentConfirmation.message} onClose={confirmed => {
+        setPaymentConfirmation(null)
+        paymentConfirmation.resolve(confirmed)
+      }} />}
       {selectedOrder && token && <OrderOperations key={selectedOrder.id} order={selectedOrder} orderIds={groupIds(selectedOrder.id)} token={token} onClose={() => setSelectedOrderId(null)} />}
       {mergeOpen && token && <MergeOrdersDrawer orders={selectedOrders} busy={bulkBusy} error={mergeError} onClose={() => setMergeOpen(false)} onMerge={targetId => {
         setBulkBusy(true)
