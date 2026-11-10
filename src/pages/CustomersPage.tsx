@@ -34,7 +34,21 @@ export function CustomersPage({ onOpenCustomer, revision }: { onOpenCustomer: (i
     const phone = customerPhone(customer.phone)
     if (phone.length >= 9) phoneCounts.set(phone, (phoneCounts.get(phone) ?? 0) + 1)
   }
-  const rows = customers.filter(customer => `${customer.name} ${customer.phone} ${customer.email} ${customer.tags.join(' ')}`.toLowerCase().includes(search.toLowerCase()) && (!duplicatesOnly || (phoneCounts.get(customerPhone(customer.phone)) ?? 0) > 1)).map(customer => {
+  const searchQuery = search.trim().toLowerCase()
+  const orderQuery = searchQuery.replace(/^#\s*/, '')
+  const orderMatches = new Set<string>()
+  if (orderQuery) {
+    for (const order of orders) {
+      if (order.crm_customer_id && order.receipt_code?.toLowerCase().includes(orderQuery)) {
+        orderMatches.add(order.crm_customer_id)
+      }
+    }
+  }
+  const rows = customers.filter(customer => {
+    if (duplicatesOnly && (phoneCounts.get(customerPhone(customer.phone)) ?? 0) <= 1) return false
+    const customerText = `${customer.name} ${customer.phone} ${customer.email} ${customer.tags.join(' ')}`.toLowerCase()
+    return customerText.includes(searchQuery) || orderMatches.has(customer.id)
+  }).map(customer => {
     const own = orders.filter(order => order.crm_customer_id === customer.id && !order.status.startsWith('CANCELLED'))
     const totals = new Map<string, number>()
     for (const order of own) totals.set(order.currency, (totals.get(order.currency) ?? 0) + Number(order.total_price))
@@ -42,12 +56,13 @@ export function CustomersPage({ onOpenCustomer, revision }: { onOpenCustomer: (i
   })
   const pages = Math.max(1, Math.ceil(rows.length / 20))
   const current = Math.min(page, pages)
+  const searchLabel = t('Search customers by name, phone or order number')
   return <section className="customers-page">
     {error && <p className="error">{error}</p>}
     {loading ? <p>{t('Loading…')}</p> : <section className="crm-panel">
       <h2>{t('Customers')} · {customers.length}</h2>
       <div className="customers-toolbar">
-        <label className="search-field"><span className="sr-only">{t('Search customers')}</span><input type="search" placeholder={t('Search customers')} value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} /></label>
+        <label className="search-field"><span className="sr-only">{searchLabel}</span><input type="search" placeholder={searchLabel} value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} /></label>
         <label className="order-select-all"><input type="checkbox" checked={duplicatesOnly} onChange={event => { setDuplicatesOnly(event.target.checked); setPage(1) }} />{t('Matching phone numbers')}</label>
       </div>
       <div className="orders-list-toolbar">
