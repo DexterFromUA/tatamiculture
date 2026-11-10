@@ -40,6 +40,7 @@ export function AdminPage() {
   const [error, setError] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [ttnOrder, setTtnOrder] = useState<AdminOrder | null>(null)
+  const [ttnQueue, setTtnQueue] = useState<AdminOrder[]>([])
   const [trackingId, setTrackingId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'ALL' | OrderStatus>('ALL')
@@ -51,6 +52,9 @@ export function AdminPage() {
   const [catalogView, setCatalogView] = useState<'products' | 'stock'>('products')
   const [page, setPage] = useState(1)
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([])
+  const [bulkAction, setBulkAction] = useState('')
+  const [bulkBusy, setBulkBusy] = useState(false)
   const { t } = useTranslation()
 
   useEffect(() => {
@@ -102,6 +106,10 @@ export function AdminPage() {
   const pages = Math.max(1, Math.ceil(visibleOrders.length / 20))
   const currentPage = Math.min(page, pages)
   const pageOrders = visibleOrders.slice((currentPage - 1) * 20, currentPage * 20)
+  const pageOrderIds = new Set(pageOrders.map(order => order.id))
+  const pageSelected = pageOrders.length > 0 && pageOrders.every(order => selectedOrderIds.includes(order.id))
+  const selectedOutsidePage = selectedOrderIds.filter(id => !pageOrderIds.has(id)).length
+  const selectedOrders = orders.filter(order => selectedOrderIds.includes(order.id))
   const selectedOrder = orders.find(order => order.id === selectedOrderId)
   const exportOrders = () => downloadCsv('tatami.culture-orders.csv', [
     [t('Receipt'), t('Name'), t('Email'), t('Phone'), t('Order status'), t('Total'), 'Currency', 'Created'],
@@ -162,6 +170,72 @@ export function AdminPage() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not update shipment status') } finally { setTrackingId(null) }
   }
 
+  const applyBulkAction = async () => {
+    if (!token || !bulkAction || bulkBusy || selectedOrders.length === 0) return
+    if (bulkAction === 'ttn') {
+      const eligible = selectedOrders.filter(order => !order.nova_poshta_ttn && !order.status.startsWith('CANCELLED'))
+      const skipped = selectedOrders.length - eligible.length
+      if (skipped) setError(t('TTN skipped for {{count}} orders that already have a TTN or are cancelled', { count: skipped }))
+      if (eligible.length) {
+        setTtnOrder(eligible[0])
+        setTtnQueue(eligible.slice(1))
+      }
+      setBulkAction('')
+      return
+    }
+    setBulkBusy(true)
+    setError(null)
+    const updateOrder = async (order: AdminOrder) => {
+      if (bulkAction.startsWith('status:')) {
+        if (order.payment_test_mode) throw new Error(t('Test order status cannot be changed'))
+        const status = bulkAction.slice('status:'.length) as OrderStatus
+        const updated = await supabaseRequest<AdminOrder>('/rest/v1/rpc/change_order_status', {
+          method: 'POST', token, body: JSON.stringify({ p_order_id: order.id, p_status: status }),
+        })
+        return { id: order.id, changes: { status: updated.status } }
+      }
+      if (bulkAction === 'cancel') {
+        if (order.status !== 'PENDING' || order.payment_status === 'PAID') throw new Error(t('Only pending unpaid orders can be cancelled with stock restoration'))
+        const updated = await supabaseRequest<AdminOrder>('/rest/v1/rpc/cancel_unpaid_order', {
+          method: 'POST', token, body: JSON.stringify({ p_order_id: order.id }),
+        })
+        return { id: order.id, changes: { status: updated.status, payment_status: updated.payment_status } }
+      }
+      if (bulkAction === 'tracking') {
+        if (!order.nova_poshta_ttn) throw new Error(t('This order has no TTN'))
+        const result = await supabaseRequest<{ status: string }>('/functions/v1/nova-poshta-track-ttn', {
+          method: 'POST', token, body: JSON.stringify({ orderId: order.id }),
+        })
+        return { id: order.id, changes: { nova_poshta_status: result.status } }
+      }
+      throw new Error(t('Choose an action'))
+    }
+    const results: PromiseSettledResult<Awaited<ReturnType<typeof updateOrder>>>[] = []
+    for (let index = 0; index < selectedOrders.length; index += 10) {
+      results.push(...await Promise.allSettled(selectedOrders.slice(index, index + 10).map(updateOrder)))
+    }
+    const updated = new Map(results.flatMap(result => result.status === 'fulfilled' ? [[result.value.id, result.value.changes] as const] : []))
+    const failed = results.flatMap((result, index) => result.status === 'rejected'
+      ? [{ order: selectedOrders[index], message: result.reason instanceof Error ? result.reason.message : t('Action failed') }]
+      : [])
+    setOrders(current => current.map(order => updated.has(order.id) ? { ...order, ...updated.get(order.id) } : order))
+    setSelectedOrderIds(failed.map(item => item.order.id))
+    setBulkAction('')
+    if (failed.length) {
+      setError(failed.map(item => `#${item.order.receipt_code}: ${item.message}`).join(' · '))
+    }
+    if (updated.size) addToast(t('Orders updated: {{count}}', { count: updated.size }))
+    if (bulkAction === 'cancel' && updated.size && store) {
+      try {
+        const nextInventory = await supabaseRequest<InventoryProduct[]>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=id,name,product_variants(*)&order=position.asc`, { token })
+        setInventory(nextInventory)
+      } catch (cause) {
+        setError(current => [current, cause instanceof Error ? cause.message : t('Could not refresh stock')].filter(Boolean).join(' · '))
+      }
+    }
+    setBulkBusy(false)
+  }
+
   if (!store) return null
   if (!supabaseConfigured) {
     return <section className="page-status"><h1>{t('CRM needs Supabase')}</h1><p>{t('Configure `.env.local` and apply the project migration first.')}</p></section>
@@ -190,15 +264,56 @@ export function AdminPage() {
         <section className="crm-panel">
           <div className="order-filters"><label className="search-field"><span>{t('Search orders by name, order number, TTN or phone')}</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} /></label><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'ALL' | OrderStatus)}><option value="ALL">{t('All statuses')}</option>{statuses.map((status) => <option key={status} value={status}>{t(status)}</option>)}</select><input aria-label={t('Orders from date')} type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /><input aria-label={t('Orders to date')} type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} /></div>
           <button className="text-btn" disabled={!visibleOrders.length} onClick={exportOrders}>{t('Export CSV')} ({visibleOrders.length})</button>
+          {selectedOrderIds.length > 0 && <div className="catalog-bulk" role="group" aria-label={t('Bulk action')}>
+            <div className="catalog-bulk__selection" aria-live="polite">
+              <span className="catalog-bulk__count">{selectedOrderIds.length}</span>
+              <div className="catalog-bulk__selection-label">
+                <span>{t('Selected orders')}</span>
+                {selectedOutsidePage > 0 && <small>{t('Outside this page: {{count}}', { count: selectedOutsidePage })}</small>}
+              </div>
+            </div>
+            <div className="catalog-bulk__controls">
+              <select aria-label={t('Bulk action')} disabled={bulkBusy} value={bulkAction} onChange={event => setBulkAction(event.target.value)}>
+                <option value="">{t('Bulk action')}</option>
+                <optgroup label={t('Order status')}>
+                  {statuses.map(status => <option key={status} value={`status:${status}`}>{t(status)}</option>)}
+                </optgroup>
+                <option value="tracking">{t('Update shipment statuses')}</option>
+                <option value="cancel">{t('Cancel unpaid & restore stock')}</option>
+                {selectedOrders.some(order => !order.nova_poshta_ttn && !order.status.startsWith('CANCELLED')) && <option value="ttn">{t('Create TTN')}</option>}
+              </select>
+              <button type="button" className="btn" disabled={bulkBusy || Boolean(updatingId) || Boolean(trackingId) || !bulkAction} onClick={() => void applyBulkAction()}>{t(bulkBusy ? 'Updating…' : 'Apply')}</button>
+              <button type="button" className="catalog-bulk__clear" disabled={bulkBusy} onClick={() => { setSelectedOrderIds([]); setBulkAction('') }}>{t('Clear selection')}</button>
+            </div>
+          </div>}
           <div className="crm-pagination"><button className="text-btn" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t('Previous')}</button><span>{currentPage} / {pages}</span><button className="text-btn" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>{t('Next')}</button></div>
+          {pageOrders.length > 0 && <label className="order-select-all">
+            <input type="checkbox" checked={pageSelected} disabled={bulkBusy}
+              ref={input => { if (input) input.indeterminate = !pageSelected && selectedOrderIds.length > selectedOutsidePage }}
+              onChange={event => {
+                const checked = event.target.checked
+                setSelectedOrderIds(current => checked ? [...new Set([...current, ...pageOrderIds])] : current.filter(id => !pageOrderIds.has(id)))
+                setBulkAction('')
+              }} />
+            {t('Select all on this page')}
+          </label>}
           {orders.length === 0 ? <p className="muted">{t('No orders yet.')}</p> : visibleOrders.length === 0 ? <p className="muted">{t('No orders match these filters.')}</p> : <ul className="admin-list">{pageOrders.map((order) => {
             const receiptPath = `/receipt/${encodeURIComponent(order.receipt_code)}`
             const note = order.note?.trim()
             return (
-              <li key={order.id} className="crm-order" onClick={event => {
+              <li key={order.id} className={`crm-order${selectedOrderIds.includes(order.id) ? ' crm-order--selected' : ''}`} onClick={event => {
                 if (event.target instanceof Element && event.target.closest('a, button, input, select, textarea, label')) return
                 setSelectedOrderId(order.id)
               }}>
+                <label className="order-select">
+                  <input type="checkbox" checked={selectedOrderIds.includes(order.id)} disabled={bulkBusy}
+                    onChange={event => {
+                      const checked = event.target.checked
+                      setSelectedOrderIds(current => checked ? [...current, order.id] : current.filter(id => id !== order.id))
+                      setBulkAction('')
+                    }} />
+                  <span className="sr-only">{t('Select order')} #{order.receipt_code}</span>
+                </label>
                 <div className="crm-order__identity">
                   <span className="crm-order__reference"><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => setSelectedOrderId(order.id)}>#{order.receipt_code}</button> · {formatDate(order.created_at)}{order.payment_test_mode && ` · ${t('Test order')}`}</span>
                   {note && <p className="crm-order__note"><strong>{t('Note')}</strong> {note}</p>}
@@ -207,7 +322,7 @@ export function AdminPage() {
                 <div className="crm-order__amount"><strong>{formatPrice(Number(order.total_price) / 100, order.currency)}</strong><span>{order.payment_method === 'CASH_ON_DELIVERY' ? t('Payment on delivery') : t('Online payment')}</span></div>
                 <div className="crm-order__status"><span>{t('Order status')}</span>
                 <label className="sr-only" htmlFor={`status-${order.id}`}>{t('Order status')}</label>
-                <select id={`status-${order.id}`} value={order.status} disabled={order.payment_test_mode || updatingId === order.id} onChange={(event) => void changeStatus(order.id, event.target.value as OrderStatus)}>
+                <select id={`status-${order.id}`} value={order.status} disabled={bulkBusy || order.payment_test_mode || updatingId === order.id} onChange={(event) => void changeStatus(order.id, event.target.value as OrderStatus)}>
                   {statuses.map((status) => <option key={status} value={status}>{t(status)}</option>)}
                 </select></div>
                 {order.nova_poshta_status ? <p className="crm-order__delivery">{order.nova_poshta_status}</p> : null}
@@ -216,12 +331,12 @@ export function AdminPage() {
                 {order.nova_poshta_ttn ? (
                   <span className="ttn-actions">
                     <NovaPoshtaTrackingLink className="text-btn" ttn={order.nova_poshta_ttn}>TTN {order.nova_poshta_ttn}</NovaPoshtaTrackingLink>
-                    <button type="button" className="text-btn" disabled={trackingId === order.id} onClick={() => void refreshTracking(order.id)}>{trackingId === order.id ? t('Updating…') : t('Update status')}</button>
+                    <button type="button" className="text-btn" disabled={bulkBusy || trackingId === order.id} onClick={() => void refreshTracking(order.id)}>{trackingId === order.id ? t('Updating…') : t('Update status')}</button>
                   </span>
                 ) : (
                   <button type="button" className="text-btn" aria-haspopup="dialog" disabled={order.status.startsWith('CANCELLED')} onClick={() => setTtnOrder(order)}>{t('Create TTN')}</button>
                 )}
-                {order.status === 'PENDING' && order.payment_status !== 'PAID' ? <button type="button" className="text-btn crm-order__cancel" disabled={updatingId === order.id} onClick={() => void cancelAndRestoreStock(order.id)}>{t(order.payment_test_mode ? 'Cancel test order' : 'Cancel & restore stock')}</button> : null}</div>
+                {order.status === 'PENDING' && order.payment_status !== 'PAID' ? <button type="button" className="text-btn crm-order__cancel" disabled={bulkBusy || updatingId === order.id} onClick={() => void cancelAndRestoreStock(order.id)}>{t(order.payment_test_mode ? 'Cancel test order' : 'Cancel & restore stock')}</button> : null}</div>
               </li>
             )
           })}</ul>}
@@ -235,7 +350,11 @@ export function AdminPage() {
       {section === 'overview' && token && <FinancialAnalytics orders={liveOrders} storeId={store.id} token={token} />}
       {selectedOrder && token && <OrderOperations key={selectedOrder.id} order={selectedOrder} token={token} onClose={() => setSelectedOrderId(null)} />}
       {ttnOrder && token && <CreateTtnDrawer key={ttnOrder.id} orderId={ttnOrder.id} receiptCode={ttnOrder.receipt_code}
-        token={token} onClose={() => setTtnOrder(null)} onCreated={({ ttn, documentRef }) => {
+        token={token} onClose={() => {
+          setTtnOrder(ttnQueue[0] ?? null)
+          setTtnQueue(current => current.slice(1))
+        }} onCreated={({ ttn, documentRef }) => {
+          setSelectedOrderIds(current => current.filter(id => id !== ttnOrder.id))
           setOrders(current => current.map(order => order.id === ttnOrder.id
             ? { ...order, nova_poshta_ttn: ttn, nova_poshta_document_ref: documentRef }
             : order))
