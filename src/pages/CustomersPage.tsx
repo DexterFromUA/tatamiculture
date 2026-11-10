@@ -60,7 +60,6 @@ export function CustomersPage({ onOpenCustomer, revision }: { onOpenCustomer: (i
   return <section className="customers-page">
     {error && <p className="error">{error}</p>}
     {loading ? <p>{t('Loading…')}</p> : <section className="crm-panel">
-      <h2>{t('Customers')} · {customers.length}</h2>
       <div className="customers-toolbar">
         <label className="search-field"><span className="sr-only">{searchLabel}</span><input type="search" placeholder={searchLabel} value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} /></label>
         <label className="order-select-all"><input type="checkbox" checked={duplicatesOnly} onChange={event => { setDuplicatesOnly(event.target.checked); setPage(1) }} />{t('Matching phone numbers')}</label>
