@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { CustomerPanel, type CustomerPanelTarget } from '../components/CustomerPanel'
 import { CreateTtnDrawer } from '../components/CreateTtnDrawer'
 import { NovaPoshtaTrackingLink } from '../components/NovaPoshtaTrackingLink'
@@ -189,9 +188,12 @@ export function AdminPage() {
             const receiptPath = `/receipt/${encodeURIComponent(order.receipt_code)}`
             const note = order.note?.trim()
             return (
-              <li key={order.id} className="crm-order">
+              <li key={order.id} className="crm-order" onClick={event => {
+                if (event.target instanceof Element && event.target.closest('a, button, input, select, textarea, label')) return
+                setSelectedOrderId(order.id)
+              }}>
                 <div className="crm-order__identity">
-                  <span className="crm-order__reference"><Link to={receiptPath} target="_blank" rel="noreferrer">#{order.receipt_code}</Link> · {formatDate(order.created_at)}{order.payment_test_mode && ` · ${t('Test order')}`}</span>
+                  <span className="crm-order__reference"><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => setSelectedOrderId(order.id)}>#{order.receipt_code}</button> · {formatDate(order.created_at)}{order.payment_test_mode && ` · ${t('Test order')}`}</span>
                   {note && <p className="crm-order__note"><strong>{t('Note')}</strong> {note}</p>}
                   {order.customer_email && <span className="crm-order__email">{order.customer_email}</span>}
                 </div>
@@ -202,8 +204,7 @@ export function AdminPage() {
                   {statuses.map((status) => <option key={status} value={status}>{t(status)}</option>)}
                 </select></div>
                 {order.nova_poshta_status ? <p className="crm-order__delivery">{order.nova_poshta_status}</p> : null}
-                <div className="crm-order__actions"><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => setSelectedOrderId(order.id)}>{t('Order details')}</button>
-                <button type="button" className="text-btn" onClick={() => void copyReceiptLink(receiptPath)}>{t('Copy receipt link')}</button>
+                <div className="crm-order__actions"><button type="button" className="text-btn" onClick={() => void copyReceiptLink(receiptPath)}>{t('Copy receipt link')}</button>
                 {!order.payment_test_mode && <button type="button" className="text-btn" aria-haspopup="dialog" title={t('Open customer card')} onClick={() => setSelectedCustomer({ kind: 'order', id: order.id })}>{t('Customer')}</button>}
                 {order.nova_poshta_ttn ? (
                   <span className="ttn-actions">
