@@ -6,6 +6,8 @@ class NovaPostRejection extends Error {}
 
 const cors = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, apikey, content-type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' }
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: cors })
+const isDirectoryRef = (value: unknown): value is string =>
+  typeof value === 'string' && /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i.test(value)
 
 function dateForNovaPost() {
   const now = new Date()
@@ -74,7 +76,7 @@ Deno.serve(async (request) => {
   let documentSaved = false
   let documentRejected = false
   try {
-    const { orderId, description, internalOrderNumber, weightGrams, declaredValueMinor, recipientName } = (preview
+    const { orderId, description, internalOrderNumber, weightGrams, declaredValueMinor, recipientName, dispatchLocation } = (preview
       ? { orderId: new URL(request.url).searchParams.get('orderId') }
       : await request.json()) as {
       orderId?: string | null
@@ -83,6 +85,7 @@ Deno.serve(async (request) => {
       weightGrams?: unknown
       declaredValueMinor?: unknown
       recipientName?: unknown
+      dispatchLocation?: { cityRef?: unknown; warehouseRef?: unknown } | null
     }
     if (!orderId) throw new Error('Order is required')
     const authorization = request.headers.get('Authorization') ?? `Bearer ${anonKey}`
@@ -105,9 +108,20 @@ Deno.serve(async (request) => {
     if (shippingError || !shippingRows?.[0]) throw new Error('Could not calculate the merged order.')
     const shipping = shippingRows[0] as { order_ids: string[]; total_minor: number; cod_minor: number; weight_grams: number | null }
     const orderTotalMinor = Number(shipping.total_minor)
+    const { data: settings, error: settingsError } = await db.from('delivery_settings').select('*').eq('store_id', order.store_id).maybeSingle()
     if (preview) {
       if (order.nova_poshta_ttn) throw new Error('This order already has a TTN.')
-      return json({ weightGrams: shipping.weight_grams, declaredValueMinor: Math.max(100, orderTotalMinor) })
+      if (settingsError) throw new Error('Could not load delivery settings.')
+      return json({
+        weightGrams: shipping.weight_grams,
+        declaredValueMinor: Math.max(100, orderTotalMinor),
+        dispatchLocation: {
+          cityRef: settings?.city_ref ?? '',
+          cityName: settings?.city_name ?? '',
+          warehouseRef: settings?.warehouse_ref ?? '',
+          warehouseName: settings?.warehouse_name ?? '',
+        },
+      })
     }
     if (!order.delivery_city_ref || !order.delivery_address_ref) throw new Error('This order lacks Nova Poshta branch references. Create a new order after enabling delivery, or set its destination again.')
     const person = parseTtnRecipientName(recipientName === undefined ? order.customer_name : recipientName)
@@ -126,9 +140,17 @@ Deno.serve(async (request) => {
     }
     const declaredValueUah = declaredMinor / 100
 
-    const { data: settings, error: settingsError } = await db.from('delivery_settings').select('*').eq('store_id', order.store_id).maybeSingle()
     if (settingsError || !settings) throw new Error('Configure Nova Poshta sender settings first')
-    if (!settings.sender_name || !settings.sender_phone || !settings.city_ref || !settings.warehouse_ref) throw new Error('Fill in sender name, phone, city and dispatch branch in Nova Poshta settings')
+    let dispatchCityRef = settings.city_ref
+    let dispatchWarehouseRef = settings.warehouse_ref
+    if (dispatchLocation !== undefined) {
+      if (!isDirectoryRef(dispatchLocation?.cityRef) || !isDirectoryRef(dispatchLocation?.warehouseRef)) {
+        throw new Error('Choose a dispatch city and branch from the Nova Poshta directory.')
+      }
+      dispatchCityRef = dispatchLocation.cityRef
+      dispatchWarehouseRef = dispatchLocation.warehouseRef
+    }
+    if (!settings.sender_name || !settings.sender_phone || !dispatchCityRef || !dispatchWarehouseRef) throw new Error('Fill in sender name, phone, city and dispatch branch in Nova Poshta settings')
     const orderWeight = weightGrams === undefined ? shipping.weight_grams : weightGrams
     // The previous CRM sends only orderId. Keep its fallback until that UI is replaced.
     const legacyRequest = description === undefined && internalOrderNumber === undefined && weightGrams === undefined && declaredValueMinor === undefined
@@ -144,7 +166,7 @@ Deno.serve(async (request) => {
 
     const dispatchPhone = senderPhone(settings.sender_phone)
     if (!dispatchPhone) throw new Error('Enter a valid sender phone in delivery settings.')
-    const sender = await resolveSender(apiKey, settings.city_ref, settings.sender_name, dispatchPhone)
+    const sender = await resolveSender(apiKey, dispatchCityRef, settings.sender_name, dispatchPhone)
 
     const recipients = await novaPost(apiKey, 'Counterparty', 'save', {
       FirstName: person.firstName, MiddleName: person.middleName, LastName: person.lastName,
@@ -162,7 +184,7 @@ Deno.serve(async (request) => {
       DateTime: dateForNovaPost(), CargoType: 'Parcel', Weight: weightKg, SeatsAmount: '1',
       Description: parcelDescription.trim(), Cost: String(declaredValueUah),
       ...(orderNumber ? { InfoRegClientBarcodes: orderNumber } : {}),
-      CitySender: settings.city_ref, Sender: sender.senderRef, SenderAddress: settings.warehouse_ref, ContactSender: sender.contactRef,
+      CitySender: dispatchCityRef, Sender: sender.senderRef, SenderAddress: dispatchWarehouseRef, ContactSender: sender.contactRef,
       SendersPhone: dispatchPhone, CityRecipient: order.delivery_city_ref,
       Recipient: recipient.Ref, RecipientAddress: order.delivery_address_ref, ContactRecipient: recipientContact,
       RecipientsPhone: String(order.customer_phone).replace(/\D/g, ''), ServiceType: order.delivery_service_type === 'WarehousePostomat' ? 'WarehousePostomat' : 'WarehouseWarehouse',

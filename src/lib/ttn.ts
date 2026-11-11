@@ -4,7 +4,8 @@ export const defaultParcelDescription = 'речі від tatami.culture'
 
 const endpoint = '/functions/v1/nova-poshta-create-ttn'
 
-export type TtnPreview = { weightGrams: number | null; declaredValueMinor: number }
+export type DispatchLocation = { cityRef: string; cityName: string; warehouseRef: string; warehouseName: string }
+export type TtnPreview = { weightGrams: number | null; declaredValueMinor: number; dispatchLocation: DispatchLocation }
 export type TtnShipment = { ttn: string; documentRef: string; existing?: boolean }
 
 export async function getTtnPreview(orderId: string, token: string, signal?: AbortSignal) {
@@ -26,6 +27,7 @@ export async function createTtn(token: string, details: {
   weightGrams: number
   declaredValueMinor: number
   recipientName?: string
+  dispatchLocation?: Pick<DispatchLocation, 'cityRef' | 'warehouseRef'>
 }) {
   const signal = AbortSignal.timeout(45000)
   try {

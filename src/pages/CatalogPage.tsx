@@ -1,4 +1,5 @@
 import { ProductCard } from '../components/ProductCard'
+import { LoadingIndicator } from '../components/LoadingIndicator'
 import { useStore } from '../context/StoreContext'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
@@ -110,7 +111,7 @@ export function CatalogPage() {
 
   return (
     <>
-      {loading && <div className="page-status" role="status">{t('Opening store…')}</div>}
+      {loading && <LoadingIndicator label={t('Opening store…')} />}
       <section className="storefront" hidden={loading}>
         {showBanner && <header className="storefront-hero">
           <div className="storefront-hero__copy">

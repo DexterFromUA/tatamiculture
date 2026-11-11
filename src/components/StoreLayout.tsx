@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { hasStoreMembership } from '../lib/crm'
 import { supabaseConfigured } from '../lib/supabase'
 import { contactsChanged, getStorefrontContacts, type StorefrontContacts } from '../lib/storefrontContacts'
+import { LoadingIndicator } from './LoadingIndicator'
 
 type CatalogFilters = {
   category: string
@@ -126,7 +127,7 @@ export function StoreLayout() {
   }, [store])
 
   if (loading) {
-    return <div className="page-status">{t('Opening store…')}</div>
+    return <LoadingIndicator label={t('Opening store…')} />
   }
 
   if (loadFailed) {

@@ -1,4 +1,4 @@
-type DirectoryBody = { action: 'cities' | 'warehouses'; query?: string; cityRef?: string }
+type DirectoryBody = { action: 'cities' | 'warehouses'; query?: string; cityRef?: string; page?: number }
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, apikey, content-type' } })
 
@@ -23,7 +23,9 @@ Deno.serve(async (request) => {
       return json(data.map((city) => ({ ref: String(city.Ref ?? ''), name: String(city.Description ?? ''), area: String(city.AreaDescription ?? '') })))
     }
     if (body.action === 'warehouses' && body.cityRef) {
-      const data = await novaPost({ modelName: 'AddressGeneral', calledMethod: 'getWarehouses', methodProperties: { CityRef: body.cityRef, Limit: '100', Page: '1', Language: 'UA' } }, apiKey)
+      const page = body.page ?? 1
+      if (!Number.isSafeInteger(page) || page < 1) return json({ error: 'Invalid directory page' }, 400)
+      const data = await novaPost({ modelName: 'AddressGeneral', calledMethod: 'getWarehouses', methodProperties: { CityRef: body.cityRef, Limit: '100', Page: String(page), Language: 'UA' } }, apiKey)
       return json(data.map((warehouse) => ({ ref: String(warehouse.Ref ?? ''), name: String(warehouse.Description ?? ''), type: String(warehouse.CategoryOfWarehouse ?? '') })))
     }
     return json({ error: 'Invalid directory request' }, 400)

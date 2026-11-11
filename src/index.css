@@ -748,6 +748,12 @@ textarea {
 .parcel-dimensions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 110px), 1fr)); gap: 10px; min-width: 0; margin: 20px 0 0; padding: 0; border: 0; }
 .parcel-dimensions legend { padding: 0; font-weight: 600; }
 .parcel-dimensions input { width: 100%; min-width: 0; }
+.ttn-dispatch { min-width: 0; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+.ttn-dispatch h3 { margin: 0 0 16px; font-size: 1rem; }
+.loading-indicator { display: flex; min-height: 260px; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: var(--muted); font-size: .85rem; }
+.loading-indicator__spinner { width: 38px; height: 38px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: loading-spin .8s linear infinite; }
+@keyframes loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .loading-indicator__spinner { animation: none; } }
 .success { color: var(--accent); margin: 12px 0 0; }
 .nova-mode { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; margin: 0 0 18px; padding: 0 0 18px; border-bottom: 1px solid var(--line); }
 .nova-mode h2 { margin-bottom: 4px; }

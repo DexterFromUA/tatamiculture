@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CustomerPanel, type CustomerPanelTarget } from '../components/CustomerPanel'
 import { CreateTtnDrawer } from '../components/CreateTtnDrawer'
+import { LoadingIndicator } from '../components/LoadingIndicator'
 import { MergeOrdersDrawer } from '../components/MergeOrdersDrawer'
 import { ConfirmationDialog, type ConfirmationDialogContent } from '../components/ConfirmationDialog'
 import { NovaPoshtaTrackingLink } from '../components/NovaPoshtaTrackingLink'
@@ -29,6 +30,8 @@ type AdminOrder = OrderDetailsOrder & {
   delivery_city_ref: string | null
   delivery_address_ref: string | null
 }
+
+type OrderFilter = 'ALL' | 'NO_TTN' | OrderStatus
 
 type InventoryProduct = {
   id: string
@@ -61,7 +64,7 @@ export function AdminPage() {
   const [ttnOrder, setTtnOrder] = useState<AdminOrder | null>(null)
   const [trackingId, setTrackingId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'ALL' | OrderStatus>('ALL')
+  const [orderFilter, setOrderFilter] = useState<OrderFilter>('ALL')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerPanelTarget | null>(null)
@@ -129,9 +132,12 @@ export function AdminPage() {
         Boolean(order.customer_name?.toLowerCase().includes(query)) ||
         Boolean(numberQuery && orders.filter(item => item.id === order.id || mergeMembers.some(member => member.order_id === item.id && member.root_id === order.id)).some(item => [item.receipt_code, item.nova_poshta_ttn].some(value => value?.toLowerCase().includes(numberQuery))))
       const date = order.created_at.slice(0, 10)
-      return matchesQuery && (statusFilter === 'ALL' || order.status === statusFilter) && (!fromDate || date >= fromDate) && (!toDate || date <= toDate)
+      const matchesOrderFilter = orderFilter === 'NO_TTN'
+        ? !order.nova_poshta_ttn?.trim()
+        : orderFilter === 'ALL' || order.status === orderFilter
+      return matchesQuery && matchesOrderFilter && (!fromDate || date >= fromDate) && (!toDate || date <= toDate)
     })
-  }, [groupedOrders, orders, mergeMembers, search, statusFilter, fromDate, toDate])
+  }, [groupedOrders, orders, mergeMembers, search, orderFilter, fromDate, toDate])
   const pages = Math.max(1, Math.ceil(visibleOrders.length / 20))
   const currentPage = Math.min(page, pages)
   const pageOrders = visibleOrders.slice((currentPage - 1) * 20, currentPage * 20)
@@ -410,7 +416,7 @@ export function AdminPage() {
     return <section className="page-status"><h1>{t('Manager access required')}</h1><p>{t('Ask the store owner to add your account to this store.')}</p></section>
   }
   if (error && member === null) return <section className="page-status error">{error}</section>
-  if (member === null) return <div className="page-status">{t('Loading CRM…')}</div>
+  if (member === null) return <LoadingIndicator label={t('Loading CRM…')} />
 
   return (
     <section className="crm-page">
@@ -428,7 +434,19 @@ export function AdminPage() {
       </div><div className="overview-grid"><section className="crm-panel crm-attention"><div className="crm-panel__heading"><div><p className="eyebrow">01 / {t('Overview')}</p><h2>{t('Needs attention')}</h2></div><span className="crm-panel__symbol" aria-hidden="true">↗</span></div><div className="crm-attention__row"><span>{t('pending orders')}</span><strong>{liveOrders.filter((order) => order.status === 'PENDING').length}</strong></div><div className="crm-attention__row"><span>{t('failed payments')}</span><strong>{liveOrders.filter((order) => order.payment_status === 'FAILED').length}</strong></div><button type="button" className="crm-inline-link" onClick={() => setSection('orders')}>{t('Open orders')} ↗</button></section><section className="crm-panel crm-inventory"><div className="crm-panel__heading"><div><p className="eyebrow">02 / {t('Catalogue')}</p><h2>{t('Inventory alerts')}</h2></div><span className="crm-panel__symbol" aria-hidden="true">↗</span></div>{inventory.flatMap((product) => product.product_variants.map((variant) => ({ product: product.name, ...variant }))).filter((variant) => !variant.is_preorder && variant.stock_quantity < (variant.low_stock_threshold ?? 3)).slice(0, 5).map((variant) => <div className="crm-attention__row" key={variant.id}><span>{variant.product} · {variant.name}</span><strong className="stock-low">{variant.stock_quantity}</strong></div>)}{!inventory.some(product => product.product_variants.some(variant => !variant.is_preorder && variant.stock_quantity < (variant.low_stock_threshold ?? 3))) ? <p className="muted">{t('No low stock alerts.')}</p> : null}<button type="button" className="crm-inline-link" onClick={() => { setCatalogView('stock'); setSection('catalogue') }}>{t('Manage catalogue')} ↗</button></section></div></> : <>
       <div className="crm-grid crm-grid--orders">
         <section className="crm-panel">
-          <div className="order-filters"><label className="search-field"><span className="sr-only">{t('Search orders by name, order number, TTN or phone')}</span><input type="search" placeholder={t('Search orders by name, order number, TTN or phone')} value={search} onChange={(event) => setSearch(event.target.value)} /></label><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'ALL' | OrderStatus)}><option value="ALL">{t('All statuses')}</option>{statuses.map((status) => <option key={status} value={status}>{t(status)}</option>)}</select><input aria-label={t('Orders from date')} type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /><input aria-label={t('Orders to date')} type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} /></div>
+          <div className="order-filters">
+            <label className="search-field">
+              <span className="sr-only">{t('Search orders by name, order number, TTN or phone')}</span>
+              <input type="search" placeholder={t('Search orders by name, order number, TTN or phone')} value={search} onChange={(event) => setSearch(event.target.value)} />
+            </label>
+            <select value={orderFilter} onChange={(event) => { setOrderFilter(event.target.value as OrderFilter); setPage(1) }}>
+              <option value="ALL">{t('All statuses')}</option>
+              <option value="NO_TTN">{t('Without TTN')}</option>
+              {statuses.map((status) => <option key={status} value={status}>{t(status)}</option>)}
+            </select>
+            <input aria-label={t('Orders from date')} type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
+            <input aria-label={t('Orders to date')} type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
+          </div>
           <div className="orders-list-toolbar">
             <button className="text-btn" title={t(selectedOrders.length ? 'Export selected orders' : 'Export CSV')} disabled={!ordersToExport.length || exportingOrders} onClick={() => void exportOrders()}>
               {exportingOrders ? t('Preparing CSV…') : `${t('Export CSV')} (${ordersToExport.length})`}
