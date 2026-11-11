@@ -99,6 +99,12 @@ textarea {
   padding: 22px 0;
   border-bottom: 1px solid var(--line);
 }
+.topbar--scroll { position: sticky; top: 0; z-index: 15; background: var(--paper); transition: transform .2s ease; }
+.topbar--scroll::before { content: ''; position: absolute; inset: 0 calc((100% - 100vw) / 2); background: var(--paper); z-index: -1; }
+.topbar--hidden { transform: translateY(-100%); }
+.back-to-top { position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: max(20px, env(safe-area-inset-bottom)); z-index: 14; width: 48px; height: 48px; border: 1px solid var(--line); border-radius: 50%; background: var(--card); color: var(--ink); box-shadow: var(--shadow); font-size: 1.35rem; cursor: pointer; }
+.back-to-top:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .topbar--scroll { transition: none; } }
 
 .brand {
   display: inline-flex;

@@ -196,7 +196,7 @@ const uk = {
   Notifications: 'Сповіщення', 'No notifications yet': 'Сповіщень поки немає', 'Mark as read': 'Позначити прочитаним', 'Action failed': 'Не вдалося виконати дію',
   'Order cost': 'Собівартість замовлення', Save: 'Зберегти', Returns: 'Повернення', 'Return accounting only': 'Облік підтвердженого повернення. Не виконує банківське відшкодування й не змінює залишки.', 'Return amount': 'Сума повернення', Reason: 'Причина', 'Record return': 'Записати повернення', 'Invalid amount': 'Вкажіть коректну суму',
   'Financial analytics': 'Фінансова аналітика', 'Repeat customers': 'Повторні покупці', 'Net delivered revenue': 'Виручка за доставленими після повернень', 'Gross margin': 'Валова маржа', 'Cost coverage': 'Замовлення з відомою собівартістю', 'Margin explanation': 'Маржа лише за доставленими замовленнями з введеною собівартістю, мінус повернення. Без комісій, податків та операційних витрат. Повторні покупці — за нескансованими замовленнями.',
-  'Export CSV': 'Експорт CSV', Previous: 'Назад', Next: 'Далі',
+  'Export CSV': 'Експорт CSV', Previous: 'Назад', Next: 'Далі', 'Back to top': 'На початок',
   'Search customers by name, phone or order number': 'Пошук клієнтів за іменем, телефоном або номером замовлення',
   'Preparing CSV…': 'Готуємо CSV…',
   'Export selected orders': 'Експортувати вибрані замовлення',

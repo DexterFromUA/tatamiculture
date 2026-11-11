@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useCart } from '../context/CartContext'
 import { useStore } from '../context/StoreContext'
@@ -13,10 +13,63 @@ export function StoreLayout() {
   const { count } = useCart()
   const { isAuthenticated, token, user } = useAuth()
   const { t, i18n } = useTranslation()
+  const { pathname, key } = useLocation()
+  const isHome = pathname === '/'
+  const homeScrollPosition = useRef<number | null>(null)
+  const restoringHome = useRef(false)
+  const [scrollState, setScrollState] = useState({ headerVisible: true, showTopButton: false })
   const storeId = store?.id
   const userId = user?.id
   const [crmAccess, setCrmAccess] = useState<{ storeId: string; userId: string; token: string } | null>(null)
   const [contacts, setContacts] = useState<StorefrontContacts | null>(null)
+
+  useLayoutEffect(() => {
+    const previousRestoration = window.history.scrollRestoration
+    window.history.scrollRestoration = 'manual'
+    return () => { window.history.scrollRestoration = previousRestoration }
+  }, [])
+
+  useLayoutEffect(() => {
+    let observer: MutationObserver | undefined
+    restoringHome.current = isHome && homeScrollPosition.current !== null
+
+    if (restoringHome.current) {
+      const restore = () => {
+        if (!document.querySelector('.storefront:not([hidden])')) return
+        window.scrollTo({ top: homeScrollPosition.current ?? 0, behavior: 'instant' })
+        restoringHome.current = false
+        observer?.disconnect()
+      }
+      observer = new MutationObserver(restore)
+      observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] })
+      restore()
+    } else if (!isHome) {
+      window.scrollTo({ top: 0, behavior: 'instant' })
+    }
+
+    return () => {
+      observer?.disconnect()
+      if (isHome && !restoringHome.current) homeScrollPosition.current = window.scrollY
+      restoringHome.current = false
+    }
+  }, [isHome, key])
+
+  useEffect(() => {
+    if (!isHome) return
+    let previousY = window.scrollY
+    const onScroll = () => {
+      const currentY = Math.max(0, window.scrollY)
+      const delta = currentY - previousY
+      setScrollState(current => ({
+        headerVisible: currentY < 100 ? true : Math.abs(delta) >= 4 ? delta < 0 : current.headerVisible,
+        showTopButton: currentY > 400,
+      }))
+      if (Math.abs(delta) >= 4 || currentY < 100) previousY = currentY
+    }
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [isHome])
 
   useEffect(() => {
     if (!storeId) return
@@ -72,7 +125,7 @@ export function StoreLayout() {
 
   return (
     <div className="shell">
-      <header className="topbar">
+      <header className={`topbar${isHome ? ' topbar--scroll' : ''}${isHome && !scrollState.headerVisible ? ' topbar--hidden' : ''}`} inert={isHome && !scrollState.headerVisible}>
         <NavLink to="/" className="brand">
           <img className="brand__mark" src="/tatami-mark-transparent.png" alt="" />
           {store.name}
@@ -98,6 +151,7 @@ export function StoreLayout() {
       <main className="main">
         <Outlet />
       </main>
+      {isHome && scrollState.showTopButton && <button type="button" className="back-to-top" aria-label={t('Back to top')} title={t('Back to top')} onClick={() => window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })}>↑</button>}
       <footer className="footer">
         <span className="footer__copyright">© {new Date().getFullYear()} <strong>{store.name}</strong></span>
         <div className="footer__contacts">
