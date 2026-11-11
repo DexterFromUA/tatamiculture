@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { manageReservedPayment } from '../_shared/reserved-payment.ts'
 import { CheckoutOrderError, createOnlineOrder, getCheckoutTestMode } from '../_shared/checkout-order.ts'
 import { monobankApi, monobankToken } from '../_shared/monobank.ts'
 
@@ -29,7 +30,17 @@ Deno.serve(async (request) => {
     const email = typeof body.checkout.email === 'string' ? body.checkout.email.trim() : ''
     const customerEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : ''
     body.checkout.email = customerEmail
-    const order = await createOnlineOrder(serviceClient, request, anonKey, 'MONOBANK', body, testMode)
+    const { order, userId } = await createOnlineOrder(serviceClient, request, anonKey, 'MONOBANK', body, testMode)
+    if (userId) {
+      try {
+        const payment = await manageReservedPayment(serviceClient, order, userId, 'pay', supabaseUrl, siteUrl)
+        return json({ ...payment, receiptCode: order.receipt_code, reserved: true })
+      } catch (error) {
+        console.error('Could not open reserved order payment', order.id, error)
+        return json({ receiptCode: order.receipt_code, reserved: true })
+      }
+    }
+
     const { data: items, error: itemsError } = await serviceClient.from('order_items').select('product_name,variant_name,quantity,unit_price').eq('order_id', order.id)
     if (itemsError || !items?.length) throw new Error(itemsError?.message ?? 'Order has no items')
 

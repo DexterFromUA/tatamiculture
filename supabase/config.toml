@@ -24,3 +24,7 @@ verify_jwt = false
 [functions.sms-provider-settings]
 # This function checks the signed-in user and the store staff role.
 verify_jwt = false
+
+[functions.manage-reserved-order]
+# The function verifies the bearer token and order ownership before payment actions.
+verify_jwt = false

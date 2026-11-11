@@ -1,4 +1,4 @@
-import { createClient } from 'npm:@supabase/supabase-js@2'
+import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 
 type CheckoutBody = {
   storeId: string
@@ -15,7 +15,7 @@ export class CheckoutOrderError extends Error {
 }
 
 export async function getCheckoutTestMode(
-  client: ReturnType<typeof createClient>, storeId: string, provider: OnlineProvider, requested: unknown,
+  client: SupabaseClient, storeId: string, provider: OnlineProvider, requested: unknown,
 ) {
   const { data, error } = await client.from('store_payment_methods')
     .select('payment_test_mode,monobank_test_mode').eq('store_id', storeId).maybeSingle()
@@ -31,7 +31,7 @@ export async function getCheckoutTestMode(
 }
 
 export async function createOnlineOrder(
-  serviceClient: ReturnType<typeof createClient>,
+  serviceClient: SupabaseClient,
   request: Request,
   anonKey: string,
   provider: OnlineProvider,
@@ -46,7 +46,7 @@ export async function createOnlineOrder(
     userId = data.user.id
   }
 
-  const { data: order, error } = await serviceClient.rpc('create_order_with_payment', {
+  const { data: order, error } = await serviceClient.rpc(userId ? 'create_reserved_online_order' : 'create_order_with_payment', {
     p_provider: provider,
     p_user_id: userId,
     p_store_id: body.storeId,
@@ -63,5 +63,5 @@ export async function createOnlineOrder(
     p_monobank_test_mode: testMode,
   })
   if (error || !order) throw new CheckoutOrderError(error?.message ?? 'Order could not be created', error?.code === 'PT409' ? 409 : 400)
-  return order
+  return { order, userId }
 }

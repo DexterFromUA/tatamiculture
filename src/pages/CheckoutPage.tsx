@@ -22,8 +22,8 @@ export function CheckoutPage() {
 }
 
 function CheckoutForm() {
-  const { store, products } = useStore()
-  const { items, clear, rememberOnlineCheckout } = useCart()
+  const { store, products, refreshProducts } = useStore()
+  const { items, clear, rememberOnlineCheckout, moveReservedOrderToProfile } = useCart()
   const { user, token } = useAuth()
   const { addToast } = useToast()
   const navigate = useNavigate()
@@ -154,16 +154,27 @@ function CheckoutForm() {
     try {
       if (novaPoshtaEnabled && (!cityRef || !addressRef || !form.address)) throw new Error(t('Choose a city and Nova Poshta branch'))
       const checkout = novaPoshtaEnabled ? { ...form, cityRef: cityRef ?? undefined, addressRef: addressRef ?? undefined, deliveryServiceType } : form
-      if (provider === 'MONOBANK') {
-        const { pageUrl, receiptCode } = await startMonobankCheckout({ store, items, checkout, token, testMode })
-        rememberOnlineCheckout(receiptCode)
-        window.location.assign(pageUrl)
-        return
-      }
-      if (provider === 'LIQPAY') {
-        const { data, signature, receiptCode } = await startLiqPayCheckout({ store, items, checkout, token, testMode })
-        rememberOnlineCheckout(receiptCode)
-        redirectToLiqPay(data, signature)
+      if (provider === 'MONOBANK' || provider === 'LIQPAY') {
+        const input = { store, items, checkout, token, testMode }
+        const payment = await (provider === 'MONOBANK' ? startMonobankCheckout(input) : startLiqPayCheckout(input))
+        if (payment.reserved && payment.receiptCode) {
+          moveReservedOrderToProfile(items)
+          if (payment.pageUrl) {
+            window.location.assign(payment.pageUrl)
+          } else {
+            void refreshProducts().catch(() => {})
+            addToast(t('Order reserved. You can retry payment from your profile.'))
+            navigate('/account')
+          }
+        } else if (payment.pageUrl) {
+          rememberOnlineCheckout(payment.receiptCode)
+          window.location.assign(payment.pageUrl)
+        } else if (payment.data && payment.signature) {
+          rememberOnlineCheckout(payment.receiptCode)
+          redirectToLiqPay(payment.data, payment.signature)
+        } else {
+          throw new Error(t('Could not open payment'))
+        }
         return
       }
       const order = await api.createOrder({ store, items, checkout, token })

@@ -56,27 +56,13 @@ Deno.serve(async (request) => {
     })
     const invoice = await statusResponse.json() as { status?: string }
     if (!statusResponse.ok) throw new Error('Monobank status check failed')
-    const paymentStatus = invoice.status === 'success' ? 'PAID' : invoice.status === 'failure' || invoice.status === 'expired' ? 'FAILED' : 'PENDING'
-    if (paymentStatus === 'PENDING') return new Response('OK')
-    const { data: payment, error: paymentError } = await client.from('payments')
-      .update({ status: paymentStatus, raw_callback: callback })
-      .eq('provider_order_id', callback.invoiceId).eq('provider', 'MONOBANK')
-      .in('status', paymentStatus === 'PAID' ? ['PENDING', 'FAILED', 'PAID'] : ['PENDING', 'FAILED'])
-      .select('order_id').maybeSingle()
-    if (paymentError) throw paymentError
-    if (!payment) return new Response('OK')
-    if (paymentStatus === 'PAID') {
-      const { data: updatedOrder, error } = await client.from('orders')
-        .update({ status: 'PAID', payment_status: 'PAID' })
-        .eq('id', payment.order_id).eq('status', 'PENDING').in('payment_status', ['PENDING', 'FAILED', 'PAID'])
-        .select('id').maybeSingle()
-      if (error) throw error
-      if (updatedOrder) return new Response('OK')
-    }
-    // Update the payment without moving an order out of its fulfilment state.
-    const { error: orderError } = await client.from('orders').update({ payment_status: paymentStatus })
-      .eq('id', payment.order_id).in('payment_status', ['PENDING', 'FAILED'])
-    if (orderError) throw orderError
+    const paid = invoice.status === 'success'
+    if (!paid && invoice.status !== 'failure' && invoice.status !== 'expired') return new Response('OK')
+    const { error } = await client.rpc('apply_online_payment_callback', {
+      p_provider: 'MONOBANK', p_reference: callback.invoiceId, p_paid: paid,
+      p_payment_id: null, p_callback: callback,
+    })
+    if (error) throw new Error(error.message)
     return new Response('OK')
-  } catch (error) { return new Response(error instanceof Error ? error.message : 'Webhook failed', { status: 400 }) }
+  } catch (error) { return new Response(error instanceof Error ? error.message : 'Webhook failed', { status: 500 }) }
 })

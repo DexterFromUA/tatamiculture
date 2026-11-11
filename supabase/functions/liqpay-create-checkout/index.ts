@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { manageReservedPayment } from '../_shared/reserved-payment.ts'
 import { CheckoutOrderError, createOnlineOrder, getCheckoutTestMode } from '../_shared/checkout-order.ts'
 import { encodeLiqPayData, legacyLiqPayKeys, liqPayKeys, liqPaySignature } from '../_shared/liqpay.ts'
 
@@ -141,7 +142,17 @@ Deno.serve(async (request) => {
     const keys = liqPayKeys(testMode)
     if (!keys) return json({ error: testMode ? 'LiqPay test keys are not configured.' : 'LiqPay live keys are not configured.' }, 503)
     const { publicKey, privateKey } = keys
-    const order = await createOnlineOrder(serviceClient, request, anonKey, 'LIQPAY', body, testMode)
+    const { order, userId } = await createOnlineOrder(serviceClient, request, anonKey, 'LIQPAY', body, testMode)
+    if (userId) {
+      try {
+        const payment = await manageReservedPayment(serviceClient, order, userId, 'pay', supabaseUrl, siteUrl)
+        return json({ ...payment, receiptCode: order.receipt_code, reserved: true })
+      } catch (error) {
+        console.error('Could not open reserved order payment', order.id, error)
+        return json({ receiptCode: order.receipt_code, reserved: true })
+      }
+    }
+
 
     const { data: items, error: itemsError } = await serviceClient
       .from('order_items')

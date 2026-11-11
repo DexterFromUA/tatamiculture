@@ -265,8 +265,7 @@ textarea {
 }
 .storefront-hero__copy .storefront-kicker { -webkit-line-clamp: 1; }
 .storefront-hero h1 .storefront-hero__brand { color: inherit; font-size: .72em; }
-.storefront-hero__copy p { max-width: 28rem; margin: 0 0 20px; color: #5c5c5c; line-height: 1.5; }
-.storefront-hero__link { display: inline-flex; align-items: center; justify-content: space-between; gap: 36px; padding: 14px 17px; background: #bd2731; color: #fff; font-size: .84rem; font-weight: 600; text-decoration: none; }
+.storefront-hero__copy p { max-width: 28rem; margin: 0; color: #5c5c5c; line-height: 1.5; }
 .storefront-hero__image { position: relative; min-height: 0; overflow: hidden; background: #1c1916; }
 .storefront-hero__image img { width: 100%; height: 100%; position: absolute; inset: 0; object-fit: cover; }
 .storefront-hero__image--site-icon img { object-fit: contain; }
@@ -305,12 +304,12 @@ textarea {
 @media (max-width: 700px) {
   .collection-filters { margin-inline: -16px; padding-inline: 16px; scrollbar-width: none; }
   .collection-filters::-webkit-scrollbar { display: none; }
-  .storefront-hero { grid-template-columns: minmax(0, 1fr); margin-bottom: 32px; }
-  .storefront-hero:has(.storefront-hero__image) { grid-template-rows: 270px minmax(0, 1fr); }
+  .storefront-hero { grid-template-columns: minmax(0, 1fr); height: auto; margin-bottom: 32px; }
+  .storefront-hero:has(.storefront-hero__image) { grid-template-rows: 1fr 1fr; }
+  .storefront-hero__image { min-height: clamp(150px, 48vw, 270px); }
   .storefront-hero__copy { padding: 18px 20px; }
   .storefront-hero h1 { margin: 12px 0; font-size: clamp(1.8rem, 6.5vw, 2.5rem); }
-  .storefront-hero__copy p { margin-bottom: 14px; font-size: .875rem; }
-  .storefront-hero__link { padding: 10px 13px; gap: 16px; }
+  .storefront-hero__copy p { font-size: .875rem; }
   .collection-head { align-items: stretch; flex-direction: column; }
   .collection-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .collection-tools label:first-child { grid-column: 1 / -1; }
@@ -1185,6 +1184,9 @@ textarea {
 .account-orders .order-row { padding: 18px 0; }
 .account-orders .order-row > div { min-width: 0; overflow-wrap: anywhere; }
 .account-orders .order-row > strong { flex-shrink: 0; }
+.account-order-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 10px; }
+.account-order-actions .btn { width: auto; }
+.account-reserved-items { list-style: none; padding: 0; margin: 8px 0 0; font-size: .85rem; }
 @media (max-width: 700px) {
   .auth-card--login { grid-template-columns: 1fr; }
   .auth-card--login .login-intro { min-height: 0; padding: 20px 24px; }

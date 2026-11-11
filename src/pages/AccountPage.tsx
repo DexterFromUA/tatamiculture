@@ -7,15 +7,19 @@ import { api } from '../lib/api'
 import type { Order } from '../types'
 import { useTranslation } from 'react-i18next'
 import { Notifications } from '../components/Notifications'
+import { manageReservedOrder } from '../lib/payments'
 
 export function AccountPage() {
   const { user, token, logout } = useAuth()
   const userId = user?.id
-  const { store } = useStore()
+  const { store, refreshProducts } = useStore()
   const navigate = useNavigate()
   const [orders, setOrders] = useState<Order[]>([])
   const [ordersLoading, setOrdersLoading] = useState(true)
   const [ordersError, setOrdersError] = useState<string | null>(null)
+  const [action, setAction] = useState<{ id: string; type: 'pay' | 'cancel' } | null>(null)
+  const [actionError, setActionError] = useState<{ id: string; message: string } | null>(null)
+  const [refresh, setRefresh] = useState(0)
   const { t } = useTranslation()
 
   useEffect(() => {
@@ -24,7 +28,10 @@ export function AccountPage() {
       if (!store || !token || !userId) return
       try {
         const next = await api.getOrders(token, store.id, userId)
-        if (!cancelled) setOrders(next)
+        if (!cancelled) {
+          setOrders(next)
+          setOrdersError(null)
+        }
       } catch (cause) {
         if (!cancelled) setOrdersError(cause instanceof Error ? cause.message : 'Could not load orders')
       } finally {
@@ -32,13 +39,41 @@ export function AccountPage() {
       }
     }
     void loadOrders()
-    return () => { cancelled = true }
-  }, [store, token, userId])
+    const reload = () => setRefresh(value => value + 1)
+    window.addEventListener('focus', reload)
+    window.addEventListener('pageshow', reload)
+    return () => {
+      cancelled = true
+      window.removeEventListener('focus', reload)
+      window.removeEventListener('pageshow', reload)
+    }
+  }, [store, token, userId, refresh])
+
+  const updateReservation = async (order: Order, type: 'pay' | 'cancel') => {
+    if (!token || action) return
+    if (type === 'cancel' && !window.confirm(t('Cancel this reservation and release the items?'))) return
+    setAction({ id: order.id, type })
+    setActionError(null)
+    try {
+      const result = await manageReservedOrder(order.id, type, token)
+      if (result.pageUrl) window.location.assign(result.pageUrl)
+      if (result.cancelled) {
+        void refreshProducts().catch(() => {})
+        setOrders(current => current.map(entry => entry.id === order.id
+          ? { ...entry, status: 'CANCELLED_BY_USER', paymentStatus: 'FAILED' }
+          : entry))
+      }
+    } catch (error) {
+      setActionError({ id: order.id, message: error instanceof Error ? error.message : 'Could not update the reservation. Try again shortly.' })
+    } finally {
+      setAction(null)
+      setRefresh(value => value + 1)
+    }
+  }
 
   if (!store || !user) return null
-  const lastDelivery = orders.find(order =>
-    order.storeId === store.id && order.userId === userId && order.deliveryCity.trim() && order.deliveryAddress.trim(),
-  )
+  const ownOrders = orders.filter(order => order.storeId === store.id && order.userId === userId)
+  const lastDelivery = ownOrders.find(order => order.deliveryCity.trim() && order.deliveryAddress.trim())
 
   return (
     <section className="account-page">
@@ -64,16 +99,42 @@ export function AccountPage() {
           </dl>
         </aside>
         <section className="account-orders account-card">
-          <div className="account-orders__head"><div><p className="eyebrow">{t('Your purchases')}</p><h2>{t('Order history')}</h2></div><span className="account-orders__count">{orders.length}</span></div>
-        {ordersLoading ? <p className="muted">{t('Loading orders…')}</p> : ordersError ? <p className="error">{ordersError}</p> : orders.length === 0 ? <p className="muted">{t('No orders yet.')}</p> : <ul className="order-list">{orders.map((order) => (
-          <li key={order.id} className="order-row">
-            <div>
-              <Link to={`/receipt/${order.receiptCode}`}>{order.receiptCode}</Link>
-              <p className="muted">{formatDate(order.createdAt)} · {t(order.status)}</p>
-            </div>
-            <strong>{formatPrice(order.totalPrice, order.currency)}</strong>
-          </li>
-        ))}</ul>}
+          <div className="account-orders__head"><div><p className="eyebrow">{t('Your purchases')}</p><h2>{t('Order history')}</h2></div><span className="account-orders__count">{ownOrders.length}</span></div>
+          {ordersLoading ? <p className="muted">{t('Loading orders…')}</p>
+            : ordersError ? <p className="error">{ordersError}</p>
+            : ownOrders.length === 0 ? <p className="muted">{t('No orders yet.')}</p>
+            : (
+              <ul className="order-list">
+                {ownOrders.map((order) => {
+                  const reserved = order.paymentMethod === 'ONLINE' && order.status === 'PENDING'
+                    && (order.paymentStatus === 'PENDING' || order.paymentStatus === 'FAILED')
+                  const activeAction = action?.id === order.id ? action.type : null
+                  return (
+                    <li key={order.id} className="order-row">
+                      <div>
+                        <Link to={`/receipt/${order.receiptCode}`}>{order.receiptCode}</Link>
+                        <p className="muted">{formatDate(order.createdAt)} · {t(reserved ? 'Unpaid · Reserved' : order.status)}</p>
+                        {reserved && <>
+                          <ul className="account-reserved-items">
+                            {order.items.map(item => <li key={item.id}>{item.productName} · {item.optionName} × {item.quantity}</li>)}
+                          </ul>
+                          <div className="account-order-actions">
+                            <button type="button" className="btn" disabled={Boolean(action)} onClick={() => void updateReservation(order, 'pay')}>
+                              {t(activeAction === 'pay' ? 'Opening payment…' : 'Pay now')}
+                            </button>
+                            <button type="button" className="text-btn" disabled={Boolean(action)} onClick={() => void updateReservation(order, 'cancel')}>
+                              {t(activeAction === 'cancel' ? 'Cancelling reservation…' : 'Cancel reservation')}
+                            </button>
+                          </div>
+                        </>}
+                        {actionError?.id === order.id && <p role="alert" className="error">{t(actionError.message)}</p>}
+                      </div>
+                      <strong>{formatPrice(order.totalPrice, order.currency)}</strong>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
         </section>
       </div>
     </section>

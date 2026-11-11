@@ -79,7 +79,7 @@ export function CatalogPage() {
 
   if (!store) return null
   const kicker = banner?.[`kicker_${language}`]?.trim()
-  const title = banner?.[`title_${language}`]?.trim() || t('Everyday movement')
+  const customTitle = banner?.[`title_${language}`]?.trim()
   const description = banner?.[`description_${language}`]?.trim()
   const categories = [...new Map(products.flatMap(product =>
     categoriesForProduct(product).map(item => [item.id, item] as const))).values()]
@@ -116,9 +116,8 @@ export function CatalogPage() {
         {showBanner && <header className="storefront-hero">
           <div className="storefront-hero__copy">
             {kicker && <span className="storefront-kicker">{kicker}</span>}
-            <h1><span className="storefront-hero__brand">{store.name}</span><span> / {title}</span></h1>
+            <h1><span className="storefront-hero__brand">{store.name}</span><span lang={customTitle ? undefined : 'en'}> / {customTitle || 'Defend yourself'}</span></h1>
             {description && <p>{description}</p>}
-            <a href="#collection" className="storefront-hero__link">{t('Explore collection')} <span aria-hidden="true">↗</span></a>
           </div>
           {(images.length > 1 || (images.length === 1 && !imageUnavailable)) && (
             <BannerCarousel key={JSON.stringify(images.map(image => image.url))} images={images} imageRef={heroImage} ready={!loading} hideFirstImage={imageUnavailable} />

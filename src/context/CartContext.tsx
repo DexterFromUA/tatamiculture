@@ -13,6 +13,7 @@ type CartContextValue = {
   removeItem: (productId: string, optionId: string) => void
   clear: () => void
   rememberOnlineCheckout: (receiptCode?: string) => void
+  moveReservedOrderToProfile: (reservedItems: CartItem[]) => void
   completeOnlineCheckout: (order: Order, fromPaymentProvider?: boolean) => void
 }
 
@@ -115,8 +116,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [storeId])
 
+  const moveReservedOrderToProfile = useCallback((reservedItems: CartItem[]) => {
+    if (!storeId) return
+    const quantities = new Map(reservedItems.map(item => [item.optionId, item.quantity]))
+    const next = readJson<CartItem[]>(cartKey(storeId), [])
+      .map(item => ({ ...item, quantity: item.quantity - (quantities.get(item.optionId) ?? 0) }))
+      .filter(item => item.quantity > 0)
+    writeJson(cartKey(storeId), next)
+    setItems(next)
+  }, [storeId])
+
   const completeOnlineCheckout = useCallback((order: Order, fromPaymentProvider = false) => {
-    if (!ready || !storeId || order.storeId !== storeId || order.paymentMethod !== 'ONLINE' || order.paymentStatus !== 'PAID') return
+    if (!ready || !storeId || order.storeId !== storeId || order.reservedInProfile
+      || order.paymentMethod !== 'ONLINE' || order.paymentStatus !== 'PAID') return
     const key = checkoutPrefix(storeId) + order.receiptCode
     const marker = readJson<CheckoutMarker | null>(key, null)
     if (marker && typeof marker === 'object') return
@@ -204,10 +216,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
         removeItem,
         clear,
         rememberOnlineCheckout,
+        moveReservedOrderToProfile,
         completeOnlineCheckout,
       }
     },
-    [storedItems, products, rememberOnlineCheckout, completeOnlineCheckout],
+    [storedItems, products, rememberOnlineCheckout, moveReservedOrderToProfile, completeOnlineCheckout],
   )
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>

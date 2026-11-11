@@ -6,9 +6,10 @@ export const monobankEnabled = import.meta.env.VITE_MONOBANK_ENABLED === 'true'
 export const novaPoshtaEnabled = import.meta.env.VITE_NOVAPOSHTA_ENABLED === 'true'
 
 type OnlineCheckout = { store: Store; items: CartItem[]; checkout: CheckoutInput; token: string | null; testMode: boolean | null }
+type CheckoutPayment = { data?: string; signature?: string; pageUrl?: string; receiptCode?: string; reserved?: boolean }
 
 export async function startLiqPayCheckout(input: OnlineCheckout) {
-  return supabaseRequest<{ data: string; signature: string; receiptCode?: string }>('/functions/v1/liqpay-create-checkout', {
+  return supabaseRequest<CheckoutPayment>('/functions/v1/liqpay-create-checkout', {
     method: 'POST',
     token: input.token,
     body: JSON.stringify({ storeId: input.store.id, items: input.items, checkout: input.checkout, testMode: input.testMode }),
@@ -32,8 +33,14 @@ export function redirectToLiqPay(data: string, signature: string) {
 }
 
 export async function startMonobankCheckout(input: OnlineCheckout) {
-  return supabaseRequest<{ pageUrl: string; receiptCode?: string }>('/functions/v1/monobank-create-invoice', {
+  return supabaseRequest<CheckoutPayment>('/functions/v1/monobank-create-invoice', {
     method: 'POST', token: input.token,
     body: JSON.stringify({ storeId: input.store.id, items: input.items, checkout: input.checkout, testMode: input.testMode }),
+  })
+}
+
+export function manageReservedOrder(orderId: string, action: 'pay' | 'cancel', token: string) {
+  return supabaseRequest<{ pageUrl?: string; cancelled?: true }>('/functions/v1/manage-reserved-order', {
+    method: 'POST', token, body: JSON.stringify({ orderId, action }),
   })
 }

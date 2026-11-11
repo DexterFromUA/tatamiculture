@@ -39,29 +39,13 @@ Deno.serve(async (request) => {
     const paid = callback.status === 'success' || (testMode && callback.status === 'sandbox')
     const failed = callback.status === 'failure' || callback.status === 'error'
     if (!paid && !failed) return new Response('OK')
-    const paymentStatus = paid ? 'PAID' : 'FAILED'
-    const { data: updated, error: paymentError } = await client.from('payments').update({
-      status: paymentStatus,
-      provider_payment_id: callback.payment_id ? String(callback.payment_id) : null,
-      raw_callback: callback,
-    }).eq('provider_order_id', callback.order_id).eq('provider', 'LIQPAY')
-      .in('status', paid ? ['PENDING', 'FAILED', 'PAID'] : ['PENDING', 'FAILED'])
-      .select('order_id').maybeSingle()
-    if (paymentError) throw paymentError
-    if (!updated) return new Response('OK')
-    if (paid) {
-      const { data: order, error } = await client.from('orders')
-        .update({ status: 'PAID', payment_status: 'PAID' })
-        .eq('id', payment.order_id).eq('status', 'PENDING')
-        .in('payment_status', ['PENDING', 'FAILED', 'PAID']).select('id').maybeSingle()
-      if (error) throw error
-      if (order) return new Response('OK')
-    }
-    const { error: orderError } = await client.from('orders').update({ payment_status: paymentStatus })
-      .eq('id', payment.order_id).in('payment_status', ['PENDING', 'FAILED'])
-    if (orderError) throw orderError
+    const { error } = await client.rpc('apply_online_payment_callback', {
+      p_provider: 'LIQPAY', p_reference: callback.order_id, p_paid: paid,
+      p_payment_id: callback.payment_id ? String(callback.payment_id) : null, p_callback: callback,
+    })
+    if (error) throw new Error(error.message)
     return new Response('OK')
   } catch (error) {
-    return new Response(error instanceof Error ? error.message : 'Webhook failed', { status: 400 })
+    return new Response(error instanceof Error ? error.message : 'Webhook failed', { status: 500 })
   }
 })

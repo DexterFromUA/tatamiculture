@@ -48,7 +48,8 @@ export function ReceiptPage() {
         if (cancelled) return
         setOrder(next)
         setLoading(false)
-        if (next?.paymentMethod !== 'ONLINE' || next.paymentStatus !== 'PENDING') return
+        if (next?.paymentMethod !== 'ONLINE' || next.status !== 'PENDING'
+          || (next.paymentStatus !== 'PENDING' && next.paymentStatus !== 'FAILED')) return
       } catch {
         if (cancelled) return
         if (!retries) setLoading(false)
@@ -114,6 +115,9 @@ export function ReceiptPage() {
         <p className="eyebrow">{t('Receipt')} · {order.receiptCode}{order.paymentTestMode && ` · ${t('Test order')}`}</p>
         <h1>{t('Thank you, {{name}}', { name: order.customerName })}</h1>
         <p>{formatDate(order.createdAt)}</p>
+        {ownOrder && order.paymentMethod === 'ONLINE' && order.status === 'PENDING'
+          && (order.paymentStatus === 'PENDING' || order.paymentStatus === 'FAILED')
+          && <Link to="/account">{t('Manage reservation in profile')}</Link>}
       </header>
       <div className="receipt-layout"><div className="receipt-content">
       <section className="receipt-card"><div className="receipt-card__head"><div><p className="eyebrow">{t('Your order')}</p><h2>{t('Order items')}</h2></div><span className="receipt-count">{order.items.reduce((sum, item) => sum + item.quantity, 0)}</span></div>
