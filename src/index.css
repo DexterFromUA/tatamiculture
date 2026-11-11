@@ -1304,6 +1304,8 @@ textarea {
 .crm-order__email { display: block; margin-top: 4px; }
 .crm-page .crm-order__identity span, .crm-page .crm-order__amount span, .crm-page .crm-order__status > span { color: var(--muted); font-size: .75rem; overflow-wrap: anywhere; }
 .crm-page .crm-order__reference { font-weight: 700; letter-spacing: .04em; }
+.crm-page .crm-order__date { display: inline; }
+.crm-order__date::before { content: ' · '; }
 .crm-page .admin-list .crm-order { cursor: pointer; }
 .crm-order__reference button { padding: 0; color: var(--accent); font: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .crm-order__note { margin: 4px 0 0; font-size: .85rem; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -1342,8 +1344,20 @@ textarea {
   .crm-masthead__mark { font-size: 8rem; right: 18px; bottom: -18px; }
   .crm-page .admin-tabs button { padding: 14px 16px; }
   .crm-page .crm-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .crm-page .admin-list .crm-order { grid-template-columns: 28px minmax(0, 1fr) auto; gap: 12px; }
+  .crm-page .order-filters { grid-template-columns: minmax(0, 1fr); }
+  .crm-page .order-filters input[type="date"] { display: block; box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; color: var(--ink); }
+  .crm-page .order-filters input[type="date"]::-webkit-date-and-time-value { min-height: 1.2em; text-align: left; }
+  .crm-page .admin-list .crm-order { grid-template-columns: 28px minmax(0, 1fr); gap: 12px; padding: 16px; }
+  .crm-order .order-select { align-self: start; }
+  .crm-order__reference button { text-align: left; overflow-wrap: anywhere; }
+  .crm-page .crm-order__date { display: block; margin-top: 4px; }
+  .crm-order__date::before { content: none; }
+  .crm-order__amount { grid-column: 2; }
+  .crm-order__amount strong { white-space: normal; overflow-wrap: anywhere; }
   .crm-order__status { grid-column: 2 / -1; }
+  .crm-order__actions { gap: 12px 16px; }
+  .crm-order__actions .text-btn { display: inline-flex; align-items: center; min-height: 36px; max-width: 100%; text-align: left; overflow-wrap: anywhere; }
+  .crm-order__actions .ttn-actions { display: contents; }
   .crm-order__actions .crm-order__cancel { margin-left: 0; }
   .crm-page .customers-list li { grid-template-columns: 1fr; gap: 5px; }
   .crm-page .customers-page .crm-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1769,9 +1783,12 @@ input[type="date"] { color-scheme: light; }
 @media (max-width: 700px) {
   .order-bulk__actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .order-bulk__actions .catalog-bulk__selection { min-height: 44px; }
+  .order-bulk--orders { gap: 0; }
+  .order-bulk--orders .order-bulk__actions { min-height: 0; max-height: 280px; overflow: hidden; transition: max-height .25s ease, opacity .2s ease, transform .2s ease, visibility .25s; }
+  .order-bulk--orders .order-bulk__actions[aria-hidden="true"] { max-height: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .order-bulk, .order-bulk__actions { transition: none; }
+  .order-bulk, .order-bulk__actions, .order-bulk--orders .order-bulk__actions { transition: none; }
 }
 .crm-page .catalog-admin__list li.catalog-admin__selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 5%, var(--card)); }
 @media (max-width: 700px) {

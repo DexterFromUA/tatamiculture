@@ -435,7 +435,7 @@ export function AdminPage() {
             </button>
             <div className="crm-pagination"><button className="text-btn" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t('Previous')}</button><span>{currentPage} / {pages}</span><button className="text-btn" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>{t('Next')}</button></div>
           </div>
-          {(pageOrders.length > 0 || selectedOrderIds.length > 0) && <div className="order-bulk" role="group" aria-label={t('Bulk action')}>
+          {(pageOrders.length > 0 || selectedOrderIds.length > 0) && <div className="order-bulk order-bulk--orders" role="group" aria-label={t('Bulk action')}>
             <label className="order-select-all">
               <input type="checkbox" checked={pageSelected} disabled={bulkBusy || !pageOrders.length}
                 ref={input => { if (input) input.indeterminate = !pageSelected && selectedOrderIds.length > selectedOutsidePage }}
@@ -488,7 +488,7 @@ export function AdminPage() {
                   <span className="sr-only">{t('Select order')} #{order.receipt_code}</span>
                 </label>
                 <div className="crm-order__identity">
-                  <span className="crm-order__reference"><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => setSelectedOrderId(order.id)}>#{order.receipt_code}</button> · {formatDate(order.created_at)}{order.payment_test_mode && ` · ${t('Test order')}`}{groupIds(order.id).length > 1 && ` · ${t('Merged orders: {{count}}', { count: groupIds(order.id).length })}`}</span>
+                  <span className="crm-order__reference"><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => setSelectedOrderId(order.id)}>#{order.receipt_code}</button><span className="crm-order__date"><time dateTime={order.created_at}>{formatDate(order.created_at)} · {new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(new Date(order.created_at))}</time>{order.payment_test_mode && ` · ${t('Test order')}`}{groupIds(order.id).length > 1 && ` · ${t('Merged orders: {{count}}', { count: groupIds(order.id).length })}`}</span></span>
                   {note && <p className="crm-order__note"><strong>{t('Note')}</strong> {note}</p>}
                   {order.customer_email && <span className="crm-order__email">{order.customer_email}</span>}
                 </div>
