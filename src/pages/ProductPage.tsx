@@ -24,7 +24,6 @@ function ProductDetails() {
   const { addToast } = useToast()
   const product = products.find((item) => item.id === productId)
   const [optionId, setOptionId] = useState(product?.productOptions[0]?.id ?? '')
-  const [quantity, setQuantity] = useState(1)
   const [imageIndex, setImageIndex] = useState(0)
   const sizeGuideDialog = useRef<HTMLDialogElement>(null)
   const sizeGuideTitleId = useId()
@@ -67,12 +66,13 @@ function ProductDetails() {
   }
 
   const addToCart = () => {
-    addItem(product.id, option.id, quantity)
+    addItem(product.id, option.id, 1)
     addToast(t('Added to cart'))
   }
 
   return (
     <>
+    <Link className="shop-back" to="/">← {t('Back to shop')}</Link>
     <article className="product-view shop-detail">
       {activeImage && <div className="product-gallery">
         <div className="product-view__image">
@@ -88,7 +88,6 @@ function ProductDetails() {
         </div> : null}
       </div>}
       <div className="product-view__body">
-        <Link className="shop-back" to="/">← {t('Back to shop')}</Link>
         <p className="muted">{categoryPaths(categories, categoryIds, i18n.resolvedLanguage).join(' · ') || productCategoryLabel(product, i18n.resolvedLanguage) || t('Uncategorized')}</p>
         {product.isNew && <span className="badge badge--new">{t('New arrival')}</span>}
         <h1>{name}</h1>
@@ -137,7 +136,6 @@ function ProductDetails() {
           <span>{t('Size')}</span>
           <select value={option.id} onChange={(event) => {
             setOptionId(event.target.value)
-            setQuantity(1)
           }}>
             {product.productOptions.map((item) => (
               <option key={item.id} value={item.id}>
@@ -148,16 +146,6 @@ function ProductDetails() {
               </option>
             ))}
           </select>
-        </label>
-        <label className="field">
-          <span>{t('Quantity')}</span>
-          <input
-            type="number"
-            min={1}
-            max={option.isPreOrder ? undefined : option.isLimited ? option.quantity : 10}
-            value={quantity}
-            onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))}
-          />
         </label>
         {option.isPreOrder ? (
           <p className="note product-delivery-note">

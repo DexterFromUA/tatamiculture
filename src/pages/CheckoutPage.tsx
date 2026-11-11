@@ -146,7 +146,7 @@ export function CheckoutPage() {
     <section className="checkout-page">
       <header className="checkout-hero"><p className="eyebrow">{t('Secure checkout')}</p><h1>{t('Checkout')}</h1><div className="checkout-hero__footer"><Link to="/cart">← {t('Back to cart')}</Link><span>{t('Items in order: {{quantity}}', { quantity: items.reduce((sum, item) => sum + item.quantity, 0) })}</span></div></header>
       <div className="checkout-layout">
-      <form className="form checkout-form" onSubmit={(event) => void onSubmit(event)}>
+      <form id="checkout-form" className="form checkout-form" onSubmit={(event) => void onSubmit(event)}>
         <header className="checkout-form__head">
           <p className="eyebrow">01 / {t('Delivery')}</p>
           <h2>{t('Delivery details')}</h2>
@@ -170,12 +170,24 @@ export function CheckoutPage() {
           <span>{t('Note')}</span>
           <textarea value={form.note} onChange={setField('note')} rows={3} />
         </label>
-        <fieldset className="payment-methods" disabled={submitting}><legend>{t('Payment method')}</legend>
-          {availableMethods.map(method => <label className="payment-method" key={method.id}>
-            <input type="radio" name="provider" value={method.id} checked={provider === method.id} onChange={() => { setPreferredProvider(method.id); setError(null) }} />
+      </form>
+      <aside className="checkout-summary">
+        <div className="checkout-summary__head"><p className="eyebrow">02 / {t('Your order')}</p><h2>{t('Order summary')}</h2><span>{t('Items in order: {{quantity}}', { quantity: items.reduce((sum, item) => sum + item.quantity, 0) })}</span></div>
+        <ul className="checkout-lines">{cartLines.map((line) => <li key={line.id}>{line.image && <img src={line.image} alt="" />}<div><strong>{line.name}</strong><span>{line.option} · {t('{{quantity}} units', { quantity: line.quantity })}</span></div><b>{formatPrice(line.total, store.currency)}</b></li>)}</ul>
+        <div className="checkout-delivery"><span>{t('Delivery')}</span><strong>{novaPoshtaEnabled ? t('Nova Poshta branch or parcel locker') : t('Details at checkout')}</strong><small>{t('Shipping cost is confirmed after dispatch.')}</small></div>
+        <div className="checkout-total"><span>{t('Total')}</span><strong>{formatPrice(total, store.currency)}</strong></div>
+        <fieldset className="payment-methods" disabled={submitting}>
+          <legend><span className="payment-methods__heading"><span>{t('Payment method')}</span>{availableMethods.length === 1 && selectedMethod?.icon && <img className="payment-method__icon" src={selectedMethod.icon} alt={t(selectedMethod.name)} />}</span></legend>
+          {availableMethods.length === 1 && selectedMethod ? <div className="payment-method-notice">
+            <span className="payment-method__text">
+              {!selectedMethod.icon && <strong>{t(selectedMethod.name)}</strong>}
+              {selectedMethod.id !== 'CASH_ON_DELIVERY' && testMode && <small>{t('Test payment')}</small>}
+            </span>
+          </div> : availableMethods.map(method => <label className="payment-method" key={method.id}>
+            <input type="radio" form="checkout-form" name="provider" value={method.id} checked={provider === method.id} onChange={() => { setPreferredProvider(method.id); setError(null) }} />
             <span className="payment-method__radio" aria-hidden="true" />
-            <span className="payment-method__text"><strong>{t(method.name)}</strong><small>{t(method.id !== 'CASH_ON_DELIVERY' && testMode ? 'Test payment' : method.description)}</small></span>
-            {method.icon && <img className="payment-method__icon" src={method.icon} alt="" />}
+            <span className="payment-method__text">{!method.icon && <strong>{t(method.name)}</strong>}{method.id !== 'CASH_ON_DELIVERY' && testMode && <small>{t('Test payment')}</small>}</span>
+            {method.icon && <img className="payment-method__icon" src={method.icon} alt={t(method.name)} />}
           </label>)}
           {paymentSettingsFailed ? <div role="alert">
             <p className="error">{t('Could not load payment methods.')}</p>
@@ -183,16 +195,9 @@ export function CheckoutPage() {
           </div> : !paymentSettings ? <p className="muted" role="status">{t('Loading payment methods…')}</p>
             : !provider ? <p className="muted" role="status">{t('No payment methods are currently available. Please try again later.')}</p> : null}
         </fieldset>
-        <button type="submit" className="btn" disabled={submitting || !provider}>
+        <button type="submit" form="checkout-form" className="btn checkout-submit" disabled={submitting || !provider}>
           {submitting ? t('Placing order…') : !provider || provider === 'CASH_ON_DELIVERY' ? t('Place order') : `${t('Pay')} ${formatPrice(total, store.currency)}`}
         </button>
-      </form>
-      <aside className="checkout-summary">
-        <div className="checkout-summary__head"><p className="eyebrow">02 / {t('Your order')}</p><h2>{t('Order summary')}</h2><span>{t('Items in order: {{quantity}}', { quantity: items.reduce((sum, item) => sum + item.quantity, 0) })}</span></div>
-        <ul className="checkout-lines">{cartLines.map((line) => <li key={line.id}>{line.image && <img src={line.image} alt="" />}<div><strong>{line.name}</strong><span>{line.option} · {t('{{quantity}} units', { quantity: line.quantity })}</span></div><b>{formatPrice(line.total, store.currency)}</b></li>)}</ul>
-        <div className="checkout-delivery"><span>{t('Delivery')}</span><strong>{novaPoshtaEnabled ? t('Nova Poshta branch or parcel locker') : t('Details at checkout')}</strong><small>{t('Shipping cost is confirmed after dispatch.')}</small></div>
-        <div className="checkout-total"><span>{t('Total')}</span><strong>{formatPrice(total, store.currency)}</strong></div>
-        {selectedMethod && <p className="checkout-summary__note">{provider === 'CASH_ON_DELIVERY' ? t(selectedMethod.description) : t('Payment is processed on the secure page of {{provider}}.', { provider: selectedMethod.name })}</p>}
       </aside></div>
     </section>
   )
