@@ -1194,6 +1194,7 @@ textarea {
   .account-profile__head { flex-wrap: wrap; }
   .account-layout { grid-template-columns: minmax(0, 1fr); }
   .account-details div { display: grid; }
+  .account-profile .account-details > div { grid-template-columns: minmax(0, 1fr); }
   .account-details dd { text-align: left; }
 }
 
