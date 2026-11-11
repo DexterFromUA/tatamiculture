@@ -1409,7 +1409,14 @@ textarea {
 @media (max-width: 600px) { .banner-settings__languages { grid-template-columns: 1fr; } }
 .banner-settings__actions { display: flex; align-items: center; gap: 14px; padding-top: 20px; border-top: 1px solid var(--crm-border); }
 .banner-settings__actions .success { margin: 0; }
-@media (max-width: 850px) { .settings-workspace { grid-template-columns: 1fr; } .settings-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); } .settings-nav button { border-bottom: 0; } .settings-nav button:not(:last-child) { border-right: 1px solid var(--crm-border); } }
+@media (max-width: 850px) { .settings-workspace { grid-template-columns: 1fr; } .settings-nav { grid-template-columns: repeat(4, minmax(0, 1fr)); } .settings-nav button { border-bottom: 0; } .settings-nav button:not(:last-child) { border-right: 1px solid var(--crm-border); } }
+.sms-provider-settings__provider { padding-top: 16px; }
+.sms-provider-settings__switch { display: flex; align-items: center; gap: 12px; }
+.sms-provider-settings__switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 3px; }
+.sms-provider-settings__switch input:disabled + span { opacity: .55; cursor: default; }
+.sms-provider-settings .field { max-width: 360px; margin-top: 16px; }
+.sms-provider-settings__sandbox { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--crm-border); }
+.sms-provider-settings__sandbox h3 { margin: 0; }
 .payment-settings { padding: clamp(22px, 3vw, 32px); }
 .payment-settings__list { display: grid; }
 .payment-settings__row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; cursor: pointer; }
@@ -1425,7 +1432,7 @@ textarea {
 .payment-settings__row input:checked::before { background: var(--card); }
 .payment-settings__row input:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 .payment-settings__row input:disabled { opacity: .55; cursor: default; }
-@media (max-width: 460px) { .settings-nav button small, .settings-nav__index { display: none; } .settings-nav button { display: block; } }
+@media (max-width: 460px) { .settings-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } .settings-nav button:nth-child(-n+2) { border-bottom: 1px solid var(--crm-border); } .settings-nav button:nth-child(2) { border-right: 0; } .settings-nav button small, .settings-nav__index { display: none; } .settings-nav button { display: block; } }
 @media (max-width: 600px) { .settings-nav button { padding: 16px 12px; } .settings-nav__arrow { display: none; } .settings-nav button { grid-template-columns: auto minmax(0, 1fr); } }
 
 /* Cart and checkout */
