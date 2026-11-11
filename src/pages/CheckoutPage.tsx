@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useCart } from '../context/CartContext'
@@ -12,8 +12,16 @@ import { getPaymentSettings, paymentMethods, paymentSettingsChanged, paymentUnav
 import { supabaseRequest } from '../lib/supabase'
 import type { CheckoutInput } from '../types'
 import { useTranslation } from 'react-i18next'
+import { LoadingIndicator } from '../components/LoadingIndicator'
 
 export function CheckoutPage() {
+  const { user, initializing } = useAuth()
+  const { t } = useTranslation()
+  if (initializing) return <LoadingIndicator label={t('Loading…')} />
+  return <CheckoutForm key={user?.id ?? 'guest'} />
+}
+
+function CheckoutForm() {
   const { store, products } = useStore()
   const { items, clear, rememberOnlineCheckout } = useCart()
   const { user, token } = useAuth()
@@ -22,6 +30,8 @@ export function CheckoutPage() {
   const { t, i18n } = useTranslation()
   const [submitting, setSubmitting] = useState(false)
   const storeId = store?.id
+  const userId = user?.id
+  const hasItems = items.length > 0
   const [preferredProvider, setPreferredProvider] = useState<PaymentProvider | null>(null)
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null)
   const [paymentSettingsFailed, setPaymentSettingsFailed] = useState(false)
@@ -34,9 +44,10 @@ export function CheckoutPage() {
   const [cityRef, setCityRef] = useState<string | null>(null)
   const [addressRef, setAddressRef] = useState<string | null>(null)
   const [deliveryServiceType, setDeliveryServiceType] = useState<'WarehouseWarehouse' | 'WarehousePostomat'>('WarehouseWarehouse')
-  const [cities, setCities] = useState<Array<{ ref: string; name: string; area: string }>>([])
-  const [warehouses, setWarehouses] = useState<Array<{ ref: string; name: string; type: string }>>([])
+  const [cityResults, setCityResults] = useState<{ query: string; rows: Array<{ ref: string; name: string; area: string }> }>()
+  const [warehouseResults, setWarehouseResults] = useState<{ cityRef: string; rows: Array<{ ref: string; name: string; type: string }> }>()
   const [deliveryError, setDeliveryError] = useState<string | null>(null)
+  const deliveryEdited = useRef(false)
   const [form, setForm] = useState<CheckoutInput>({
     name: user?.name ?? '',
     email: user?.email ?? '',
@@ -45,6 +56,28 @@ export function CheckoutPage() {
     address: '',
     note: '',
   })
+  const cities = !cityRef && cityResults?.query === form.city ? cityResults.rows : []
+  const warehouses = warehouseResults && warehouseResults.cityRef === cityRef ? warehouseResults.rows : []
+
+  useEffect(() => {
+    if (!storeId || !userId || !token || !hasItems) return
+    const controller = new AbortController()
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(10000)])
+    void api.getLastDeliveryAddress(token, storeId, userId, signal).then(saved => {
+      if (!saved || signal.aborted || deliveryEdited.current) return
+      const useSavedBranch = novaPoshtaEnabled && saved.cityRef && saved.addressRef
+      setForm(current => ({ ...current, city: saved.city, address: novaPoshtaEnabled && !useSavedBranch ? '' : saved.address }))
+      setDeliveryError(null)
+      if (useSavedBranch) {
+        setCityRef(saved.cityRef)
+        setAddressRef(saved.addressRef)
+        setDeliveryServiceType(saved.deliveryServiceType)
+      }
+    }).catch(() => {
+      // A saved address is optional. The buyer can still enter delivery details.
+    })
+    return () => controller.abort()
+  }, [storeId, userId, token, hasItems])
 
   useEffect(() => {
     if (!storeId) return
@@ -62,20 +95,31 @@ export function CheckoutPage() {
   }
 
   useEffect(() => {
-    if (!novaPoshtaEnabled || cityRef || form.city.trim().length < 2) { setCities([]); setDeliveryError(null); return }
+    if (!novaPoshtaEnabled || cityRef || form.city.trim().length < 2) return
+    const controller = new AbortController()
     const timeout = window.setTimeout(() => {
-      void supabaseRequest<Array<{ ref: string; name: string; area: string }>>('/functions/v1/nova-poshta-directory', { method: 'POST', body: JSON.stringify({ action: 'cities', query: form.city }) })
-        .then((result) => { setCities(result); setDeliveryError(null) })
-        .catch((cause) => { setCities([]); setDeliveryError(cause instanceof Error ? cause.message : 'Could not load Nova Poshta cities') })
+      void supabaseRequest<Array<{ ref: string; name: string; area: string }>>('/functions/v1/nova-poshta-directory', {
+        method: 'POST', body: JSON.stringify({ action: 'cities', query: form.city }), signal: controller.signal,
+      }).then(result => {
+        if (!controller.signal.aborted) setCityResults({ query: form.city, rows: result })
+      }).catch(cause => {
+        if (!controller.signal.aborted) setDeliveryError(cause instanceof Error ? cause.message : 'Could not load Nova Poshta cities')
+      })
     }, 300)
-    return () => window.clearTimeout(timeout)
+    return () => { window.clearTimeout(timeout); controller.abort() }
   }, [form.city, cityRef])
 
   useEffect(() => {
-    if (!novaPoshtaEnabled || !cityRef) { setWarehouses([]); return }
-    void supabaseRequest<Array<{ ref: string; name: string; type: string }>>('/functions/v1/nova-poshta-directory', { method: 'POST', body: JSON.stringify({ action: 'warehouses', cityRef }) })
-      .then((result) => { setWarehouses(result); setDeliveryError(null) })
-      .catch((cause) => { setWarehouses([]); setDeliveryError(cause instanceof Error ? cause.message : 'Could not load Nova Poshta branches') })
+    if (!novaPoshtaEnabled || !cityRef) return
+    const controller = new AbortController()
+    void supabaseRequest<Array<{ ref: string; name: string; type: string }>>('/functions/v1/nova-poshta-directory', {
+      method: 'POST', body: JSON.stringify({ action: 'warehouses', cityRef }), signal: controller.signal,
+    }).then(result => {
+      if (!controller.signal.aborted) setWarehouseResults({ cityRef, rows: result })
+    }).catch(cause => {
+      if (!controller.signal.aborted) setDeliveryError(cause instanceof Error ? cause.message : 'Could not load Nova Poshta branches')
+    })
+    return () => controller.abort()
   }, [cityRef])
 
   if (!store) return null
@@ -139,8 +183,31 @@ export function CheckoutPage() {
   }
 
   const setField = (key: keyof CheckoutInput) => (event: { target: { value: string } }) => {
-    setForm((current) => ({ ...current, [key]: event.target.value }))
+    if (key === 'address') deliveryEdited.current = true
+    const { value } = event.target
+    setForm((current) => ({ ...current, [key]: value }))
   }
+
+  const changeCity = (name: string, ref: string | null = null) => {
+    deliveryEdited.current = true
+    setCityRef(ref)
+    setAddressRef(null)
+    setCityResults(undefined)
+    setWarehouseResults(undefined)
+    setDeliveryError(null)
+    setForm(current => ({ ...current, city: name, address: '' }))
+  }
+
+  const changeBranch = (ref: string) => {
+    deliveryEdited.current = true
+    const warehouse = warehouses.find(item => item.ref === ref)
+    setAddressRef(warehouse?.ref ?? null)
+    setDeliveryServiceType(/поштомат|postomat/i.test(warehouse?.type ?? '') || /поштомат/i.test(warehouse?.name ?? '')
+      ? 'WarehousePostomat' : 'WarehouseWarehouse')
+    setForm(current => ({ ...current, address: warehouse?.name ?? '' }))
+  }
+
+  const showSavedBranch = addressRef && form.address && !warehouses.some(warehouse => warehouse.ref === addressRef)
 
   return (
     <section className="checkout-page">
@@ -163,8 +230,24 @@ export function CheckoutPage() {
           <input type="tel" autoComplete="tel" required value={form.phone} onChange={setField('phone')} />
         </label>
         </div>
-        <div className="field"><label htmlFor="checkout-city">{t('City')}</label><input id="checkout-city" required value={form.city} onChange={(event) => { setCityRef(null); setAddressRef(null); setForm((current) => ({ ...current, city: event.target.value, address: '' })) }} />{novaPoshtaEnabled && cities.length > 0 ? <div className="city-results" role="listbox">{cities.map((city) => <button type="button" role="option" key={city.ref} onClick={() => { setCityRef(city.ref); setAddressRef(null); setForm((current) => ({ ...current, city: city.name, address: '' })); setCities([]) }}><strong>{city.name}</strong>{city.area ? <small>{city.area}</small> : null}</button>)}</div> : null}{novaPoshtaEnabled && deliveryError ? <small className="error">Nova Poshta: {deliveryError}</small> : null}</div>
-        {novaPoshtaEnabled && cityRef ? <label className="field"><span>{t('Nova Poshta branch or parcel locker')}</span><select required disabled={warehouses.length === 0} value={addressRef ?? ''} onChange={(event) => { const warehouse = warehouses.find((item) => item.ref === event.target.value); setAddressRef(warehouse?.ref ?? null); setDeliveryServiceType(/поштомат|postomat/i.test(warehouse?.type ?? '') || /поштомат/i.test(warehouse?.name ?? '') ? 'WarehousePostomat' : 'WarehouseWarehouse'); setForm((current) => ({ ...current, address: warehouse?.name ?? '' })) }}><option value="">{warehouses.length ? t('Choose branch') : t('Loading branches…')}</option>{warehouses.map((warehouse) => <option key={warehouse.ref} value={warehouse.ref}>{warehouse.name}</option>)}</select></label> : null}
+        <div className="field">
+          <label htmlFor="checkout-city">{t('City')}</label>
+          <input id="checkout-city" required value={form.city} onChange={event => changeCity(event.target.value)} />
+          {novaPoshtaEnabled && cities.length > 0 && <div className="city-results" role="listbox">
+            {cities.map(city => <button type="button" role="option" key={city.ref} onClick={() => changeCity(city.name, city.ref)}>
+              <strong>{city.name}</strong>{city.area && <small>{city.area}</small>}
+            </button>)}
+          </div>}
+          {novaPoshtaEnabled && deliveryError && <small className="error">Nova Poshta: {deliveryError}</small>}
+        </div>
+        {novaPoshtaEnabled && cityRef && <label className="field">
+          <span>{t('Nova Poshta branch or parcel locker')}</span>
+          <select required disabled={!warehouses.length && !showSavedBranch} value={addressRef ?? ''} onChange={event => changeBranch(event.target.value)}>
+            <option value="">{t(warehouses.length || showSavedBranch || deliveryError ? 'Choose branch' : 'Loading branches…')}</option>
+            {showSavedBranch && <option value={addressRef}>{form.address}</option>}
+            {warehouses.map(warehouse => <option key={warehouse.ref} value={warehouse.ref}>{warehouse.name}</option>)}
+          </select>
+        </label>}
         {!novaPoshtaEnabled ? <label className="field"><span>{t('Address')}</span><input required value={form.address} onChange={setField('address')} /></label> : null}
         <label className="field">
           <span>{t('Note')}</span>

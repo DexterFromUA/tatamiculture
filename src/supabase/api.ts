@@ -161,8 +161,34 @@ export const supabaseApi = {
   },
 
   async getOrders(token: string, storeId: string, userId: string): Promise<Order[]> {
-    const rows = await supabaseRequest<Row[]>(`/rest/v1/orders?store_id=eq.${encodeURIComponent(storeId)}&user_id=eq.${encodeURIComponent(userId)}&select=*,order_items(*)&order=created_at.desc`, { token })
+    const rows = await supabaseRequest<Row[]>(`/rest/v1/orders?store_id=eq.${encodeURIComponent(storeId)}&user_id=eq.${encodeURIComponent(userId)}&select=*,order_items(*)&order=created_at.desc,id.desc`, { token })
     return rows.map(mapOrder)
+  },
+
+  async getLastDeliveryAddress(token: string, storeId: string, userId: string, signal: AbortSignal) {
+    const query = new URLSearchParams({
+      store_id: `eq.${storeId}`,
+      user_id: `eq.${userId}`,
+      delivery_city: 'neq.',
+      delivery_address: 'neq.',
+      select: 'delivery_city,delivery_address,delivery_city_ref,delivery_address_ref,delivery_service_type',
+      order: 'created_at.desc,id.desc',
+      limit: '1',
+    })
+    const [row] = await supabaseRequest<Row[]>(`/rest/v1/orders?${query}`, { token, signal, cache: 'no-store' })
+    if (!row) return null
+    const city = text(row.delivery_city).trim()
+    const address = text(row.delivery_address).trim()
+    if (!city || !address) return null
+    return {
+      city,
+      address,
+      cityRef: text(row.delivery_city_ref) || null,
+      addressRef: text(row.delivery_address_ref) || null,
+      deliveryServiceType: row.delivery_service_type === 'WarehousePostomat'
+        || (!row.delivery_service_type && /поштомат|postomat/i.test(address))
+        ? 'WarehousePostomat' as const : 'WarehouseWarehouse' as const,
+    }
   },
 
   async claimGuestOrder(storeId: string, receiptCode: string, token: string): Promise<boolean> {

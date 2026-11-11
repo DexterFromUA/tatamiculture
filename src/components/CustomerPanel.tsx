@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { fetchAll } from '../lib/crm'
 import { useDrawer } from '../lib/useDrawer'
-import { CrmCustomerCard, type CrmCustomer, type CrmOrder } from './CrmCustomerCard'
+import { CrmCustomerCard, type CrmCustomer, type CustomerCardOrder } from './CrmCustomerCard'
 import type { OrderStatus, PaymentStatus } from '../types'
 
 export type CustomerOrder = {
@@ -32,7 +32,7 @@ export function CustomerPanel({ target, storeId, token, onSaved, onClose }: {
   const titleId = useId()
   const { ref: dialogRef, close: closeDrawer, onCancel, onClick } = useDrawer({ openOnMount: true, onClose })
   const [customers, setCustomers] = useState<CrmCustomer[]>([])
-  const [orders, setOrders] = useState<CrmOrder[]>([])
+  const [orders, setOrders] = useState<CustomerCardOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [revision, setRevision] = useState(0)
   const [error, setError] = useState('')
@@ -40,7 +40,7 @@ export function CustomerPanel({ target, storeId, token, onSaved, onClose }: {
     const abort = new AbortController()
     Promise.all([
       fetchAll<CrmCustomer>(`/rest/v1/crm_customers?store_id=eq.${storeId}&select=*&order=created_at.desc,id`, token, abort.signal),
-      fetchAll<CrmOrder>(`/rest/v1/orders?store_id=eq.${storeId}&select=id,crm_customer_id,user_id,receipt_code,total_price,currency,status,created_at&order=created_at.desc,id`, token, abort.signal),
+      fetchAll<CustomerCardOrder>(`/rest/v1/orders?store_id=eq.${storeId}&select=id,crm_customer_id,user_id,receipt_code,total_price,currency,status,created_at,delivery_city,delivery_address&order=created_at.desc,id.desc`, token, abort.signal),
     ]).then(([people, purchases]) => {
       if (abort.signal.aborted) return
       setCustomers(people)

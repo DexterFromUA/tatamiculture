@@ -36,6 +36,9 @@ export function AccountPage() {
   }, [store, token, userId])
 
   if (!store || !user) return null
+  const lastDelivery = orders.find(order =>
+    order.storeId === store.id && order.userId === userId && order.deliveryCity.trim() && order.deliveryAddress.trim(),
+  )
 
   return (
     <section className="account-page">
@@ -53,7 +56,11 @@ export function AccountPage() {
           <dl className="account-details">
             {user.email && <div><dt>{t('Email')}</dt><dd>{user.email}</dd></div>}
             <div><dt>{t('Phone')}</dt><dd>{user.phone || '—'}</dd></div>
-            <div><dt>{t('City')}</dt><dd>{user.city || '—'}</dd></div>
+            <div><dt>{t('City')}</dt><dd>{lastDelivery?.deliveryCity || user.city || '—'}</dd></div>
+            {lastDelivery && <div>
+              <dt>{t('Last delivery address')}</dt>
+              <dd>{lastDelivery.deliveryAddress}</dd>
+            </div>}
           </dl>
         </aside>
         <section className="account-orders account-card">

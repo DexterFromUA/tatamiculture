@@ -7,10 +7,11 @@ import { formatDate, formatPrice } from '../lib/format'
 
 export type CrmCustomer = { id: string; name: string; phone: string; email: string; notes: string; tags: string[]; created_at: string }
 export type CrmOrder = { id: string; crm_customer_id: string | null; user_id: string | null; receipt_code: string; total_price: number; currency: string; status: string; created_at: string }
+export type CustomerCardOrder = CrmOrder & { delivery_city: string | null; delivery_address: string | null }
 
 
 export function CrmCustomerCard({ customer, customers, orders, storeId, token, onSaved, onClose }: {
-  customer: CrmCustomer; customers: CrmCustomer[]; orders: CrmOrder[]; storeId: string; token: string
+  customer: CrmCustomer; customers: CrmCustomer[]; orders: CustomerCardOrder[]; storeId: string; token: string
   onSaved: () => void; onClose: () => void
 }) {
   const { t } = useTranslation()
@@ -20,12 +21,17 @@ export function CrmCustomerCard({ customer, customers, orders, storeId, token, o
   const [error, setError] = useState('')
   const [targetId, setTargetId] = useState('')
   const own = orders.filter(order => order.crm_customer_id === customer.id)
+  const lastDelivery = own.find(order => order.delivery_city?.trim() && order.delivery_address?.trim())
   const duplicates = customers.filter(item => item.id !== customer.id && customerPhone(customer.phone).length >= 9 && customerPhone(item.phone) === customerPhone(customer.phone))
   const totals = new Map<string, number>()
   for (const order of own.filter(order => !order.status.startsWith('CANCELLED'))) totals.set(order.currency, (totals.get(order.currency) ?? 0) + Number(order.total_price))
   return <section className="crm-panel">
     <div className="product-editor__head"><h2>{customer.name}</h2></div>
     <p>{customer.phone} · {customer.email}</p>
+    {lastDelivery && <dl className="account-details">
+      <div><dt>{t('City')}</dt><dd>{lastDelivery.delivery_city}</dd></div>
+      <div><dt>{t('Last delivery address')}</dt><dd>{lastDelivery.delivery_address}</dd></div>
+    </dl>}
     <p>{own.length} {t('orders')} · {[...totals].map(([currency, amount]) => formatPrice(amount / 100, currency)).join(' · ')}</p>
     <CustomerAccountActions storeId={storeId} customerId={customer.id} token={token} onDeleted={onSaved} />
     {error && <p className="error" role="alert">{error}</p>}

@@ -247,6 +247,7 @@ const uk = {
   'Added to cart': 'Додано до кошика', 'Previous image': 'Попереднє зображення', 'Next image': 'Наступне зображення', 'pre-order': 'передзамовлення',
   'Page not found': 'Сторінку не знайдено', 'Loading…': 'Завантаження…',
   'Secure checkout': 'Безпечне оформлення', 'Delivery details': 'Дані для доставки',
+  'Last delivery address': 'Остання адреса доставки',
   'We will use these details only to prepare and send your order.': 'Ми використаємо ці дані лише для підготовки та відправлення замовлення.',
   'Send SMS code': 'Надіслати SMS-код', 'Verify your phone': 'Підтвердження телефону',
   'Confirm code': 'Підтвердити код', 'SMS code': 'Код із SMS', 'Code sent to {{phone}}.': 'Код надіслано на {{phone}}.',
