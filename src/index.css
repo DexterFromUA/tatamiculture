@@ -1829,13 +1829,12 @@ input[type="date"] { color-scheme: light; }
 /* Registration follows the same centered account layout as sign in. */
 .auth-card--register .login-intro h1 { max-width: 10ch; }
 
-.customer-account-actions {
-  padding: 16px;
-  border: 1px solid var(--line);
-  background: var(--paper);
-  overflow-wrap: anywhere;
-}
-.customer-account-actions__form { margin-top: 12px; }
+.customer-account-actions { margin: 12px 0 20px; overflow-wrap: anywhere; }
+.customer-account-actions__row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.customer-phone-status { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper); color: var(--muted); font-size: .75rem; font-weight: 600; }
+.customer-phone-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+.customer-phone-status--confirmed { color: var(--ink); border-color: color-mix(in srgb, #30865c 35%, var(--line)); background: color-mix(in srgb, #30865c 12%, var(--paper)); }
+.customer-phone-status--confirmed::before { background: #30865c; }
 .customer-account-actions__delete { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .customer-account-actions__delete .actions { margin-top: 0; }
 .customer-account-actions .customer-account-actions__danger { color: var(--danger); }
