@@ -1783,12 +1783,12 @@ input[type="date"] { color-scheme: light; }
 @media (max-width: 700px) {
   .order-bulk__actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .order-bulk__actions .catalog-bulk__selection { min-height: 44px; }
-  .order-bulk--orders { gap: 0; }
-  .order-bulk--orders .order-bulk__actions { min-height: 0; max-height: 280px; overflow: hidden; transition: max-height .25s ease, opacity .2s ease, transform .2s ease, visibility .25s; }
-  .order-bulk--orders .order-bulk__actions[aria-hidden="true"] { max-height: 0; }
+  .order-bulk { gap: 0; }
+  .order-bulk .order-bulk__actions { min-height: 0; max-height: 280px; overflow: hidden; transition: max-height .25s ease, opacity .2s ease, transform .2s ease, visibility .25s; }
+  .order-bulk .order-bulk__actions[aria-hidden="true"] { max-height: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .order-bulk, .order-bulk__actions, .order-bulk--orders .order-bulk__actions { transition: none; }
+  .order-bulk, .order-bulk__actions, .order-bulk .order-bulk__actions { transition: none; }
 }
 .crm-page .catalog-admin__list li.catalog-admin__selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 5%, var(--card)); }
 @media (max-width: 700px) {
