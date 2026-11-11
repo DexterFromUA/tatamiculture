@@ -206,6 +206,12 @@ export const supabaseApi = {
     return row ? mapOrder(row) : null
   },
 
+  async getOnlineCheckoutStatus(code: string) {
+    return supabaseRequest<'PENDING' | 'FAILED' | 'PAID' | null>('/rest/v1/rpc/get_online_checkout_status', {
+      method: 'POST', body: JSON.stringify({ p_receipt_code: code }),
+    })
+  },
+
   async getShortLink(code: string) {
     const links = await supabaseRequest<Row[]>(`/rest/v1/short_links?code=eq.${encodeURIComponent(code)}&select=*`)
     const link = links[0]

@@ -21,8 +21,8 @@ Deno.serve(async (request) => {
     if (!order?.nova_poshta_ttn) throw new Error('Create a TTN first')
     const { data: member } = await db.from('store_members').select('role').eq('store_id', order.store_id).eq('user_id', user.user.id).maybeSingle()
     if (!member) return json({ error: 'You do not have access to this order' }, 403)
-    const { data: settings } = await db.from('delivery_settings').select('nova_post_test_mode,sender_phone').eq('store_id', order.store_id).maybeSingle()
-    const key = settings?.nova_post_test_mode ? Deno.env.get('NOVA_POSHTA_TEST_API_KEY')?.trim() : Deno.env.get('NOVA_POSHTA_API_KEY')?.trim()
+    const { data: settings } = await db.from('delivery_settings').select('sender_phone').eq('store_id', order.store_id).maybeSingle()
+    const key = Deno.env.get('NOVA_POSHTA_API_KEY')?.trim()
     if (!key) throw new Error('Nova Poshta API key is not configured')
     const response = await fetch('https://api.novaposhta.ua/v2.0/json/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: key, modelName: 'TrackingDocument', calledMethod: 'getStatusDocuments', methodProperties: { Documents: [{ DocumentNumber: order.nova_poshta_ttn, Phone: String(settings?.sender_phone ?? '').replace(/\D/g, '') }] } }) })
     const result = await response.json() as { success?: boolean; data?: Array<{ Status?: string; StatusCode?: string }> ; errors?: string[] }

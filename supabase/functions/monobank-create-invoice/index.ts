@@ -1,6 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { manageReservedPayment } from '../_shared/reserved-payment.ts'
-import { CheckoutOrderError, createOnlineOrder, getCheckoutTestMode } from '../_shared/checkout-order.ts'
+import { CheckoutOrderError, prepareOnlineCheckout, getCheckoutTestMode, paymentReturnUrl } from '../_shared/checkout-order.ts'
 import { monobankApi, monobankToken } from '../_shared/monobank.ts'
 
 type Body = {
@@ -30,36 +29,26 @@ Deno.serve(async (request) => {
     const email = typeof body.checkout.email === 'string' ? body.checkout.email.trim() : ''
     const customerEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : ''
     body.checkout.email = customerEmail
-    const { order, userId } = await createOnlineOrder(serviceClient, request, anonKey, 'MONOBANK', body, testMode)
-    if (userId) {
-      try {
-        const payment = await manageReservedPayment(serviceClient, order, userId, 'pay', supabaseUrl, siteUrl)
-        return json({ ...payment, receiptCode: order.receipt_code, reserved: true })
-      } catch (error) {
-        console.error('Could not open reserved order payment', order.id, error)
-        return json({ receiptCode: order.receipt_code, reserved: true })
-      }
-    }
-
-    const { data: items, error: itemsError } = await serviceClient.from('order_items').select('product_name,variant_name,quantity,unit_price').eq('order_id', order.id)
-    if (itemsError || !items?.length) throw new Error(itemsError?.message ?? 'Order has no items')
+    const attempt = await prepareOnlineCheckout(serviceClient, request, anonKey, 'MONOBANK', body, testMode)
 
     const invoiceRequest = {
-      amount: Number(order.total_price), ccy: 980, validity: 3600, paymentType: 'debit',
+      amount: Number(attempt.total_price), ccy: 980, validity: 3600, paymentType: 'debit',
       merchantPaymInfo: {
-        reference: order.id, destination: `${testMode ? 'TEST · ' : ''}tatami.culture order ${order.receipt_code}`, comment: body.checkout.note || `tatami.culture order ${order.receipt_code}`,
+        reference: attempt.id, destination: `${testMode ? 'TEST · ' : ''}tatami.culture order ${attempt.receipt_code}`, comment: body.checkout.note || `tatami.culture order ${attempt.receipt_code}`,
         ...(customerEmail && !testMode ? { customerEmails: [customerEmail] } : {}),
-        basketOrder: items.map((item) => ({ name: `${item.product_name} (${item.variant_name})`, qty: item.quantity, sum: Number(item.unit_price), total: Number(item.unit_price) * item.quantity, unit: 'pcs' })),
+        basketOrder: attempt.items.map((item) => ({ name: `${item.product_name} (${item.variant_name})`, qty: item.quantity, sum: Number(item.unit_price), total: Number(item.unit_price) * item.quantity, unit: 'pcs' })),
       },
-      ...(siteUrl && !/^https?:\/\/(localhost|127\.0\.0\.1)(?::\d+)?$/i.test(siteUrl) ? { redirectUrl: `${siteUrl}/receipt/${order.receipt_code}?payment=return` } : {}),
+      redirectUrl: paymentReturnUrl(siteUrl, attempt.receipt_code),
       webHookUrl: `${supabaseUrl}/functions/v1/monobank-webhook`,
     }
     const invoiceResponse = await fetch(`${monobankApi}/invoice/create`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Token': monoToken }, body: JSON.stringify(invoiceRequest) })
     const invoice = await invoiceResponse.json() as { invoiceId?: string; pageUrl?: string; errText?: string }
     if (!invoiceResponse.ok || !invoice.invoiceId || !invoice.pageUrl) throw new Error(invoice.errText ?? 'Monobank could not create an invoice')
-    const { error: paymentError } = await serviceClient.from('payments').insert({ order_id: order.id, provider: 'MONOBANK', provider_order_id: invoice.invoiceId, status: 'PENDING' })
-    if (paymentError) throw new Error(paymentError.message)
-    return json({ pageUrl: invoice.pageUrl, receiptCode: order.receipt_code })
+    const { error: linkError } = await serviceClient.from('online_checkouts')
+      .update({ provider_order_id: invoice.invoiceId }).eq('id', attempt.id)
+      .is('provider_order_id', null).select('id').single()
+    if (linkError) throw new Error(linkError.message)
+    return json({ pageUrl: invoice.pageUrl, receiptCode: attempt.receipt_code })
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : 'Checkout could not be started' }, error instanceof CheckoutOrderError ? error.status : 400)
   }

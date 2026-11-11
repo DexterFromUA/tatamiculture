@@ -1,5 +1,5 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
-import { CheckoutOrderError } from './checkout-order.ts'
+import { CheckoutOrderError, paymentReturnUrl } from './checkout-order.ts'
 import { encodeLiqPayData, liqPayKeys, liqPaySignature } from './liqpay.ts'
 import { monobankApi, monobankToken } from './monobank.ts'
 
@@ -55,8 +55,7 @@ export async function manageReservedPayment(
       .in('status', ['PENDING', 'FAILED']).select('id').single()
     if (error) throw pending()
   }
-  const returnUrl = siteUrl && !/^https?:\/\/(localhost|127\.0\.0\.1)(?::\d+)?$/i.test(siteUrl)
-    ? `${siteUrl}/receipt/${order.receipt_code}?payment=return` : undefined
+  const returnUrl = paymentReturnUrl(siteUrl, order.receipt_code)
   const testMode = order.payment_test_mode ?? order.monobank_test_mode
   const description = `${testMode ? 'TEST · ' : ''}tatami.culture order ${order.receipt_code}`
   let reference = payment.provider_order_id

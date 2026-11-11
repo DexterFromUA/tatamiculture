@@ -1418,8 +1418,6 @@ textarea {
 .sms-provider-settings__switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 3px; }
 .sms-provider-settings__switch input:disabled + span { opacity: .55; cursor: default; }
 .sms-provider-settings .field { max-width: 360px; margin-top: 16px; }
-.sms-provider-settings__sandbox { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--crm-border); }
-.sms-provider-settings__sandbox h3 { margin: 0; }
 .payment-settings { padding: clamp(22px, 3vw, 32px); }
 .payment-settings__list { display: grid; }
 .payment-settings__row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; cursor: pointer; }

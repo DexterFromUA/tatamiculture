@@ -3,6 +3,8 @@ import { Buffer } from 'node:buffer'
 import { createPublicKey, verify, type KeyObject } from 'node:crypto'
 import { monobankApi, monobankToken } from '../_shared/monobank.ts'
 
+import { findOnlineCheckout, settleOnlineCheckout } from '../_shared/checkout-order.ts'
+
 type Callback = { invoiceId?: string; status?: string }
 
 const publicKeys = new Map<string, { key: KeyObject; fetchedAt: number }>()
@@ -40,12 +42,19 @@ Deno.serve(async (request) => {
       return new Response('Missing or invalid invoice ID', { status: 400 })
     }
     const client = createClient(supabaseUrl, serviceRoleKey)
-    const { data: invoiceOrder, error: lookupError } = await client.from('payments')
-      .select('orders!inner(monobank_test_mode)').eq('provider_order_id', callback.invoiceId).eq('provider', 'MONOBANK')
-      .maybeSingle<{ orders: { monobank_test_mode: boolean } }>()
-    if (lookupError) throw lookupError
-    if (!invoiceOrder) return new Response('Invoice not found', { status: 404 })
-    const monoToken = monobankToken(invoiceOrder.orders.monobank_test_mode)
+    const attempt = await findOnlineCheckout(client, 'MONOBANK', callback.invoiceId)
+    let testMode: boolean
+    if (attempt) {
+      testMode = attempt.test_mode
+    } else {
+      const { data: invoiceOrder, error: lookupError } = await client.from('payments')
+        .select('orders!inner(monobank_test_mode)').eq('provider_order_id', callback.invoiceId).eq('provider', 'MONOBANK')
+        .maybeSingle<{ orders: { monobank_test_mode: boolean } }>()
+      if (lookupError) throw new Error(lookupError.message)
+      if (!invoiceOrder) return new Response('Invoice not found', { status: 404 })
+      testMode = invoiceOrder.orders.monobank_test_mode
+    }
+    const monoToken = monobankToken(testMode)
     if (!monoToken) return new Response('Not configured', { status: 503 })
     if (!await validSignature(monoToken, raw, Buffer.from(signature, 'base64'))) {
       return new Response('Invalid signature', { status: 401 })
@@ -54,10 +63,19 @@ Deno.serve(async (request) => {
     const statusResponse = await fetch(`${monobankApi}/invoice/status?invoiceId=${encodeURIComponent(callback.invoiceId)}`, {
       headers: { 'X-Token': monoToken }, signal: AbortSignal.timeout(5000),
     })
-    const invoice = await statusResponse.json() as { status?: string }
+    const invoice = await statusResponse.json() as { status?: string; invoiceId?: string; reference?: string; amount?: number; ccy?: number }
     if (!statusResponse.ok) throw new Error('Monobank status check failed')
     const paid = invoice.status === 'success'
-    if (!paid && invoice.status !== 'failure' && invoice.status !== 'expired') return new Response('OK')
+    const failed = invoice.status === 'failure' || invoice.status === 'expired' || (attempt && invoice.status === 'reversed')
+    if (!paid && !failed) return new Response('OK')
+    if (attempt) {
+      if (paid && (invoice.invoiceId !== callback.invoiceId || invoice.reference !== attempt.id)) {
+        throw new Error('Monobank invoice does not match checkout')
+      }
+      await settleOnlineCheckout(client, 'MONOBANK', callback.invoiceId, paid,
+        invoice.amount ?? NaN, invoice.ccy === 980 ? 'UAH' : '', null, callback)
+      return new Response('OK')
+    }
     const { error } = await client.rpc('apply_online_payment_callback', {
       p_provider: 'MONOBANK', p_reference: callback.invoiceId, p_paid: paid,
       p_payment_id: null, p_callback: callback,

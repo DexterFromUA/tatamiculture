@@ -6,7 +6,7 @@ export const monobankEnabled = import.meta.env.VITE_MONOBANK_ENABLED === 'true'
 export const novaPoshtaEnabled = import.meta.env.VITE_NOVAPOSHTA_ENABLED === 'true'
 
 type OnlineCheckout = { store: Store; items: CartItem[]; checkout: CheckoutInput; token: string | null; testMode: boolean | null }
-type CheckoutPayment = { data?: string; signature?: string; pageUrl?: string; receiptCode?: string; reserved?: boolean }
+type CheckoutPayment = { data?: string; signature?: string; pageUrl?: string; receiptCode?: string }
 
 export async function startLiqPayCheckout(input: OnlineCheckout) {
   return supabaseRequest<CheckoutPayment>('/functions/v1/liqpay-create-checkout', {

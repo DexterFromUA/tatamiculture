@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useCart } from '../context/CartContext'
 import { useStore } from '../context/StoreContext'
@@ -27,7 +27,8 @@ export function ReceiptPage() {
   const { completeOnlineCheckout } = useCart()
   const { user, token, initializing, logout } = useAuth()
   const location = useLocation()
-  const returningFromPayment = new URLSearchParams(location.search).get('payment') === 'return'
+  const legacyPaymentReturn = new URLSearchParams(location.search).get('payment') === 'return'
+  const returnedFromPayment = (location.state as { returnedFromPayment?: boolean } | null)?.returnedFromPayment === true
   const navigate = useNavigate()
   const returnError = (location.state as { claimError?: string } | null)?.claimError
   const [order, setOrder] = useState<Order | null>(null)
@@ -37,43 +38,28 @@ export function ReceiptPage() {
   const { t } = useTranslation()
 
   useEffect(() => {
-    if (!code) return
-    let cancelled = false
-    let timer: number | undefined
-    let retries = returningFromPayment ? 15 : 0
+    if (!code || legacyPaymentReturn) return
+    let active = true
 
-    const load = async () => {
-      try {
-        const next = await api.getOrderByReceipt(code)
-        if (cancelled) return
-        setOrder(next)
-        setLoading(false)
-        if (next?.paymentMethod !== 'ONLINE' || next.status !== 'PENDING'
-          || (next.paymentStatus !== 'PENDING' && next.paymentStatus !== 'FAILED')) return
-      } catch {
-        if (cancelled) return
-        if (!retries) setLoading(false)
-      }
-      if (retries > 0) {
-        retries -= 1
-        timer = window.setTimeout(() => void load(), 2000)
-      }
-    }
+    void api.getOrderByReceipt(code).then(next => {
+      if (active) setOrder(next)
+    }).catch(() => {
+      if (active) setOrder(null)
+    }).finally(() => {
+      if (active) setLoading(false)
+    })
 
-    void load()
-    return () => {
-      cancelled = true
-      window.clearTimeout(timer)
-    }
-  }, [code, returningFromPayment])
+    return () => { active = false }
+  }, [code, legacyPaymentReturn])
 
   useEffect(() => {
-    if (order && order.receiptCode === code?.trim().toLowerCase()) {
-      completeOnlineCheckout(order, returningFromPayment && returnedFromPaymentProvider(document.referrer))
+    if (!legacyPaymentReturn && order && order.receiptCode === code?.trim().toLowerCase()) {
+      completeOnlineCheckout(order, returnedFromPayment && returnedFromPaymentProvider(document.referrer))
     }
-  }, [order, code, completeOnlineCheckout, returningFromPayment])
+  }, [order, code, completeOnlineCheckout, legacyPaymentReturn, returnedFromPayment])
 
   if (!store) return null
+  if (legacyPaymentReturn && code) return <Navigate replace to={`/cart?payment=${encodeURIComponent(code)}`} />
   if (loading) return <div className="page-status">{t('Looking up receipt…')}</div>
 
   if (!order) {

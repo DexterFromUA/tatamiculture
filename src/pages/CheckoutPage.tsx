@@ -22,8 +22,8 @@ export function CheckoutPage() {
 }
 
 function CheckoutForm() {
-  const { store, products, refreshProducts } = useStore()
-  const { items, clear, rememberOnlineCheckout, moveReservedOrderToProfile } = useCart()
+  const { store, products } = useStore()
+  const { items, clear, rememberOnlineCheckout } = useCart()
   const { user, token } = useAuth()
   const { addToast } = useToast()
   const navigate = useNavigate()
@@ -155,25 +155,20 @@ function CheckoutForm() {
       if (novaPoshtaEnabled && (!cityRef || !addressRef || !form.address)) throw new Error(t('Choose a city and Nova Poshta branch'))
       const checkout = novaPoshtaEnabled ? { ...form, cityRef: cityRef ?? undefined, addressRef: addressRef ?? undefined, deliveryServiceType } : form
       if (provider === 'MONOBANK' || provider === 'LIQPAY') {
-        const input = { store, items, checkout, token, testMode }
-        const payment = await (provider === 'MONOBANK' ? startMonobankCheckout(input) : startLiqPayCheckout(input))
-        if (payment.reserved && payment.receiptCode) {
-          moveReservedOrderToProfile(items)
+        try {
+          const input = { store, items, checkout, token, testMode }
+          const payment = await (provider === 'MONOBANK' ? startMonobankCheckout(input) : startLiqPayCheckout(input))
+          rememberOnlineCheckout(payment.receiptCode)
           if (payment.pageUrl) {
             window.location.assign(payment.pageUrl)
+          } else if (payment.data && payment.signature) {
+            redirectToLiqPay(payment.data, payment.signature)
           } else {
-            void refreshProducts().catch(() => {})
-            addToast(t('Order reserved. You can retry payment from your profile.'))
-            navigate('/account')
+            throw new Error('Could not open payment')
           }
-        } else if (payment.pageUrl) {
-          rememberOnlineCheckout(payment.receiptCode)
-          window.location.assign(payment.pageUrl)
-        } else if (payment.data && payment.signature) {
-          rememberOnlineCheckout(payment.receiptCode)
-          redirectToLiqPay(payment.data, payment.signature)
-        } else {
-          throw new Error(t('Could not open payment'))
+        } catch (err) {
+          addToast(t(err instanceof Error ? err.message : 'Could not open payment'))
+          navigate('/cart', { replace: true })
         }
         return
       }

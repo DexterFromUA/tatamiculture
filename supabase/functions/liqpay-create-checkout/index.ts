@@ -1,6 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { manageReservedPayment } from '../_shared/reserved-payment.ts'
-import { CheckoutOrderError, createOnlineOrder, getCheckoutTestMode } from '../_shared/checkout-order.ts'
+import { CheckoutOrderError, prepareOnlineCheckout, getCheckoutTestMode, paymentReturnUrl } from '../_shared/checkout-order.ts'
 import { encodeLiqPayData, legacyLiqPayKeys, liqPayKeys, liqPaySignature } from '../_shared/liqpay.ts'
 
 type CheckoutBody = {
@@ -142,55 +141,27 @@ Deno.serve(async (request) => {
     const keys = liqPayKeys(testMode)
     if (!keys) return json({ error: testMode ? 'LiqPay test keys are not configured.' : 'LiqPay live keys are not configured.' }, 503)
     const { publicKey, privateKey } = keys
-    const { order, userId } = await createOnlineOrder(serviceClient, request, anonKey, 'LIQPAY', body, testMode)
-    if (userId) {
-      try {
-        const payment = await manageReservedPayment(serviceClient, order, userId, 'pay', supabaseUrl, siteUrl)
-        return json({ ...payment, receiptCode: order.receipt_code, reserved: true })
-      } catch (error) {
-        console.error('Could not open reserved order payment', order.id, error)
-        return json({ receiptCode: order.receipt_code, reserved: true })
-      }
-    }
-
-
-    const { data: items, error: itemsError } = await serviceClient
-      .from('order_items')
-      .select('product_name,variant_name,quantity,unit_price')
-      .eq('order_id', order.id)
-    if (itemsError || !items?.length) throw new Error(itemsError?.message ?? 'Order has no items')
+    const attempt = await prepareOnlineCheckout(serviceClient, request, anonKey, 'LIQPAY', body, testMode)
 
     const payload = {
       public_key: publicKey,
       version: '3',
       action: 'pay',
-      amount: Number(order.total_price) / 100,
-      currency: String(order.currency),
-      description: `${testMode ? 'TEST · ' : ''}tatami.culture order ${order.receipt_code}`,
-      order_id: order.id,
-      // LiqPay does not need a return URL to complete the payment: the webhook
-      // below is authoritative. A browser-local URL is not reachable by LiqPay,
-      // so only send result_url once the storefront has a public URL.
-      ...(siteUrl && !/^https?:\/\/(localhost|127\.0\.0\.1)(?::\d+)?$/i.test(siteUrl)
-        ? { result_url: `${siteUrl}/receipt/${order.receipt_code}?payment=return` }
-        : {}),
+      amount: Number(attempt.total_price) / 100,
+      currency: String(attempt.currency),
+      description: `${testMode ? 'TEST · ' : ''}tatami.culture order ${attempt.receipt_code}`,
+      order_id: attempt.id,
+      result_url: paymentReturnUrl(siteUrl, attempt.receipt_code),
       server_url: `${supabaseUrl}/functions/v1/liqpay-webhook`,
       language: 'uk',
       ...(testMode ? { sandbox: 1 } : {}),
-      product_name: items.map((item) => `${item.product_name} (${item.variant_name})`),
-      product_count: items.map((item) => item.quantity),
-      product_price: items.map((item) => Number(item.unit_price) / 100),
+      product_name: attempt.items.map((item) => `${item.product_name} (${item.variant_name})`),
+      product_count: attempt.items.map((item) => item.quantity),
+      product_price: attempt.items.map((item) => Number(item.unit_price) / 100),
     }
     const data = encodeLiqPayData(payload)
     const signature = await liqPaySignature(privateKey, data)
-    const { error: paymentError } = await serviceClient.from('payments').insert({
-      order_id: order.id,
-      provider: 'LIQPAY',
-      provider_order_id: order.id,
-      status: 'PENDING',
-    })
-    if (paymentError) throw new Error(paymentError.message)
-    return json({ data, signature, receiptCode: order.receipt_code })
+    return json({ data, signature, receiptCode: attempt.receipt_code })
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : 'Checkout could not be started' }, error instanceof CheckoutOrderError ? error.status : 400)
   }

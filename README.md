@@ -63,13 +63,13 @@ Each new order keeps its mode for webhook verification. Test orders are labeled 
 
 ## Nova Poshta
 
-1. Generate an API 2.0 key in the Nova Poshta business cabinet and add it to Supabase Edge Function Secrets as `NOVA_POSHTA_API_KEY`. For test TTN, add the separate stage key as `NOVA_POSHTA_TEST_API_KEY`.
-2. Deploy `nova-poshta-directory` and `nova-poshta-create-ttn`.
+1. Generate an API 2.0 key in the Nova Poshta business cabinet and add it to Supabase Edge Function Secrets as `NOVA_POSHTA_API_KEY`.
+2. Deploy `nova-poshta-directory`, `nova-poshta-create-ttn` and `nova-poshta-track-ttn`.
 3. Set `VITE_NOVAPOSHTA_ENABLED=true` in `.env.local`, then restart Vite.
 
 Checkout will then search Nova Poshta cities and require a selected branch or parcel locker. The selected city and branch are saved in the existing delivery fields of the order.
 
-In CRM → Settings, choose the sender and parcel defaults, then select test or live mode. In CRM → Orders, a manager can issue a TTN for a non-cancelled order; its number is saved on the order and opens the public tracking page. A Nova Poshta sender/counterparty with the configured sender name and city must already exist in the selected API-key account.
+In CRM → Settings, choose the sender and parcel defaults. In CRM → Orders, a manager can issue a TTN for a non-cancelled order. Its number is saved on the order and opens the public tracking page. A Nova Poshta sender/counterparty with the configured sender name and city must already exist in the account associated with `NOVA_POSHTA_API_KEY`.
 
 ### Тестовый режим LiqPay
 

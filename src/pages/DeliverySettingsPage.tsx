@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { supabaseRequest } from '../lib/supabase'
-import { NovaPostModeToggle } from '../components/NovaPostModeToggle'
 
 type Warehouse = { ref: string; name: string }
 type City = Warehouse & { area: string }
@@ -123,7 +122,6 @@ export function DeliverySettingsPage({ embedded = false }: { embedded?: boolean 
     if (!token) return
     setError(null)
     try {
-      // The delivery mode switch saves its own field separately.
       await supabaseRequest('/rest/v1/delivery_settings?on_conflict=store_id', {
         method: 'POST', token, headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify(settings),
       })
@@ -140,7 +138,6 @@ export function DeliverySettingsPage({ embedded = false }: { embedded?: boolean 
       {!embedded && <header className="page-head"><p className="eyebrow">{t('Shipping')}</p><h1>{t('Nova Poshta settings')}</h1></header>}
       {error && <p className="error" role="alert">{error}</p>}
       <section className="settings-card">
-        <NovaPostModeToggle />
         <form onSubmit={event => { event.preventDefault(); void save() }}>
           <h2>{t('Sender')}</h2>
           <label className="field">

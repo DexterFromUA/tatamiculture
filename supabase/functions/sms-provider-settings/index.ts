@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { configuredSecret, KyivstarSmsError, kyivstarCredentials, kyivstarSignInCredentials, sendKyivstar } from '../_shared/sms-auth.ts'
+import { configuredSecret, kyivstarSignInCredentials } from '../_shared/sms-auth.ts'
 
 type AuthConfig = {
   hook_send_sms_enabled: boolean
@@ -12,13 +12,13 @@ const headers = {
   'Cache-Control': 'no-store',
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
-  'Access-Control-Allow-Methods': 'GET, PUT, POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
 }
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers })
 
 Deno.serve(async request => {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers })
-  if (request.method !== 'GET' && request.method !== 'PUT' && request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
+  if (request.method !== 'GET' && request.method !== 'PUT') return json({ error: 'Method not allowed' }, 405)
   const authorization = request.headers.get('Authorization')
   if (!authorization?.startsWith('Bearer ')) return json({ error: 'Sign in required' }, 401)
 
@@ -34,28 +34,6 @@ Deno.serve(async request => {
     if (memberError) throw memberError
     if (!memberships.some(member => member.role === 'OWNER' || member.role === 'MANAGER')) {
       return json({ error: 'Manager access required' }, 403)
-    }
-
-    if (request.method === 'POST') {
-      const payload = await request.json().catch(() => null)
-      if (typeof payload?.phone !== 'string' || !/^\+380\d{9}$/.test(payload.phone)) {
-        return json({ error: 'Enter a valid Ukrainian phone number.' }, 400)
-      }
-
-      const sandbox = kyivstarCredentials('sandbox')
-      if (!sandbox) return json({ error: 'Kyivstar sandbox credentials are missing.' }, 503)
-      try {
-        await sendKyivstar(sandbox, payload.phone.slice(1), 'Тестове SMS від tatami.culture')
-        return json({ accepted: true })
-      } catch (error) {
-        if (error instanceof KyivstarSmsError && error.status === 403) {
-          return json({ error: 'Kyivstar rejected the SMS. Confirm this number in the Kyivstar sandbox.' }, 403)
-        }
-        if (error instanceof KyivstarSmsError && error.status === 429) {
-          return json({ error: 'Kyivstar sandbox request limit reached.' }, 429)
-        }
-        return json({ error: 'Could not send the Kyivstar test SMS.' }, 502)
-      }
     }
 
     const token = configuredSecret('SMS_AUTH_MANAGEMENT_TOKEN')

@@ -161,8 +161,8 @@ Deno.serve(async (request) => {
       throw new Error('Enter a positive weight in whole grams.')
     }
 
-    const apiKey = settings.nova_post_test_mode ? Deno.env.get('NOVA_POSHTA_TEST_API_KEY')?.trim() : Deno.env.get('NOVA_POSHTA_API_KEY')?.trim()
-    if (!apiKey) throw new Error(settings.nova_post_test_mode ? 'NOVA_POSHTA_TEST_API_KEY is not configured' : 'NOVA_POSHTA_API_KEY is not configured')
+    const apiKey = Deno.env.get('NOVA_POSHTA_API_KEY')?.trim()
+    if (!apiKey) throw new Error('NOVA_POSHTA_API_KEY is not configured')
 
     const dispatchPhone = senderPhone(settings.sender_phone)
     if (!dispatchPhone) throw new Error('Enter a valid sender phone in delivery settings.')
