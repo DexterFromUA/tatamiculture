@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useCart } from '../context/CartContext'
@@ -8,6 +8,21 @@ import { hasStoreMembership } from '../lib/crm'
 import { supabaseConfigured } from '../lib/supabase'
 import { contactsChanged, getStorefrontContacts, type StorefrontContacts } from '../lib/storefrontContacts'
 
+type CatalogFilters = {
+  category: string
+  subcategory: string
+  search: string
+  size: string
+  sort: string
+}
+
+export type CatalogNavigation = {
+  filters: CatalogFilters
+  setFilters: Dispatch<SetStateAction<CatalogFilters>>
+  rememberProduct: (card: HTMLAnchorElement) => void
+  restoreScroll: (grid: HTMLDivElement) => void
+}
+
 export function StoreLayout() {
   const { store, loading, notFound, loadFailed } = useStore()
   const { count } = useCart()
@@ -16,7 +31,11 @@ export function StoreLayout() {
   const { pathname, key } = useLocation()
   const isHome = pathname === '/'
   const homeScrollPosition = useRef<number | null>(null)
-  const restoringHome = useRef(false)
+  const catalogReady = useRef(false)
+  const lastProduct = useRef<{ pathname: string; top: number } | null>(null)
+  const [filters, setFilters] = useState<CatalogFilters>({
+    category: '', subcategory: '', search: '', size: '', sort: 'newest',
+  })
   const [scrollState, setScrollState] = useState({ headerVisible: true, showTopButton: false })
   const storeId = store?.id
   const userId = user?.id
@@ -30,35 +49,36 @@ export function StoreLayout() {
   }, [])
 
   useLayoutEffect(() => {
-    let observer: MutationObserver | undefined
-    restoringHome.current = isHome && homeScrollPosition.current !== null
-
-    if (restoringHome.current) {
-      const restore = () => {
-        if (!document.querySelector('.storefront:not([hidden])')) return
-        window.scrollTo({ top: homeScrollPosition.current ?? 0, behavior: 'instant' })
-        restoringHome.current = false
-        observer?.disconnect()
-      }
-      observer = new MutationObserver(restore)
-      observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] })
-      restore()
-    } else if (!isHome) {
-      window.scrollTo({ top: 0, behavior: 'instant' })
-    }
-
-    return () => {
-      observer?.disconnect()
-      if (isHome && !restoringHome.current) homeScrollPosition.current = window.scrollY
-      restoringHome.current = false
-    }
+    if (isHome) return
+    catalogReady.current = false
+    window.scrollTo({ top: 0, behavior: 'instant' })
   }, [isHome, key])
+
+  const rememberProduct = (card: HTMLAnchorElement) => {
+    homeScrollPosition.current = Math.max(0, window.scrollY)
+    lastProduct.current = { pathname: card.pathname, top: card.getBoundingClientRect().top }
+  }
+
+  const restoreScroll = useCallback((grid: HTMLDivElement) => {
+    if (catalogReady.current) return
+    const product = lastProduct.current
+    const card = product && Array.from(grid.querySelectorAll<HTMLAnchorElement>('a.product-card'))
+      .find(link => link.pathname === product.pathname)
+    const top = card && product
+      ? window.scrollY + card.getBoundingClientRect().top - product.top
+      : homeScrollPosition.current
+    if (top !== null) window.scrollTo({ top, behavior: 'instant' })
+    homeScrollPosition.current = window.scrollY
+    lastProduct.current = null
+    catalogReady.current = true
+  }, [])
 
   useEffect(() => {
     if (!isHome) return
     let previousY = window.scrollY
     const onScroll = () => {
       const currentY = Math.max(0, window.scrollY)
+      if (catalogReady.current) homeScrollPosition.current = currentY
       const delta = currentY - previousY
       setScrollState(current => ({
         headerVisible: currentY < 100 ? true : Math.abs(delta) >= 4 ? delta < 0 : current.headerVisible,
@@ -149,7 +169,7 @@ export function StoreLayout() {
         </nav>
       </header>
       <main className="main">
-        <Outlet />
+        <Outlet context={{ filters, setFilters, rememberProduct, restoreScroll } satisfies CatalogNavigation} />
       </main>
       {isHome && scrollState.showTopButton && <button type="button" className="back-to-top" aria-label={t('Back to top')} title={t('Back to top')} onClick={() => window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })}>↑</button>}
       <footer className="footer">
