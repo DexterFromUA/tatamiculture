@@ -1157,7 +1157,9 @@ textarea {
 .account-hero h1 { margin: 14px 0; font-size: clamp(2.6rem, 5vw, 4.4rem); }
 .account-hero .muted { max-width: 32rem; margin: 0; color: #5c5c5c; }
 .account-hero .notification-bell { background: transparent; color: #303030; border-color: #bcbcbc; }
-.account-layout { gap: 14px; }
+.account-layout { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.account-card { min-width: 0; }
+.account-hero > div { min-width: 0; overflow-wrap: anywhere; }
 .account-profile__head { display: flex; align-items: center; gap: 16px; }
 .account-profile__head > div:nth-child(2) { flex: 1; min-width: 0; }
 .account-profile__head .eyebrow { margin-bottom: 4px; }
@@ -1169,6 +1171,8 @@ textarea {
 .account-details dd { margin: 0; text-align: right; }
 .account-orders__head { margin-bottom: 20px; }
 .account-orders .order-row { padding: 18px 0; }
+.account-orders .order-row > div { min-width: 0; overflow-wrap: anywhere; }
+.account-orders .order-row > strong { flex-shrink: 0; }
 @media (max-width: 700px) {
   .auth-card--login { grid-template-columns: 1fr; }
   .auth-card--login .login-intro { min-height: 0; padding: 20px 24px; }
@@ -1176,6 +1180,7 @@ textarea {
   .login-intro__mark { font-size: 7rem; bottom: -24px; }
   .login-form-panel { padding: 20px 24px; }
   .account-profile__head { flex-wrap: wrap; }
+  .account-layout { grid-template-columns: minmax(0, 1fr); }
   .account-details div { display: grid; }
   .account-details dd { text-align: left; }
 }
@@ -1702,6 +1707,7 @@ input[type="date"] { color-scheme: light; }
 
 /* Keep monetary values together while allowing cards to reflow on narrow screens. */
 .crm-page .crm-stats--overview { grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); }
+@media (max-width: 600px) { .crm-page .crm-stats--overview { grid-template-columns: minmax(0, 1fr); } }
 .crm-page .crm-stats--overview strong {
   min-width: 0;
   max-width: 100%;
