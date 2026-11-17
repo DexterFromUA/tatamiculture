@@ -69,6 +69,7 @@ export function AdminPage() {
   const [customerRevision, setCustomerRevision] = useState(0)
   const [section, setSection] = useState<AdminSection>('overview')
   const [dashboardOrderIds, setDashboardOrderIds] = useState<string[] | null>(null)
+  const [customerOrderFilter, setCustomerOrderFilter] = useState<{ id: string; name: string } | null>(null)
   const [catalogSearch, setCatalogSearch] = useState('')
   const [catalogView, setCatalogView] = useState<'products' | 'stock'>('products')
   const [page, setPage] = useState(1)
@@ -133,6 +134,10 @@ export function AdminPage() {
     const query = search.trim().toLowerCase()
     const numberQuery = query.replace(/^#/, '')
     const phoneQuery = /^[+\d\s().-]+$/.test(query) ? query.replace(/\D/g, '') : ''
+    const rootById = new Map(mergeMembers.map(member => [member.order_id, member.root_id]))
+    const customerOrderRoots = customerOrderFilter && new Set(orders
+      .filter(order => order.crm_customer_id === customerOrderFilter.id)
+      .map(order => rootById.get(order.id) ?? order.id))
     return groupedOrders.filter((order) => {
       const phone = (order.customer_phone ?? '').replace(/\D/g, '')
       const matchesPhone = phoneQuery && (phone.includes(phoneQuery) ||
@@ -144,9 +149,10 @@ export function AdminPage() {
       const matchesOrderFilter = orderFilter === 'NO_TTN'
         ? !order.nova_poshta_ttn?.trim()
         : orderFilter === 'ALL' || order.status === orderFilter
-      return (dashboardOrderIds === null || dashboardOrderIds.includes(order.id)) && matchesQuery && matchesOrderFilter && (!fromDate || date >= fromDate) && (!toDate || date <= toDate)
+      const matchesCustomer = customerOrderRoots === null || customerOrderRoots.has(order.id)
+      return matchesCustomer && (dashboardOrderIds === null || dashboardOrderIds.includes(order.id)) && matchesQuery && matchesOrderFilter && (!fromDate || date >= fromDate) && (!toDate || date <= toDate)
     })
-  }, [groupedOrders, orders, mergeMembers, search, orderFilter, fromDate, toDate, dashboardOrderIds])
+  }, [groupedOrders, orders, mergeMembers, search, orderFilter, fromDate, toDate, dashboardOrderIds, customerOrderFilter])
   const pages = Math.max(1, Math.ceil(visibleOrders.length / 20))
   const currentPage = Math.min(page, pages)
   const pageOrders = visibleOrders.slice((currentPage - 1) * 20, currentPage * 20)
@@ -445,6 +451,7 @@ export function AdminPage() {
         mergeMembers={mergeMembers} revision={ordersRevision} onRefresh={() => setOrdersRevision(value => value + 1)}
         onOpenOrders={ids => {
           setDashboardOrderIds([...new Set(ids)])
+          setCustomerOrderFilter(null)
           setSearch(''); setOrderFilter('ALL'); setFromDate(''); setToDate(''); setPage(1); setSection('orders')
         }}
         onOpenOrder={id => setSelectedOrderId(id)}
@@ -467,7 +474,10 @@ export function AdminPage() {
             <input aria-label={t('Orders from date')} type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
             <input aria-label={t('Orders to date')} type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
           </div>
-          {dashboardOrderIds !== null && <div className="dashboard-order-filter" role="status"><span>{t('Dashboard selection')} · {visibleOrders.length}</span><button type="button" className="text-btn" onClick={() => { setDashboardOrderIds(null); setPage(1) }}>{t('Show all orders')}</button></div>}
+          {(dashboardOrderIds !== null || customerOrderFilter !== null) && <div className="dashboard-order-filter" role="status">
+            <span>{customerOrderFilter ? t('Orders for {{name}}', { name: customerOrderFilter.name }) : t('Dashboard selection')} · {visibleOrders.length}</span>
+            <button type="button" className="text-btn" onClick={() => { setDashboardOrderIds(null); setCustomerOrderFilter(null); setPage(1) }}>{t('Show all orders')}</button>
+          </div>}
           <div className="orders-list-toolbar">
             <button className="text-btn" title={t(selectedOrders.length ? 'Export selected orders' : 'Export CSV')} disabled={!ordersToExport.length || exportingOrders} onClick={() => void exportOrders()}>
               {exportingOrders ? t('Preparing CSV…') : `${t('Export CSV')} (${ordersToExport.length})`}
@@ -561,8 +571,13 @@ export function AdminPage() {
       </div>
       </> : null}
       {selectedCustomer && token && <CustomerPanel key={`${selectedCustomer.kind}:${selectedCustomer.id}`}
-        target={selectedCustomer} storeId={store.id} token={token}
-        onSaved={() => setCustomerRevision(value => value + 1)} onClose={() => setSelectedCustomer(null)} />}
+        target={selectedCustomer} storeId={store.id} token={token} mergeMembers={mergeMembers}
+        onSaved={() => setCustomerRevision(value => value + 1)} onClose={() => setSelectedCustomer(null)}
+        onViewOrders={(id, name) => {
+          setCustomerOrderFilter({ id, name }); setDashboardOrderIds(null)
+          setSearch(''); setOrderFilter('ALL'); setFromDate(''); setToDate(''); setPage(1)
+          setSelectedOrderIds([]); setBulkAction(''); setOrdersRevision(value => value + 1); setSection('orders')
+        }} />}
       {confirmation && <ConfirmationDialog {...confirmation.content} onClose={confirmed => {
         setConfirmation(null)
         confirmation.resolve(confirmed)

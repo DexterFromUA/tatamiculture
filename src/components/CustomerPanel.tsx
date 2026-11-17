@@ -21,12 +21,14 @@ export type CustomerOrder = {
 
 export type CustomerPanelTarget = { kind: 'order' | 'customer'; id: string }
 
-export function CustomerPanel({ target, storeId, token, onSaved, onClose }: {
+export function CustomerPanel({ target, storeId, token, mergeMembers, onSaved, onClose, onViewOrders }: {
   target: CustomerPanelTarget
   storeId: string
   token: string
+  mergeMembers: Array<{ order_id: string; root_id: string }>
   onSaved: () => void
   onClose: () => void
+  onViewOrders: (customerId: string, name: string) => void
 }) {
   const { t } = useTranslation()
   const titleId = useId()
@@ -67,7 +69,9 @@ export function CustomerPanel({ target, storeId, token, onSaved, onClose }: {
       {error && <p className="error" role="alert">{error}</p>}
       {loading ? <p>{t('Loading…')}</p> : customer ? (
         <CrmCustomerCard key={customer.id} customer={customer} customers={customers} orders={orders}
-          storeId={storeId} token={token} onSaved={() => { setRevision(value => value + 1); onSaved() }} onClose={closeDrawer} />
+          mergeMembers={mergeMembers} storeId={storeId} token={token}
+          onSaved={() => { setRevision(value => value + 1); onSaved() }} onClose={closeDrawer}
+          onViewOrders={() => closeDrawer(() => onViewOrders(customer.id, customer.name))} />
       ) : !error && <p>{t('Customer not found')}</p>}
     </div>
   </dialog>

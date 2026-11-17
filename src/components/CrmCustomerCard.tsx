@@ -12,9 +12,10 @@ export type CrmOrder = { id: string; crm_customer_id: string | null; user_id: st
 export type CustomerCardOrder = CrmOrder & { delivery_city: string | null; delivery_address: string | null }
 
 
-export function CrmCustomerCard({ customer, customers, orders, storeId, token, onSaved, onClose }: {
+export function CrmCustomerCard({ customer, customers, orders, mergeMembers, storeId, token, onSaved, onClose, onViewOrders }: {
   customer: CrmCustomer; customers: CrmCustomer[]; orders: CustomerCardOrder[]; storeId: string; token: string
-  onSaved: () => void; onClose: () => void
+  mergeMembers: Array<{ order_id: string; root_id: string }>
+  onSaved: () => void; onClose: () => void; onViewOrders: () => void
 }) {
   const { t } = useTranslation()
   const [name, setName] = useState(customer.name)
@@ -25,6 +26,12 @@ export function CrmCustomerCard({ customer, customers, orders, storeId, token, o
   const [savedMessage, setSavedMessage] = useState('')
   const [targetId, setTargetId] = useState('')
   const own = orders.filter(order => order.crm_customer_id === customer.id)
+  const rootById = new Map(mergeMembers.map(member => [member.order_id, member.root_id]))
+  const ownRoots = new Set(own.map(order => rootById.get(order.id) ?? order.id))
+  const groupedOwn = orders.filter(order => ownRoots.has(order.id)).map(order => {
+    const members = orders.filter(item => (rootById.get(item.id) ?? item.id) === order.id)
+    return { ...order, total_price: members.reduce((sum, item) => sum + Number(item.total_price), 0) }
+  })
   const lastDelivery = own.find(order => order.delivery_city?.trim() && order.delivery_address?.trim())
   const duplicates = customers.filter(item => item.id !== customer.id && customerPhone(customer.phone).length >= 9 && customerPhone(item.phone) === customerPhone(customer.phone))
   const totals = new Map<string, number>()
@@ -40,7 +47,7 @@ export function CrmCustomerCard({ customer, customers, orders, storeId, token, o
       </div>
     </div>
     <div className="customer-profile__stats">
-      <div><span>{t('Orders')}</span><strong>{own.length}</strong></div>
+      <div><span>{t('Orders')}</span><strong>{groupedOwn.length}</strong></div>
       <div><span>{t('Order value')}</span><strong>{totalLabel}</strong><small>{t('Excluding cancelled orders')}</small></div>
     </div>
     <section className="customer-profile__card customer-profile__contact">
@@ -58,7 +65,7 @@ export function CrmCustomerCard({ customer, customers, orders, storeId, token, o
     <section className="customer-profile__card">
     <h3>{t('Customer details')}</h3>
     {error && <p className="error" role="alert">{error}</p>}
-    <form className="form" onSubmit={async event => {
+    <form className="form customer-profile__details-form" onSubmit={async event => {
       event.preventDefault()
       if (busy) return
       setSavedMessage('')
@@ -91,11 +98,14 @@ export function CrmCustomerCard({ customer, customers, orders, storeId, token, o
     </form>
     </section>
     <section className="customer-profile__card customer-profile__orders">
-      <div className="customer-profile__section-heading"><h3>{t('Order history')}</h3><span>{own.length}</span></div>
-      {own.length ? <ul className="customer-profile__order-list">{own.map(order => <li key={order.id}>
+      <div className="customer-profile__section-heading"><h3>{t('Order history')}</h3><span>{groupedOwn.length}</span></div>
+      {groupedOwn.length ? <ul className="customer-profile__order-list">{groupedOwn.slice(0, 5).map(order => <li key={order.id}>
         <div><strong>#{order.receipt_code}</strong><span>{formatDate(order.created_at)} · {t(order.status)}</span></div>
         <strong>{formatPrice(Number(order.total_price) / 100, order.currency)}</strong>
       </li>)}</ul> : <p className="customer-profile__empty">{t('No orders yet.')}</p>}
+      {groupedOwn.length > 0 && <button type="button" className="text-btn customer-profile__orders-link" onClick={onViewOrders}>
+        {t('View all customer orders')} <span aria-hidden="true">↗</span>
+      </button>}
     </section>
     <CustomerDiscountEditor key={customer.id} storeId={storeId} customerId={customer.id} token={token} />
     <CustomerAdminAccess key={customer.id} storeId={storeId} customerId={customer.id} token={token} />

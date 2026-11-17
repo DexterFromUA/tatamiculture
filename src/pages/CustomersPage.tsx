@@ -71,8 +71,10 @@ export function CustomersPage({ onOpenCustomer, revision }: { onOpenCustomer: (i
         <div className="crm-pagination"><button className="text-btn" disabled={current === 1} onClick={() => setPage(current - 1)}>{t('Previous')}</button><span>{current} / {pages}</span><button className="text-btn" disabled={current === pages} onClick={() => setPage(current + 1)}>{t('Next')}</button></div>
       </div>
       <ul className="customers-list">{rows.slice((current - 1) * 20, current * 20).map(customer => <li key={customer.id}>
-        <div><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => onOpenCustomer(customer.id)}>{customer.name}</button><span>{customer.phone || customer.email} · {customer.tags.join(' · ')}</span></div>
-        <span>{customer.count} {t('orders')}</span><strong>{customer.total || '—'}</strong>
+        <button type="button" className="customer-list-card" aria-haspopup="dialog" onClick={() => onOpenCustomer(customer.id)}>
+          <span className="customer-list-card__identity"><span className="customer-list-card__name"><strong>{customer.name}</strong>{(customer.phone || customer.email) && <small>{customer.phone || customer.email}</small>}</span>{customer.tags.length > 0 && <small>{customer.tags.join(' · ')}</small>}</span>
+          <span>{customer.count} {t('orders')}</span><strong>{customer.total || '—'}</strong>
+        </button>
       </li>)}</ul>
       {!rows.length && <p>{t('No customers match this search.')}</p>}
       <div className="crm-pagination"><button className="text-btn" disabled={current === 1} onClick={() => setPage(current - 1)}>{t('Previous')}</button><span>{current} / {pages}</span><button className="text-btn" disabled={current === pages} onClick={() => setPage(current + 1)}>{t('Next')}</button></div>

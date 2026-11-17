@@ -2,6 +2,8 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 const uk = {
+  'View all customer orders': 'Усі замовлення клієнта',
+  'Orders for {{name}}': 'Замовлення клієнта {{name}}',
   'Customer since': 'Клієнт із',
   'Excluding cancelled orders': 'Без скасованих замовлень',
   'Contact details': 'Контактні дані',
