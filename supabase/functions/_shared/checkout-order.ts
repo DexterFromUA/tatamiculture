@@ -1,3 +1,4 @@
+import { reconcileDiscountPayments } from './discount-payments.ts'
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 
 type CheckoutBody = {
@@ -52,6 +53,8 @@ export async function prepareOnlineCheckout(
     userId = data.user.id
   }
 
+  if (userId) await reconcileDiscountPayments(serviceClient, body.storeId, userId)
+
   const { data: attempt, error } = await serviceClient.rpc('prepare_online_checkout', {
     p_provider: provider,
     p_user_id: userId,
@@ -66,6 +69,7 @@ export async function prepareOnlineCheckout(
 
 type OnlineCheckout = {
   id: string
+  expires_at: string
   receipt_code: string
   total_price: number
   currency: string

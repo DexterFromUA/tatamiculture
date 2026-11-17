@@ -28,3 +28,7 @@ verify_jwt = false
 [functions.manage-reserved-order]
 # The function verifies the bearer token and order ownership before payment actions.
 verify_jwt = false
+
+[functions.customer-discount]
+# Auth verifies the bearer token before resolving the caller's own discount.
+verify_jwt = false

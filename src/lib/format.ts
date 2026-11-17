@@ -5,7 +5,8 @@ export function formatPrice(amount: number, currency = 'USD') {
   }).format(amount)
 }
 
-export function optionPrice(option: { price: number; isDiscount: boolean; discountPercent: number }) {
+export function optionPrice(option: { price: number; isDiscount: boolean; discountPercent: number; salePrice?: number }) {
+  if (option.salePrice !== undefined) return option.salePrice
   if (!option.isDiscount) return option.price
   return option.price - (option.price * option.discountPercent) / 100
 }

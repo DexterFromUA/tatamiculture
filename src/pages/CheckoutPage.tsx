@@ -1,3 +1,4 @@
+import { personalUnitPrice } from '../hooks/useCustomerDiscount'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -23,7 +24,7 @@ export function CheckoutPage() {
 
 function CheckoutForm() {
   const { store, products } = useStore()
-  const { items, clear, rememberOnlineCheckout } = useCart()
+  const { items, clear, rememberOnlineCheckout, customerDiscount } = useCart()
   const { user, token } = useAuth()
   const { addToast } = useToast()
   const navigate = useNavigate()
@@ -124,11 +125,15 @@ function CheckoutForm() {
 
   if (!store) return null
 
-  const total = items.reduce((sum, item) => {
+  const subtotal = items.reduce((sum, item) => {
     const product = products.find((entry) => entry.id === item.productId)
     const option = product?.productOptions.find((entry) => entry.id === item.optionId)
     if (!option) return sum
     return sum + optionPrice(option) * item.quantity
+  }, 0)
+  const total = items.reduce((sum, item) => {
+    const option = products.find(product => product.id === item.productId)?.productOptions.find(option => option.id === item.optionId)
+    return sum + (option ? personalUnitPrice(optionPrice(option), customerDiscount.percent) * item.quantity : 0)
   }, 0)
   const cartLines = items.flatMap((item) => {
     const product = products.find((entry) => entry.id === item.productId)
@@ -148,13 +153,14 @@ function CheckoutForm() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault()
-    if (!provider || submitting) return
+    if ((!provider && total > 0) || submitting || customerDiscount.loading || customerDiscount.error) return
     setError(null)
     setSubmitting(true)
     try {
       if (novaPoshtaEnabled && (!cityRef || !addressRef || !form.address)) throw new Error(t('Choose a city and Nova Poshta branch'))
-      const checkout = novaPoshtaEnabled ? { ...form, cityRef: cityRef ?? undefined, addressRef: addressRef ?? undefined, deliveryServiceType } : form
-      if (provider === 'MONOBANK' || provider === 'LIQPAY') {
+      const checkout = { ...form, expectedDiscountPercent: customerDiscount.percent,
+        ...(novaPoshtaEnabled && { cityRef: cityRef ?? undefined, addressRef: addressRef ?? undefined, deliveryServiceType }) }
+      if (total > 0 && (provider === 'MONOBANK' || provider === 'LIQPAY')) {
         try {
           const input = { store, items, checkout, token, testMode }
           const payment = await (provider === 'MONOBANK' ? startMonobankCheckout(input) : startLiqPayCheckout(input))
@@ -178,6 +184,7 @@ function CheckoutForm() {
       navigate(`/receipt/${order.receiptCode}`)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Checkout failed'
+      customerDiscount.retry()
       setError(message)
       if (message === paymentUnavailable || message === paymentSettingsChanged) {
         setPreferredProvider(null)
@@ -264,8 +271,11 @@ function CheckoutForm() {
         <div className="checkout-summary__head"><p className="eyebrow">02 / {t('Your order')}</p><h2>{t('Order summary')}</h2><span>{t('Items in order: {{quantity}}', { quantity: items.reduce((sum, item) => sum + item.quantity, 0) })}</span></div>
         <ul className="checkout-lines">{cartLines.map((line) => <li key={line.id}>{line.image && <img src={line.image} alt="" />}<div><strong>{line.name}</strong><span>{line.option} · {t('{{quantity}} units', { quantity: line.quantity })}</span></div><b>{formatPrice(line.total, store.currency)}</b></li>)}</ul>
         <div className="checkout-delivery"><span>{t('Delivery')}</span><strong>{novaPoshtaEnabled ? t('Nova Poshta branch or parcel locker') : t('Details at checkout')}</strong><small>{t('Shipping cost is confirmed after dispatch.')}</small></div>
+        {customerDiscount.percent > 0 && <div className="cart-summary__detail personal-discount-summary"><span>{t('Personal discount')} · {customerDiscount.percent}%</span><strong>−{formatPrice(subtotal - total, store.currency)}</strong></div>}
+        {customerDiscount.loading && <p role="status">{t('Checking your discount…')}</p>}
+        {customerDiscount.error && <p className="error" role="alert">{t(customerDiscount.error)} <button type="button" className="text-btn" onClick={customerDiscount.retry}>{t('Try again')}</button></p>}
         <div className="checkout-total"><span>{t('Total')}</span><strong>{formatPrice(total, store.currency)}</strong></div>
-        <fieldset className="payment-methods" disabled={submitting}>
+        {total > 0 && <fieldset className="payment-methods" disabled={submitting}>
           <legend><span className="payment-methods__heading"><span>{t('Payment method')}</span>{availableMethods.length === 1 && selectedMethod?.icon && <img className="payment-method__icon" src={selectedMethod.icon} alt={t(selectedMethod.name)} />}</span></legend>
           {availableMethods.length === 1 && selectedMethod ? <div className="payment-method-notice">
             <span className="payment-method__text">
@@ -283,9 +293,9 @@ function CheckoutForm() {
             <button type="button" className="text-btn" onClick={refreshPaymentSettings}>{t('Try again')}</button>
           </div> : !paymentSettings ? <p className="muted" role="status">{t('Loading payment methods…')}</p>
             : !provider ? <p className="muted" role="status">{t('No payment methods are currently available. Please try again later.')}</p> : null}
-        </fieldset>
-        <button type="submit" form="checkout-form" className="btn checkout-submit" disabled={submitting || !provider}>
-          {submitting ? t('Placing order…') : !provider || provider === 'CASH_ON_DELIVERY' ? t('Place order') : `${t('Pay')} ${formatPrice(total, store.currency)}`}
+        </fieldset>}
+        <button type="submit" form="checkout-form" className="btn checkout-submit" disabled={submitting || (!provider && total > 0) || customerDiscount.loading || Boolean(customerDiscount.error)}>
+          {submitting ? t('Placing order…') : total === 0 || !provider || provider === 'CASH_ON_DELIVERY' ? t('Place order') : `${t('Pay')} ${formatPrice(total, store.currency)}`}
         </button>
       </aside></div>
     </section>

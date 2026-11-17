@@ -1,11 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
+import { useCustomerDiscount } from '../hooks/useCustomerDiscount'
 import { api } from '../lib/api'
 import { readJson, removeKey, writeJson } from '../lib/storage'
 import type { CartItem, Order } from '../types'
 import { useStore } from './StoreContext'
 
 type CartContextValue = {
+  customerDiscount: ReturnType<typeof useCustomerDiscount>
   items: CartItem[]
   count: number
   addItem: (productId: string, optionId: string, quantity?: number) => void
@@ -49,6 +51,7 @@ function pendingCheckouts(storeId: string) {
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const { store, products } = useStore()
+  const customerDiscount = useCustomerDiscount()
   const { pathname } = useLocation()
   const storeId = store?.id
   const [storedItems, setItems] = useState<CartItem[]>([])
@@ -199,6 +202,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       })
       return {
         items,
+        customerDiscount,
         count: items.reduce((sum, item) => sum + item.quantity, 0),
         addItem,
         setQuantity,
@@ -208,7 +212,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         completeOnlineCheckout,
       }
     },
-    [storedItems, products, rememberOnlineCheckout, completeOnlineCheckout],
+    [storedItems, products, rememberOnlineCheckout, completeOnlineCheckout, customerDiscount],
   )
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>

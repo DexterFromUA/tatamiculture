@@ -43,7 +43,10 @@ Deno.serve(async (request) => {
     }
     const invoiceResponse = await fetch(`${monobankApi}/invoice/create`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Token': monoToken }, body: JSON.stringify(invoiceRequest) })
     const invoice = await invoiceResponse.json() as { invoiceId?: string; pageUrl?: string; errText?: string }
-    if (!invoiceResponse.ok || !invoice.invoiceId || !invoice.pageUrl) throw new Error(invoice.errText ?? 'Monobank could not create an invoice')
+    if (!invoiceResponse.ok || !invoice.invoiceId || !invoice.pageUrl) {
+      await serviceClient.from('online_checkouts').update({ status: 'FAILED' }).eq('id', attempt.id).eq('status', 'PENDING')
+      throw new Error(invoice.errText ?? 'Monobank could not create an invoice')
+    }
     const { error: linkError } = await serviceClient.from('online_checkouts')
       .update({ provider_order_id: invoice.invoiceId }).eq('id', attempt.id)
       .is('provider_order_id', null).select('id').single()

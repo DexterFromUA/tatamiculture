@@ -22,6 +22,7 @@ export type Store = {
 }
 
 export type ProductOption = {
+  salePrice?: number
   id: string
   name: string
   price: number
@@ -127,6 +128,7 @@ export type ShortLink = {
 }
 
 export type CheckoutInput = {
+  expectedDiscountPercent?: number
   name: string
   email: string
   phone: string

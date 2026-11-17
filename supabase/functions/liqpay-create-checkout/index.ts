@@ -147,6 +147,7 @@ Deno.serve(async (request) => {
       public_key: publicKey,
       version: '3',
       action: 'pay',
+      expired_date: new Date(attempt.expires_at).toISOString().slice(0, 19).replace('T', ' '),
       amount: Number(attempt.total_price) / 100,
       currency: String(attempt.currency),
       description: `${testMode ? 'TEST · ' : ''}tatami.culture order ${attempt.receipt_code}`,

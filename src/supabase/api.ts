@@ -35,7 +35,7 @@ function mapProduct(row: Row): Product {
       const compareAt = variant.compare_at_price === null ? null : money(variant.compare_at_price)
       const discountPercent = compareAt && compareAt > price ? Math.round((1 - price / compareAt) * 100) : 0
       const details = {
-        id: text(variant.id), name: text(variant.name), price,
+        id: text(variant.id), name: text(variant.name), price: compareAt ?? price, salePrice: price,
         isDiscount: discountPercent > 0, discountPercent,
       }
       return variant.is_preorder
@@ -145,10 +145,11 @@ export const supabaseApi = {
 
   async createOrder(input: { store: Store; items: CartItem[]; checkout: CheckoutInput; token: string | null; shortLinkId?: string }): Promise<Order> {
     if (input.items.length === 0) throw new Error('Cart is empty')
-    const row = await supabaseRequest<Row>('/rest/v1/rpc/create_store_order', {
+    const row = await supabaseRequest<Row>('/rest/v1/rpc/create_discounted_store_order', {
       method: 'POST', token: input.token,
       body: JSON.stringify({
         p_store_id: input.store.id,
+        p_expected_discount_percent: input.checkout.expectedDiscountPercent ?? null,
         p_items: input.items.map((item) => ({ variantId: item.optionId, quantity: item.quantity })),
         p_customer_name: input.checkout.name, p_customer_email: input.checkout.email,
         p_customer_phone: input.checkout.phone, p_delivery_city: input.checkout.city,

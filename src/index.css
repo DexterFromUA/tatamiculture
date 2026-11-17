@@ -1859,3 +1859,17 @@ input[type="date"] { color-scheme: light; }
 .customer-account-actions .customer-account-actions__danger { color: var(--danger); }
 
 @media (prefers-color-scheme: dark) { .btn:not(.btn--ghost) { color: #202020; } }
+
+.customer-discount { margin: 20px 0; padding: 18px; border: 1px solid var(--crm-border, var(--line)); background: var(--paper); }
+.customer-discount__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.customer-discount__heading h3 { margin: 0; }
+.customer-discount__heading strong { font-size: 1.5rem; color: var(--accent); }
+.customer-discount fieldset { min-width: 0; padding: 0; margin: 0; border: 0; }
+.customer-discount__modes { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; }
+.customer-discount__modes button { flex: 1 1 auto; padding: 9px 12px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-size: .8rem; cursor: pointer; }
+.customer-discount__modes button.active { border-color: var(--accent); background: var(--accent); color: white; }
+.customer-discount__dates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.customer-discount input, .customer-discount select { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.customer-discount__hint { color: var(--muted); font-size: .8rem; line-height: 1.5; }
+.personal-discount-summary { color: var(--accent); padding-block: 12px; }
+@media (max-width: 420px) { .customer-discount__dates { grid-template-columns: 1fr; } }
