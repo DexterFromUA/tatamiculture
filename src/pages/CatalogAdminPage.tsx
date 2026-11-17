@@ -34,6 +34,8 @@ type CatalogProduct = ProductText & {
   composition?: string
   care_instructions?: string
   id: string
+  created_at: string
+  updated_at: string
   category_id: string | null
   product_categories: Array<{ category_id: string }>
   is_active: boolean
@@ -42,6 +44,17 @@ type CatalogProduct = ProductText & {
   product_images: ProductImage[]
   product_variants: Variant[]
   product_costs: CatalogCost | null
+}
+
+function ProductTimestamps({ product }: { product: CatalogProduct }) {
+  const { t, i18n } = useTranslation()
+  const formatter = new Intl.DateTimeFormat(i18n.resolvedLanguage === 'en' ? 'en-GB' : 'uk-UA', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Kyiv',
+  })
+  return <div className="catalog-product-dates">
+    <span>{t('Added')} <time dateTime={product.created_at}>{formatter.format(new Date(product.created_at))}</time></span>
+    <span>{t('Updated')} <time dateTime={product.updated_at}>{formatter.format(new Date(product.updated_at))}</time></span>
+  </div>
 }
 type Draft = {
   key: string
@@ -158,7 +171,8 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
     ...children.map(category => ({ category, label: `${categoryLabel(parent, language)} / ${categoryLabel(category, language)}` })),
   ])
   const editingCategory = categories.find(category => category.id === editingCategoryId)
-  const savedVariants = products.find(product => product.id === draft?.id)?.product_variants
+  const editingProduct = products.find(product => product.id === draft?.id)
+  const savedVariants = editingProduct?.product_variants
   const hasDifferentPrices = savedVariants?.some(variant => Number(variant.price) !== Number(savedVariants[0].price))
   const query = search.trim().toLowerCase()
   const searchedProducts = products.filter(product => [
@@ -239,7 +253,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
         return
       }
       const productQuery = (includeThreshold: boolean) =>
-        fetchAll<CatalogProduct>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=*,product_costs(cost_amount,source_amount,currency),product_categories(category_id),product_images(id,public_url,storage_path,position),product_variants(id,name,sku,price,compare_at_price,stock_quantity,is_preorder,variant_costs(cost_amount,source_amount,currency)${includeThreshold ? ',low_stock_threshold' : ''})&order=position.asc,id.asc&product_variants.order=position.asc,id.asc`, token)
+        fetchAll<CatalogProduct>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=*,product_costs(cost_amount,source_amount,currency),product_categories(category_id),product_images(id,public_url,storage_path,position),product_variants(id,name,sku,price,compare_at_price,stock_quantity,is_preorder,variant_costs(cost_amount,source_amount,currency)${includeThreshold ? ',low_stock_threshold' : ''})&order=created_at.desc,id.desc&product_variants.order=position.asc,id.asc`, token)
       const [catalog, nextCategories, nextRates] = await Promise.all([
         productQuery(true).then(products => ({ products, hasThreshold: true })).catch(async (cause: unknown) => {
           if (!(cause instanceof Error) || !/column .*low_stock_threshold.*does not exist/i.test(cause.message)) throw cause
@@ -731,7 +745,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
             return <li key={product.id} className={selected.includes(product.id) ? 'catalog-admin__selected' : undefined}>
               <label className="order-select"><input type="checkbox" aria-label={`${t('Select product')} · ${productName(product, language)}`} checked={selected.includes(product.id)} disabled={saving} onChange={event => { const checked = event.target.checked; setSelected(current => checked ? [...current, product.id] : current.filter(id => id !== product.id)) }} /></label>
               {product.product_images[0] && <img className="catalog-admin__thumb" src={product.product_images[0].public_url} alt="" />}
-              <div className="catalog-admin__item"><strong>{productName(product, language)}</strong><span>{categoryPaths(categories, assignedCategoryIds(product), language).join(' · ') || t('Uncategorized')} · {product.is_active ? t('Published') : t('Hidden')}{product.is_new && ` · ${t('New arrival')}`}</span><span>{product.product_variants.length} {t('variants')}{unavailable ? ` · ${unavailable} ${t('out of stock')}` : ''}</span></div>
+              <div className="catalog-admin__item"><strong>{productName(product, language)}</strong><span>{categoryPaths(categories, assignedCategoryIds(product), language).join(' · ') || t('Uncategorized')} · {product.is_active ? t('Published') : t('Hidden')}{product.is_new && ` · ${t('New arrival')}`}</span><span>{product.product_variants.length} {t('variants')}{unavailable ? ` · ${unavailable} ${t('out of stock')}` : ''}</span><ProductTimestamps product={product} /></div>
               <div className="crm-order__actions catalog-admin__actions">
                 <button type="button" className="text-btn" onClick={() => openProduct(product)}>{t('Edit')}</button>
                 {stockSchemaReady && <button type="button" className="text-btn" disabled={saving} onClick={() => void duplicate(product)}>{t('Duplicate')}</button>}
@@ -779,6 +793,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
               <button type="button" className="text-btn" disabled={saving || categoryBusy} onClick={closeEditor}>{t('Close')}</button>
             </div>
           </div>
+          {editingProduct && <ProductTimestamps product={editingProduct} />}
           <div className="product-editor__translations">
             {(['uk', 'en'] as const).map(locale => <div key={locale}>
               <label className="field">

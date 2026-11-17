@@ -930,6 +930,10 @@ textarea {
 .catalog-admin__item { min-width: 0; flex: 1; }
 .catalog-admin__item strong { display: block; overflow-wrap: anywhere; }
 .catalog-admin__item span.stock-low { color: var(--danger); }
+.catalog-product-dates { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; color: var(--muted); font-size: .78rem; }
+.catalog-admin__list .catalog-product-dates > span, .catalog-product-dates > span { display: inline-flex; flex-wrap: wrap; gap: 4px; font-size: .78rem; }
+.catalog-product-dates time { color: var(--ink); font-weight: 500; }
+.product-editor > .catalog-product-dates { margin: -4px 0 18px; }
 .catalog-admin__list .catalog-stock-row { flex-wrap: wrap; align-items: flex-start; }
 .catalog-stock-row__size { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
 .catalog-stock-row__size select { min-width: 72px; max-width: 100%; }

@@ -25,6 +25,8 @@ const uk = {
   'All sizes': 'Усі розміри',
   'Sort products': 'Сортування товарів',
   'Newest first': 'Спочатку нові',
+  Added: 'Додано',
+  Updated: 'Оновлено',
   'Price: low to high': 'Ціна: від нижчої до вищої',
   'Price: high to low': 'Ціна: від вищої до нижчої',
   'Delete product': 'Видалити товар',
