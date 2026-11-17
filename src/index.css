@@ -2173,3 +2173,8 @@ input[type="date"] { color-scheme: light; }
   .image-manager.product-photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .image-manager__item .product-photo__controls { align-items: flex-start; flex-direction: column; }
 }
+.image-manager__item .product-photo__controls { justify-content: center; }
+@media (max-width: 700px) { .image-manager__item .product-photo__controls { align-items: center; } }
+.size-guide-upload { margin-top: 18px; }
+.size-guide-preview { width: min(100%, 240px); margin-top: 14px; }
+.image-manager__item.size-guide-preview .product-photo__preview img { object-fit: contain; }

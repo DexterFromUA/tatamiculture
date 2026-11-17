@@ -63,7 +63,7 @@ function ProductTimestamps({ product }: { product: CatalogProduct }) {
 }
 type Draft = {
   key: string
-  newImagesFirst: boolean
+  imageOrder: string[]
   sizeGuide: Record<'uk' | 'en', string>
   sizeGuideImageUrl: string
   sizeGuideImageFile: File | null
@@ -88,7 +88,7 @@ type Draft = {
 
 const defaultLowStockThreshold = 3
 const blankVariant = (): DraftVariant => ({ key: crypto.randomUUID(), name: 'M', sku: '', compare_at_price: null, stock_quantity: 0, low_stock_threshold: defaultLowStockThreshold, is_preorder: false, unitCost: '', currency: 'UAH', unitCostEdited: false })
-const blankDraft = (): Draft => ({ key: crypto.randomUUID(), newImagesFirst: false, sizeGuide: { uk: '', en: '' }, sizeGuideImageUrl: '', sizeGuideImageFile: null, composition: { uk: '', en: '' }, careInstructions: { uk: '', en: '' }, names: { uk: '', en: '' }, descriptions: { uk: '', en: '' }, price: '0', defaultCost: '', defaultCostCurrency: 'UAH', defaultCostEdited: false, weightGrams: '', categoryIds: [], isActive: true, isNew: false, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
+const blankDraft = (): Draft => ({ key: crypto.randomUUID(), imageOrder: [], sizeGuide: { uk: '', en: '' }, sizeGuideImageUrl: '', sizeGuideImageFile: null, composition: { uk: '', en: '' }, careInstructions: { uk: '', en: '' }, names: { uk: '', en: '' }, descriptions: { uk: '', en: '' }, price: '0', defaultCost: '', defaultCostCurrency: 'UAH', defaultCostEdited: false, weightGrams: '', categoryIds: [], isActive: true, isNew: false, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
 const categorySlug = (name: string) => `${name.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'category'}-${crypto.randomUUID().slice(0, 8)}`
 
 function assignedCategoryIds(product: CatalogProduct) {
@@ -112,7 +112,7 @@ function toDraft(product: CatalogProduct, language?: string): Draft {
   if (!descriptions.uk.trim() && !descriptions.en.trim()) descriptions[editorLanguage] = product.description
   return {
     key: product.id,
-    newImagesFirst: false,
+    imageOrder: [...product.product_images].sort((a, b) => a.position - b.position).map(image => `saved:${image.id}`),
     sizeGuide: { uk: product.size_guide ?? '', en: product.size_guide_en ?? '' },
     composition: { uk: product.composition ?? '', en: product.composition_en ?? '' },
     careInstructions: { uk: product.care_instructions ?? '', en: product.care_instructions_en ?? '' },
@@ -202,8 +202,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
   const pageProductIds = new Set(pageProducts.map(product => product.id))
   const selectedOutsidePage = selected.filter(id => !pageProductIds.has(id)).length
   const pageSelected = pageProducts.length > 0 && pageProducts.every(product => selected.includes(product.id))
-  const draggedFile = useRef<number | null>(null)
-  const draggedImage = useRef<string | null>(null)
+  const draggedPhoto = useRef<number | null>(null)
   const editorHeading = useRef<HTMLHeadingElement>(null)
   const attemptedVariantIds = useRef(new Set<string>())
   const editorOpen = draft !== null
@@ -302,25 +301,13 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
     } : current)
   }
 
-  const moveFile = (from: number, to: number) => {
+  const movePhoto = (from: number, to: number) => {
     setDraft(current => {
-      if (!current) return current
-      const files = [...current.newImageFiles]
-      const [file] = files.splice(from, 1)
-      files.splice(to, 0, file)
-      return { ...current, newImageFiles: files }
-    })
-  }
-  const moveImage = (id: string, targetId: string) => {
-    setDraft(current => {
-      if (!current || id === targetId) return current
-      const images = [...current.images]
-      const from = images.findIndex(image => image.id === id)
-      const to = images.findIndex(image => image.id === targetId)
-      if (from < 0 || to < 0) return current
-      const [image] = images.splice(from, 1)
-      images.splice(to, 0, image)
-      return { ...current, images }
+      if (!current || from < 0 || to < 0 || from >= current.imageOrder.length || to >= current.imageOrder.length || from === to) return current
+      const imageOrder = [...current.imageOrder]
+      const [photo] = imageOrder.splice(from, 1)
+      imageOrder.splice(to, 0, photo)
+      return { ...current, imageOrder }
     })
   }
 
@@ -539,14 +526,14 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
       await Promise.all(removedImages.map(async (image) => {
         await supabaseRequest(`/rest/v1/product_images?id=eq.${encodeURIComponent(image.id)}`, { method: 'DELETE', token })
       }))
-      await Promise.all(retainedImages.map((image, position) =>
-        supabaseRequest(`/rest/v1/product_images?id=eq.${encodeURIComponent(image.id)}`, { method: 'PATCH', token, body: JSON.stringify({ position: position + (draft.newImagesFirst ? draft.newImageFiles.length : 0) }) }),
+      await Promise.all(retainedImages.map(image =>
+        supabaseRequest(`/rest/v1/product_images?id=eq.${encodeURIComponent(image.id)}`, { method: 'PATCH', token, body: JSON.stringify({ position: draft.imageOrder.indexOf(`saved:${image.id}`) }) }),
       ))
       const uploadedImages = await Promise.all(draft.newImageFiles.map((file) => uploadProductImage(productId, file, token)))
       await Promise.all(uploadedImages.map((image, index) =>
         supabaseRequest('/rest/v1/product_images', {
           method: 'POST', token,
-          body: JSON.stringify({ product_id: productId, public_url: image.publicUrl, storage_path: image.storagePath, position: (draft.newImagesFirst ? 0 : retainedImages.length) + index }),
+          body: JSON.stringify({ product_id: productId, public_url: image.publicUrl, storage_path: image.storagePath, position: draft.imageOrder.indexOf(`new:${index}`) }),
         }),
       ))
       await setProductCategories([productId], draft.categoryIds, token)
@@ -870,14 +857,19 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
                 <label className="field">{t('Care instructions')}<textarea rows={3} maxLength={10000} value={draft.careInstructions[locale]} onChange={event => setDraft({ ...draft, careInstructions: { ...draft.careInstructions, [locale]: event.target.value } })} /></label>
               </div>)}
             </div>
-            <label className="field"><span>{t('Size guide image')}</span><input type="file" accept="image/jpeg,image/png,image/webp" disabled={saving} onChange={event => {
+            <label className="product-photo-upload size-guide-upload"><input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" disabled={saving} onChange={event => {
               const file = event.target.files?.[0]
               if (file) setDraft({ ...draft, sizeGuideImageFile: file })
               event.target.value = ''
-            }} /><small>{t('JPG, PNG or WebP · up to 5 MB per file')}</small></label>
-            {(draft.sizeGuideImageFile || draft.sizeGuideImageUrl) && <div className="size-guide-editor">
-              {draft.sizeGuideImageFile ? <LocalImagePreview file={draft.sizeGuideImageFile} /> : <img src={draft.sizeGuideImageUrl} alt={t('Size guide image')} />}
-              <button type="button" className="text-btn" disabled={saving} onClick={() => setDraft({ ...draft, sizeGuideImageFile: null, sizeGuideImageUrl: '' })}>{t('Remove image')}</button>
+            }} /><span className="product-photo-upload__icon" aria-hidden="true">＋</span>
+              <span className="product-photo-upload__copy"><strong>{t('Size guide image')}</strong><small>{t('JPG, PNG or WebP · up to 5 MB per file')}</small></span>
+              <span className="product-photo-upload__action" aria-hidden="true">{t('Choose files')}</span>
+            </label>
+            {(draft.sizeGuideImageFile || draft.sizeGuideImageUrl) && <div className="size-guide-preview image-manager__item product-photo">
+              <div className="product-photo__preview">
+                {draft.sizeGuideImageFile ? <LocalImagePreview file={draft.sizeGuideImageFile} /> : <img src={draft.sizeGuideImageUrl} alt={t('Size guide image')} />}
+                <button type="button" className="product-photo__delete" aria-label={t('Remove image')} title={t('Remove image')} disabled={saving} onClick={() => setDraft({ ...draft, sizeGuideImageFile: null, sizeGuideImageUrl: '' })}>×</button>
+              </div>
             </div>}
           </details>
           <section className="product-workspace__section">
@@ -912,40 +904,39 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
           <label className="product-photo-upload">
             <input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={saving} onChange={event => {
               const files = Array.from(event.target.files ?? [])
-              if (files.length) setDraft(current => current && { ...current, newImageFiles: [...current.newImageFiles, ...files] })
+              if (files.length) setDraft(current => current && { ...current, imageOrder: [...current.imageOrder, ...files.map((_, index) => `new:${current.newImageFiles.length + index}`)], newImageFiles: [...current.newImageFiles, ...files] })
               event.target.value = ''
             }} />
             <span className="product-photo-upload__icon" aria-hidden="true">＋</span>
             <span className="product-photo-upload__copy"><strong>{t('Add photos')}</strong><small>{t('JPG, PNG or WebP · up to 5 MB per file')}</small></span>
             <span className="product-photo-upload__action" aria-hidden="true">{t('Choose files')}</span>
           </label>
-          {(() => {
-            const visibleImages = draft.images.filter(image => !draft.removedImageIds.includes(image.id))
-            const hasNewFirst = draft.newImagesFirst && draft.newImageFiles.length > 0
-            const hasSavedFirst = !hasNewFirst && visibleImages.length > 0
-            return visibleImages.length > 0 || draft.newImageFiles.length > 0 ? <div className="image-manager product-photo-grid">
-              {visibleImages.map((image, index) => <figure key={image.id} style={{ order: hasNewFirst ? 1 : 0 }} className="image-manager__item product-photo" draggable onDragStart={() => { draggedImage.current = image.id }} onDragEnd={() => { draggedImage.current = null }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); if (draggedImage.current) moveImage(draggedImage.current, image.id); draggedImage.current = null }}>
-                <div className="product-photo__preview"><img src={image.public_url} alt={t('Product')} draggable={false} />
-                  {hasSavedFirst && index === 0 && <span className="product-photo__badge">{t('Main photo')}</span>}
-                  <button type="button" className="product-photo__delete" aria-label={t('Remove')} title={t('Remove')} disabled={saving} onClick={() => setDraft(current => current && { ...current, removedImageIds: [...current.removedImageIds, image.id] })}>×</button>
+          {draft.imageOrder.length > 0 && <div className="image-manager product-photo-grid">
+            {draft.imageOrder.map((photo, position) => {
+              const isNew = photo.startsWith('new:')
+              const fileIndex = isNew ? Number(photo.slice(4)) : -1
+              const file = isNew ? draft.newImageFiles[fileIndex] : null
+              const image = isNew ? null : draft.images.find(item => item.id === photo.slice(6))
+              if (!file && !image) return null
+              return <figure key={photo} className="image-manager__item product-photo" draggable onDragStart={() => { draggedPhoto.current = position }} onDragEnd={() => { draggedPhoto.current = null }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); if (draggedPhoto.current !== null) movePhoto(draggedPhoto.current, position); draggedPhoto.current = null }}>
+                <div className="product-photo__preview">{file ? <LocalImagePreview file={file} /> : <img src={image!.public_url} alt={t('Product')} draggable={false} />}
+                  {position === 0 && <span className="product-photo__badge">{t('Main photo')}</span>}
+                  <button type="button" className="product-photo__delete" aria-label={t('Remove')} title={t('Remove')} disabled={saving} onClick={() => setDraft(current => {
+                    if (!current) return current
+                    if (!isNew) return { ...current, imageOrder: current.imageOrder.filter(item => item !== photo), removedImageIds: [...current.removedImageIds, image!.id] }
+                    return { ...current, newImageFiles: current.newImageFiles.filter((_, index) => index !== fileIndex), imageOrder: current.imageOrder.filter(item => item !== photo).map(item => {
+                      if (!item.startsWith('new:')) return item
+                      const index = Number(item.slice(4))
+                      return `new:${index > fileIndex ? index - 1 : index}`
+                    }) }
+                  })}>×</button>
                 </div>
                 <figcaption className="product-photo__controls">
-                  <button type="button" className="product-photo__main" disabled={saving || (hasSavedFirst && index === 0)} onClick={() => { setDraft(current => current ? { ...current, newImagesFirst: false } : current); moveImage(image.id, visibleImages[0].id) }}>{t(hasSavedFirst && index === 0 ? 'Main photo' : 'Set as main image')}</button>
-                  <span className="product-photo__reorder"><button type="button" aria-label={t('Move earlier')} title={t('Move earlier')} disabled={saving || index === 0} onClick={() => moveImage(image.id, visibleImages[index - 1].id)}>←</button><button type="button" aria-label={t('Move later')} title={t('Move later')} disabled={saving || index === visibleImages.length - 1} onClick={() => moveImage(image.id, visibleImages[index + 1].id)}>→</button></span>
+                  <span className="product-photo__reorder"><button type="button" aria-label={t('Move earlier')} title={t('Move earlier')} disabled={saving || position === 0} onClick={() => movePhoto(position, position - 1)}>←</button><button type="button" aria-label={t('Move later')} title={t('Move later')} disabled={saving || position === draft.imageOrder.length - 1} onClick={() => movePhoto(position, position + 1)}>→</button></span>
                 </figcaption>
-              </figure>)}
-              {draft.newImageFiles.map((file, index) => <figure key={`${file.name}-${index}`} style={{ order: hasNewFirst ? 0 : 1 }} className="image-manager__item product-photo" draggable onDragStart={() => { draggedFile.current = index }} onDragEnd={() => { draggedFile.current = null }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); if (draggedFile.current !== null) moveFile(draggedFile.current, index); draggedFile.current = null }}>
-                <div className="product-photo__preview"><LocalImagePreview file={file} />
-                  {!hasSavedFirst && index === 0 && <span className="product-photo__badge">{t('Main photo')}</span>}
-                  <button type="button" className="product-photo__delete" aria-label={t('Remove')} title={t('Remove')} disabled={saving} onClick={() => setDraft(current => current && { ...current, newImageFiles: current.newImageFiles.filter((_, fileIndex) => fileIndex !== index) })}>×</button>
-                </div>
-                <figcaption className="product-photo__controls">
-                  <button type="button" className="product-photo__main" disabled={saving || (!hasSavedFirst && index === 0)} onClick={() => { setDraft(current => current ? { ...current, newImagesFirst: true } : current); moveFile(index, 0) }}>{t(!hasSavedFirst && index === 0 ? 'Main photo' : 'Set as main image')}</button>
-                  <span className="product-photo__reorder"><button type="button" aria-label={t('Move earlier')} title={t('Move earlier')} disabled={saving || index === 0} onClick={() => moveFile(index, index - 1)}>←</button><button type="button" aria-label={t('Move later')} title={t('Move later')} disabled={saving || index === draft.newImageFiles.length - 1} onClick={() => moveFile(index, index + 1)}>→</button></span>
-                </figcaption>
-              </figure>)}
-            </div> : null
-          })()}
+              </figure>
+            })}
+          </div>}
 
           </section>
           <section className="product-workspace__section product-workspace__visibility">
