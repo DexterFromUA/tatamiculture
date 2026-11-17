@@ -136,7 +136,7 @@ function toDraft(product: CatalogProduct, language?: string): Draft {
 type CatalogView = 'products' | 'stock'
 type StockFilter = 'all' | 'low' | 'out'
 
-export function CatalogAdminPage({ embedded = false, initialView = 'products' }: { embedded?: boolean; initialView?: CatalogView }) {
+export function CatalogAdminPage({ embedded = false, initialView = 'products', initialSearch = '', initialStockFilter }: { embedded?: boolean; initialView?: CatalogView; initialSearch?: string; initialStockFilter?: StockFilter }) {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage
   const { store, refreshProducts } = useStore()
@@ -152,9 +152,9 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(initialSearch)
   const [view, setView] = useState<CatalogView>(initialView)
-  const [stockFilter, setStockFilter] = useState<StockFilter>(initialView === 'stock' ? 'low' : 'all')
+  const [stockFilter, setStockFilter] = useState<StockFilter>(initialStockFilter ?? (initialView === 'stock' ? 'low' : 'all'))
   const [stockSelection, setStockSelection] = useState<Record<string, string>>({})
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [showCategories, setShowCategories] = useState(false)

@@ -5,6 +5,8 @@ import { LoadingIndicator } from '../components/LoadingIndicator'
 import { MergeOrdersDrawer } from '../components/MergeOrdersDrawer'
 import { ConfirmationDialog, type ConfirmationDialogContent } from '../components/ConfirmationDialog'
 import { NovaPoshtaTrackingLink } from '../components/NovaPoshtaTrackingLink'
+import { AdminDashboard } from '../components/AdminDashboard'
+import { dashboardDay, type DashboardOrder, type DashboardInventory } from '../lib/dashboard'
 import { AdminTabs } from '../components/AdminTabs'
 import type { AdminSection } from '../components/AdminTabs'
 import { CatalogAdminPage } from './CatalogAdminPage'
@@ -19,12 +21,12 @@ import type { OrderStatus } from '../types'
 import { useTranslation } from 'react-i18next'
 import { fetchAll, hasStoreMembership } from '../lib/crm'
 import { downloadOrdersCsv } from '../lib/crmExport'
-import { FinancialAnalytics, OrderOperations, type OrderDetailsOrder } from '../components/OrderOperations'
+import { OrderOperations, type OrderDetailsOrder } from '../components/OrderOperations'
 import { normalizePhone } from '../lib/phone'
 import { createTtn, defaultParcelDescription, getTtnPreview, type TtnShipment } from '../lib/ttn'
 import { invalidTtnRecipientName, parseTtnRecipientName } from '../../supabase/functions/_shared/ttn-recipient.ts'
 
-type AdminOrder = OrderDetailsOrder & {
+type AdminOrder = OrderDetailsOrder & DashboardOrder & {
   nova_poshta_document_ref: string | null
   nova_poshta_status_code: string | null
   delivery_city_ref: string | null
@@ -33,11 +35,7 @@ type AdminOrder = OrderDetailsOrder & {
 
 type OrderFilter = 'ALL' | 'NO_TTN' | OrderStatus
 
-type InventoryProduct = {
-  id: string
-  name: string
-  product_variants: Array<{ id: string; name: string; stock_quantity: number; low_stock_threshold?: number; is_preorder: boolean }>
-}
+type InventoryProduct = DashboardInventory
 
 const statuses: OrderStatus[] = ['PENDING', 'PAID', 'IN_PROGRESS', 'READY_FOR_PICKUP', 'DELIVERED', 'CANCELLED_BY_USER', 'CANCELLED_BY_STORE']
 const canCreateTtn = (order: AdminOrder) =>
@@ -70,6 +68,8 @@ export function AdminPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerPanelTarget | null>(null)
   const [customerRevision, setCustomerRevision] = useState(0)
   const [section, setSection] = useState<AdminSection>('overview')
+  const [dashboardOrderIds, setDashboardOrderIds] = useState<string[] | null>(null)
+  const [catalogSearch, setCatalogSearch] = useState('')
   const [catalogView, setCatalogView] = useState<'products' | 'stock'>('products')
   const [page, setPage] = useState(1)
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
@@ -88,8 +88,8 @@ export function AdminPage() {
           return
         }
         const [nextOrders, nextInventory, nextMergeMembers] = await Promise.all([
-          fetchAll<AdminOrder>(`/rest/v1/orders?store_id=eq.${encodeURIComponent(store.id)}&select=id,user_id,receipt_code,customer_name,customer_email,customer_phone,note,payment_test_mode,total_price,currency,status,payment_status,created_at,nova_poshta_ttn,nova_poshta_document_ref,nova_poshta_status,nova_poshta_status_code,payment_method,delivery_city_ref,delivery_address_ref&order=created_at.desc,id.desc`, token),
-          supabaseRequest<InventoryProduct[]>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=id,name,product_variants(*)&order=position.asc`, { token }),
+          fetchAll<AdminOrder>(`/rest/v1/orders?store_id=eq.${encodeURIComponent(store.id)}&select=id,user_id,crm_customer_id,customer_discount_amount,receipt_code,customer_name,customer_email,customer_phone,note,payment_test_mode,total_price,currency,status,payment_status,created_at,nova_poshta_ttn,nova_poshta_document_ref,nova_poshta_status,nova_poshta_status_code,payment_method,delivery_city_ref,delivery_address_ref&order=created_at.desc,id.desc`, token),
+          fetchAll<InventoryProduct>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=id,name,is_active,created_at,product_variants(*)&order=position.asc,id.asc`, token),
           fetchAll<{ order_id: string; root_id: string }>(`/rest/v1/order_merge_members?select=order_id,root_id,orders!order_merge_members_order_id_fkey!inner(store_id)&orders.store_id=eq.${encodeURIComponent(store.id)}&order=order_id`, token),
         ])
         if (!cancelled) {
@@ -116,10 +116,6 @@ export function AdminPage() {
     const members = ids.length ? orders.filter(item => ids.includes(item.id)) : [order]
     return { ...order, total_price: members.reduce((sum, item) => sum + Number(item.total_price), 0) }
   }), [orders, mergeMembers])
-  const customerCount = useMemo(() => new Set(liveOrders.map((order) => order.customer_email)).size, [liveOrders])
-  const revenue = useMemo(() => liveOrders.filter((order) => order.status !== 'CANCELLED_BY_STORE' && order.status !== 'CANCELLED_BY_USER').reduce((sum, order) => sum + Number(order.total_price), 0) / 100, [liveOrders])
-  const deliveredRevenue = useMemo(() => liveOrders.filter((order) => order.status === 'DELIVERED').reduce((sum, order) => sum + Number(order.total_price), 0) / 100, [liveOrders])
-  const codOrders = useMemo(() => liveOrders.filter((order) => order.payment_method === 'CASH_ON_DELIVERY'), [liveOrders])
   const visibleOrders = useMemo(() => {
     const query = search.trim().toLowerCase()
     const numberQuery = query.replace(/^#/, '')
@@ -131,13 +127,13 @@ export function AdminPage() {
       const matchesQuery = !query || Boolean(matchesPhone) ||
         Boolean(order.customer_name?.toLowerCase().includes(query)) ||
         Boolean(numberQuery && orders.filter(item => item.id === order.id || mergeMembers.some(member => member.order_id === item.id && member.root_id === order.id)).some(item => [item.receipt_code, item.nova_poshta_ttn].some(value => value?.toLowerCase().includes(numberQuery))))
-      const date = order.created_at.slice(0, 10)
+      const date = dashboardDay(order.created_at)
       const matchesOrderFilter = orderFilter === 'NO_TTN'
         ? !order.nova_poshta_ttn?.trim()
         : orderFilter === 'ALL' || order.status === orderFilter
-      return matchesQuery && matchesOrderFilter && (!fromDate || date >= fromDate) && (!toDate || date <= toDate)
+      return (dashboardOrderIds === null || dashboardOrderIds.includes(order.id)) && matchesQuery && matchesOrderFilter && (!fromDate || date >= fromDate) && (!toDate || date <= toDate)
     })
-  }, [groupedOrders, orders, mergeMembers, search, orderFilter, fromDate, toDate])
+  }, [groupedOrders, orders, mergeMembers, search, orderFilter, fromDate, toDate, dashboardOrderIds])
   const pages = Math.max(1, Math.ceil(visibleOrders.length / 20))
   const currentPage = Math.min(page, pages)
   const pageOrders = visibleOrders.slice((currentPage - 1) * 20, currentPage * 20)
@@ -203,7 +199,7 @@ export function AdminPage() {
     }))
     if (restoreStock && store) {
       try {
-        const nextInventory = await supabaseRequest<InventoryProduct[]>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=id,name,product_variants(*)&order=position.asc`, { token })
+        const nextInventory = await fetchAll<InventoryProduct>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=id,name,is_active,created_at,product_variants(*)&order=position.asc,id.asc`, token)
         setInventory(nextInventory)
       } catch (cause) {
         addToast(cause instanceof Error ? cause.message : t('Could not refresh stock'))
@@ -422,16 +418,27 @@ export function AdminPage() {
     <section className="crm-page">
       <header className="crm-header">
         <div className="crm-masthead"><div><p className="eyebrow">{store.name} / {t('management')}</p><h1>{t('CRM')}</h1><p>{t('Your store, in one place.')}</p></div><span className="crm-masthead__mark" aria-hidden="true">T.</span></div>
-        <AdminTabs active={section} onChange={(next) => { if (next === 'catalogue') setCatalogView('products'); setSection(next) }} />
+        <AdminTabs active={section} onChange={next => {
+          if (next === 'catalogue') { setCatalogView('products'); setCatalogSearch('') }
+          if (next === 'orders') setDashboardOrderIds(null)
+          if (next === 'overview') setOrdersRevision(value => value + 1)
+          setSection(next)
+        }} />
       </header>
       {error ? <div className="crm-error" role="alert"><span>{error}</span><button type="button" className="text-btn" onClick={() => setError(null)}>{t('Close')}</button></div> : null}
       {section !== 'catalogue' && <div className="crm-section-head"><div><span className="crm-section-head__label"><span>{store.name}</span> / CRM</span><h2>{section === 'overview' ? t('Overview') : section === 'orders' ? t('Orders') : section === 'customers' ? t('Customers') : t('Settings')}</h2></div></div>}
-      {section === 'customers' ? <CustomersPage revision={customerRevision} onOpenCustomer={id => setSelectedCustomer({ kind: 'customer', id })} /> : section === 'catalogue' ? <CatalogAdminPage key={catalogView} embedded initialView={catalogView} /> : section === 'settings' ? <SettingsWorkspace /> : <>
-      {section === 'overview' ? <><div className="crm-stats crm-stats--overview">
-        <div><span>{t('Orders')}</span><strong>{liveOrders.length}</strong></div>
-        <div><span>{t('Customers')}</span><strong>{customerCount}</strong></div>
-        <div><span>{t('Revenue')}</span><strong className="crm-stats__money">{formatPrice(revenue, store.currency)}</strong></div><div><span>{t('Delivered revenue')}</span><strong className="crm-stats__money">{formatPrice(deliveredRevenue, store.currency)}</strong></div><div><span>{t('Payment on delivery')}</span><strong>{codOrders.length}</strong></div>
-      </div><div className="overview-grid"><section className="crm-panel crm-attention"><div className="crm-panel__heading"><div><p className="eyebrow">01 / {t('Overview')}</p><h2>{t('Needs attention')}</h2></div><span className="crm-panel__symbol" aria-hidden="true">↗</span></div><div className="crm-attention__row"><span>{t('pending orders')}</span><strong>{liveOrders.filter((order) => order.status === 'PENDING').length}</strong></div><div className="crm-attention__row"><span>{t('failed payments')}</span><strong>{liveOrders.filter((order) => order.payment_status === 'FAILED').length}</strong></div><button type="button" className="crm-inline-link" onClick={() => setSection('orders')}>{t('Open orders')} ↗</button></section><section className="crm-panel crm-inventory"><div className="crm-panel__heading"><div><p className="eyebrow">02 / {t('Catalogue')}</p><h2>{t('Inventory alerts')}</h2></div><span className="crm-panel__symbol" aria-hidden="true">↗</span></div>{inventory.flatMap((product) => product.product_variants.map((variant) => ({ product: product.name, ...variant }))).filter((variant) => !variant.is_preorder && variant.stock_quantity < (variant.low_stock_threshold ?? 3)).slice(0, 5).map((variant) => <div className="crm-attention__row" key={variant.id}><span>{variant.product} · {variant.name}</span><strong className="stock-low">{variant.stock_quantity}</strong></div>)}{!inventory.some(product => product.product_variants.some(variant => !variant.is_preorder && variant.stock_quantity < (variant.low_stock_threshold ?? 3))) ? <p className="muted">{t('No low stock alerts.')}</p> : null}<button type="button" className="crm-inline-link" onClick={() => { setCatalogView('stock'); setSection('catalogue') }}>{t('Manage catalogue')} ↗</button></section></div></> : <>
+      {token && <div hidden={section !== 'overview'}><AdminDashboard
+        storeId={store.id} currency={store.currency} token={token} orders={liveOrders} inventory={inventory}
+        mergeMembers={mergeMembers} revision={ordersRevision} onRefresh={() => setOrdersRevision(value => value + 1)}
+        onOpenOrders={ids => {
+          setDashboardOrderIds([...new Set(ids)])
+          setSearch(''); setOrderFilter('ALL'); setFromDate(''); setToDate(''); setPage(1); setSection('orders')
+        }}
+        onOpenOrder={id => setSelectedOrderId(id)}
+        onOpenCatalog={query => { setCatalogSearch(query ?? ''); setCatalogView('stock'); setSection('catalogue') }}
+        onOpenCustomers={() => setSection('customers')}
+      /></div>}
+      {section === 'customers' ? <CustomersPage revision={customerRevision} onOpenCustomer={id => setSelectedCustomer({ kind: 'customer', id })} /> : section === 'catalogue' ? <CatalogAdminPage key={`${catalogView}:${catalogSearch}`} embedded initialView={catalogView} initialSearch={catalogSearch} initialStockFilter="all" /> : section === 'settings' ? <SettingsWorkspace /> : section === 'orders' ? <>
       <div className="crm-grid crm-grid--orders">
         <section className="crm-panel">
           <div className="order-filters">
@@ -447,6 +454,7 @@ export function AdminPage() {
             <input aria-label={t('Orders from date')} type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
             <input aria-label={t('Orders to date')} type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
           </div>
+          {dashboardOrderIds !== null && <div className="dashboard-order-filter" role="status"><span>{t('Dashboard selection')} · {visibleOrders.length}</span><button type="button" className="text-btn" onClick={() => { setDashboardOrderIds(null); setPage(1) }}>{t('Show all orders')}</button></div>}
           <div className="orders-list-toolbar">
             <button className="text-btn" title={t(selectedOrders.length ? 'Export selected orders' : 'Export CSV')} disabled={!ordersToExport.length || exportingOrders} onClick={() => void exportOrders()}>
               {exportingOrders ? t('Preparing CSV…') : `${t('Export CSV')} (${ordersToExport.length})`}
@@ -538,17 +546,15 @@ export function AdminPage() {
           </div>}
         </section>
       </div>
-      </>}
-      </>}
+      </> : null}
       {selectedCustomer && token && <CustomerPanel key={`${selectedCustomer.kind}:${selectedCustomer.id}`}
         target={selectedCustomer} storeId={store.id} token={token}
         onSaved={() => setCustomerRevision(value => value + 1)} onClose={() => setSelectedCustomer(null)} />}
-      {section === 'overview' && token && <FinancialAnalytics orders={liveOrders} storeId={store.id} token={token} />}
       {confirmation && <ConfirmationDialog {...confirmation.content} onClose={confirmed => {
         setConfirmation(null)
         confirmation.resolve(confirmed)
       }} />}
-      {selectedOrder && token && <OrderOperations key={selectedOrder.id} order={selectedOrder} orderIds={groupIds(selectedOrder.id)} token={token} onClose={() => setSelectedOrderId(null)} />}
+      {selectedOrder && token && <OrderOperations key={selectedOrder.id} order={selectedOrder} orderIds={groupIds(selectedOrder.id)} token={token} onClose={() => { setSelectedOrderId(null); setOrdersRevision(value => value + 1) }} />}
       {mergeOpen && token && <MergeOrdersDrawer orders={selectedOrders} busy={bulkBusy} error={mergeError} onClose={() => setMergeOpen(false)} onMerge={targetId => {
         setBulkBusy(true)
         setMergeError(null)
