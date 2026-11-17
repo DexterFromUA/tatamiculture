@@ -254,6 +254,10 @@ const uk = {
   'Composition': 'Склад',
   'Care instructions': 'Догляд',
   'Product information': 'Інформація про товар',
+  'Basic information': 'Основна інформація',
+  'Pricing and weight': 'Ціна та вага',
+  'Product images': 'Фотографії товару',
+  'Visibility': 'Видимість',
 
   'Set as main image': 'Зробити головним фото',
   'Enter a valid price': 'Введіть коректну ціну',

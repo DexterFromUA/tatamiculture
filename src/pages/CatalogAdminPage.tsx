@@ -816,7 +816,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
       </section>
       </>)}
         {draft && <section className="product-editor catalog-product-workspace">
-          <div className="product-editor__head">
+          <div className="product-editor__head product-workspace__header">
             <h2 ref={editorHeading} tabIndex={-1}>{draft.id ? t('Edit product') : t('New product')}</h2>
             <div className="actions">
               {draft.id && <button type="button" className="text-btn product-editor__delete" disabled={saving || categoryBusy} onClick={() => requestProductDeletion(draft.id!)}>
@@ -826,8 +826,11 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
             </div>
           </div>
           {editingProduct && <ProductTimestamps product={editingProduct} />}
-          <div className="product-editor__translations">
+          <section className="product-workspace__section">
+            <div className="product-workspace__section-heading"><span>01</span><h3>{t('Basic information')}</h3></div>
+          <div className="product-editor__translations product-workspace__languages">
             {(['uk', 'en'] as const).map(locale => <div key={locale}>
+              <strong className="product-workspace__language">{t(locale === 'uk' ? 'Ukrainian' : 'English')}</strong>
               <label className="field">
                 <span>{t(locale === 'uk' ? 'Name in Ukrainian' : 'Name in English')}</span>
                 <input value={draft.names[locale]} onChange={event => setDraft({ ...draft, names: { ...draft.names, [locale]: event.target.value } })} />
@@ -838,7 +841,11 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
               </label>
             </div>)}
           </div>
-          <p className="muted">{t('When a translation is blank, the store shows the text from the other language.')}</p>
+          <p className="muted product-workspace__translation-hint">{t('When a translation is blank, the store shows the text from the other language.')}</p>
+          </section>
+          <section className="product-workspace__section">
+            <div className="product-workspace__section-heading"><span>02</span><h3>{t('Pricing and weight')}</h3></div>
+          <div className="product-workspace__pricing">
           <label className="field">
             <span>{t('Price, UAH')}</span>
             <input type="number" min="0" step="0.01" value={draft.price} disabled={saving} onChange={event => setDraft({ ...draft, price: event.target.value })} />
@@ -852,7 +859,9 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
             <input type="number" min="1" max="2147483647" step="1" value={draft.weightGrams} disabled={saving}
               onChange={event => setDraft({ ...draft, weightGrams: event.target.value })} />
           </label>
-          <details className="customer-section"><summary>{t('Product information')}</summary>
+          </div>
+          </section>
+          <details className="customer-section product-workspace__section product-workspace__details"><summary>{t('Product information')}</summary>
             <div className="product-editor__translations">
               {(['uk', 'en'] as const).map(locale => <div key={locale}>
                 <h3>{t(locale === 'uk' ? 'Ukrainian' : 'English')}</h3>
@@ -871,6 +880,8 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
               <button type="button" className="text-btn" disabled={saving} onClick={() => setDraft({ ...draft, sizeGuideImageFile: null, sizeGuideImageUrl: '' })}>{t('Remove image')}</button>
             </div>}
           </details>
+          <section className="product-workspace__section">
+          <div className="product-workspace__section-heading"><span>03</span><h3>{t('Categories')}</h3></div>
           <fieldset className="catalog-category-picker" disabled={saving || categoryBusy}>
             <legend>{t('Categories')}</legend>
             {groups.length === 0 && <p className="muted">{t('No categories yet.')}</p>}
@@ -895,7 +906,10 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
             }}>{t('Create category or subcategory')}</button>}
           </fieldset>
           {categoryManager}
-          <label className="field"><span>{t('Upload images')}</span><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => setDraft({ ...draft, newImageFiles: [...draft.newImageFiles, ...Array.from(event.target.files ?? [])] })} /><small>{t('JPG, PNG or WebP · up to 5 MB per file')}</small></label>
+          </section>
+          <section className="product-workspace__section">
+          <div className="product-workspace__section-heading"><span>04</span><h3>{t('Product images')}</h3></div>
+          <label className="field product-workspace__upload"><span>{t('Upload images')}</span><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => setDraft({ ...draft, newImageFiles: [...draft.newImageFiles, ...Array.from(event.target.files ?? [])] })} /><small>{t('JPG, PNG or WebP · up to 5 MB per file')}</small></label>
           {draft.images.length > 0 || draft.newImageFiles.length > 0 ? <div className="image-manager">
             {draft.images.filter((image) => !draft.removedImageIds.includes(image.id)).map((image) => <figure key={image.id} style={{ order: draft.newImagesFirst ? 1 : 0 }} className="image-manager__item" draggable onDragStart={() => { draggedImage.current = image.id }} onDragEnd={() => { draggedImage.current = null }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); if (draggedImage.current) moveImage(draggedImage.current, image.id); draggedImage.current = null }}><img src={image.public_url} alt={t('Product')} draggable={false} />
               <button type="button" className="text-btn" onClick={() => { setDraft(current => current ? { ...current, newImagesFirst: false } : current); moveImage(image.id, draft.images.find(item => !draft.removedImageIds.includes(item.id))?.id ?? image.id) }}>{t('Set as main image')}</button><button type="button" className="text-btn" onClick={() => setDraft({ ...draft, removedImageIds: [...draft.removedImageIds, image.id] })}>{t('Remove')}</button></figure>)}
@@ -907,9 +921,15 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
               <button type="button" className="text-btn" onClick={() => setDraft({ ...draft, newImageFiles: draft.newImageFiles.filter((_, fileIndex) => fileIndex !== index) })}>{t('Remove')}</button>
             </figure>)}
           </div> : null}
+          </section>
+          <section className="product-workspace__section product-workspace__visibility">
+          <div className="product-workspace__section-heading"><span>05</span><h3>{t('Visibility')}</h3></div>
+          <div className="product-workspace__visibility-options">
           <label className="check"><input type="checkbox" checked={draft.isActive} onChange={(event) => setDraft({ ...draft, isActive: event.target.checked })} /> {t('Published in storefront')}</label>
           <label className="check"><input type="checkbox" checked={draft.isNew} onChange={event => setDraft({ ...draft, isNew: event.target.checked })} /> {t('Mark as new')}</label>
-          <div className="variant-editor"><div className="product-editor__head"><h3>{t('Sizes and stock')}</h3><button type="button" className="text-btn" onClick={() => setDraft({ ...draft, variants: [...draft.variants, blankVariant()] })}>{t('Add size')}</button></div>
+          </div>
+          </section>
+          <div className="variant-editor product-workspace__section"><div className="product-editor__head"><div className="product-workspace__section-heading"><span>06</span><h3>{t('Sizes and stock')}</h3></div><button type="button" className="text-btn" onClick={() => setDraft({ ...draft, variants: [...draft.variants, blankVariant()] })}>{t('Add size')}</button></div>
             {draft.variants.map((variant, index) => <div className="variant-editor__row" key={variant.key}>
               <label className="variant-field"><span>{t('Size')}</span><input value={variant.name} onChange={(event) => updateVariant(index, 'name', event.target.value)} /></label>
               <label className="variant-field"><span>{t('SKU')}</span><input value={variant.sku} onChange={(event) => updateVariant(index, 'sku', event.target.value)} /></label>
@@ -925,11 +945,11 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
                     ? { ...item, unitCost: amount, currency, unitCostEdited: true }
                     : item),
                 })} />
-              <label title={t('Pre-order')}><input type="checkbox" checked={variant.is_preorder} onChange={(event) => updateVariant(index, 'is_preorder', event.target.checked)} /> {t('Pre-order')}</label>
-              <button type="button" className="text-btn" disabled={draft.variants.length === 1} onClick={() => removeVariant(index)}>{t('Remove')}</button>
+              <label className="variant-editor__preorder" title={t('Pre-order')}><input type="checkbox" checked={variant.is_preorder} onChange={(event) => updateVariant(index, 'is_preorder', event.target.checked)} /> {t('Pre-order')}</label>
+              <button type="button" className="variant-editor__remove" disabled={draft.variants.length === 1} onClick={() => removeVariant(index)}>{t('Remove')}</button>
             </div>)}
           </div>
-          <div className="actions">
+          <div className="actions product-workspace__footer">
             <button type="button" className="btn" disabled={saving || categoryBusy} onClick={() => void save()}>{t(saving && !deleting ? 'Saving…' : 'Save product')}</button>
             <button type="button" className="btn btn--ghost" disabled={saving || categoryBusy} onClick={closeEditor}>{t('Cancel')}</button>
           </div>
