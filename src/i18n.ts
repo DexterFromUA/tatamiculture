@@ -2,6 +2,9 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 const uk = {
+  'Name updated': 'Ім’я змінено',
+  'Changes saved': 'Зміни збережено',
+  'Enter a name between 1 and 100 characters.': 'Вкажіть ім’я від 1 до 100 символів.',
   'Your discount changed. Review your cart and try again.': 'Ваша знижка змінилася. Перевірте кошик і спробуйте ще раз.',
   'Used or awaiting payment: {{used}} of {{limit}}': 'Використано або очікує оплати: {{used}} з {{limit}}',
   'Personal discount': 'Персональна знижка',

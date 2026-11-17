@@ -16,10 +16,12 @@ export function CrmCustomerCard({ customer, customers, orders, storeId, token, o
   onSaved: () => void; onClose: () => void
 }) {
   const { t } = useTranslation()
+  const [name, setName] = useState(customer.name)
   const [notes, setNotes] = useState(customer.notes)
   const [tags, setTags] = useState(customer.tags.join(', '))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [savedMessage, setSavedMessage] = useState('')
   const [targetId, setTargetId] = useState('')
   const own = orders.filter(order => order.crm_customer_id === customer.id)
   const lastDelivery = own.find(order => order.delivery_city?.trim() && order.delivery_address?.trim())
@@ -40,18 +42,33 @@ export function CrmCustomerCard({ customer, customers, orders, storeId, token, o
     <form className="form" onSubmit={async event => {
       event.preventDefault()
       if (busy) return
+      setSavedMessage('')
+      const nextName = name.trim()
+      if (!nextName) {
+        setError(t('Enter a name between 1 and 100 characters.'))
+        return
+      }
       setBusy(true)
       setError('')
       try {
-        await supabaseRequest(`/rest/v1/crm_customers?id=eq.${customer.id}`, {
-          method: 'PATCH', token, body: JSON.stringify({ notes, tags: [...new Set(tags.split(',').map(tag => tag.trim()).filter(Boolean))] }),
+        await supabaseRequest('/rest/v1/rpc/update_crm_customer_details', {
+          method: 'POST', token, body: JSON.stringify({
+            p_store_id: storeId, p_customer_id: customer.id, p_name: nextName,
+            p_notes: notes, p_tags: [...new Set(tags.split(',').map(tag => tag.trim()).filter(Boolean))],
+          }),
         })
+        setName(nextName)
+        setSavedMessage(nextName !== customer.name ? 'Name updated' : 'Changes saved')
         onSaved()
       } catch (cause) { setError(cause instanceof Error ? cause.message : t('Action failed')) } finally { setBusy(false) }
     }}>
-      <label className="field">{t('Tags separated by commas')}<input value={tags} onChange={event => setTags(event.target.value)} maxLength={2000} /></label>
-      <label className="field">{t('Private notes')}<textarea rows={5} maxLength={10000} value={notes} onChange={event => setNotes(event.target.value)} /></label>
-      <button className="btn" disabled={busy}>{t('Save')}</button>
+      <label className="field">{t('Name')}<input value={name} onChange={event => { setName(event.target.value); setSavedMessage('') }} maxLength={100} required disabled={busy} autoComplete="name" /></label>
+      <label className="field">{t('Tags separated by commas')}<input value={tags} onChange={event => { setTags(event.target.value); setSavedMessage('') }} maxLength={2000} /></label>
+      <label className="field">{t('Private notes')}<textarea rows={5} maxLength={10000} value={notes} onChange={event => { setNotes(event.target.value); setSavedMessage('') }} /></label>
+      <div className="actions">
+        <button className="btn" disabled={busy}>{t(busy ? 'Saving…' : 'Save')}</button>
+        <span className="customer-save-status" role="status">{savedMessage && <><span aria-hidden="true">✓</span> {t(savedMessage)}</>}</span>
+      </div>
     </form>
     <details className="customer-section"><summary>{t('Merge customers')} {duplicates.length > 0 && `(${duplicates.length} ${t('matching phone')})`}</summary>
       <p>{t('Orders, notes and tags will move to the selected customer. Account access stays separate.')}</p>

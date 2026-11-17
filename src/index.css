@@ -865,6 +865,7 @@ textarea {
   gap: 16px;
 }
 .product-editor__delete { color: var(--danger); }
+.customer-save-status { color: #30865c; font-size: .85rem; font-weight: 600; }
 
 .catalog-admin {
   display: grid;
