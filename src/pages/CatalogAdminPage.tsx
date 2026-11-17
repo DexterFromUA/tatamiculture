@@ -1,4 +1,5 @@
 import { LocalImagePreview } from '../components/LocalImagePreview'
+import { CatalogCostInput } from '../components/CatalogCostInput'
 import { VariantCostEditor } from '../components/VariantCostEditor'
 import { StockAdjustment } from '../components/StockAdjustment'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -9,6 +10,7 @@ import { useToast } from '../context/ToastContext'
 import { SupabaseError, supabaseConfigured, supabaseRequest, uploadProductImage } from '../lib/supabase'
 import { fetchAll, hasStoreMembership } from '../lib/crm'
 import { categoryGroups, categoryLabel, categoryPaths } from '../lib/categories'
+import { costInputAmount, parseUnitCost, saveCatalogCosts, type CatalogCost, type CatalogExchangeRate, type CostCurrency } from '../lib/catalogCosts'
 import { formatPrice } from '../lib/format'
 import { productName } from '../lib/productText'
 import type { CatalogCategory, ProductText } from '../types'
@@ -22,10 +24,10 @@ type Variant = {
   stock_quantity: number
   low_stock_threshold: number
   is_preorder: boolean
-  variant_costs: { cost_amount: number } | null
+  variant_costs: CatalogCost | null
 }
 type ProductImage = { id: string; public_url: string; storage_path: string; position: number }
-type DraftVariant = Omit<Variant, 'price' | 'variant_costs'> & { key: string; unitCost: string; unitCostEdited: boolean }
+type DraftVariant = Omit<Variant, 'price' | 'variant_costs'> & { key: string; unitCost: string; currency: CostCurrency; unitCostEdited: boolean }
 type CatalogProduct = ProductText & {
   size_guide?: string
   size_guide_image_url?: string
@@ -39,7 +41,7 @@ type CatalogProduct = ProductText & {
   weight_grams: number | null
   product_images: ProductImage[]
   product_variants: Variant[]
-  product_costs: { cost_amount: number } | null
+  product_costs: CatalogCost | null
 }
 type Draft = {
   key: string
@@ -54,6 +56,7 @@ type Draft = {
   descriptions: Record<'uk' | 'en', string>
   price: string
   defaultCost: string
+  defaultCostCurrency: CostCurrency
   defaultCostEdited: boolean
   weightGrams: string
   categoryIds: string[]
@@ -66,16 +69,9 @@ type Draft = {
 }
 
 const defaultLowStockThreshold = 3
-const blankVariant = (): DraftVariant => ({ key: crypto.randomUUID(), name: 'M', sku: '', compare_at_price: null, stock_quantity: 0, low_stock_threshold: defaultLowStockThreshold, is_preorder: false, unitCost: '', unitCostEdited: false })
-const blankDraft = (): Draft => ({ key: crypto.randomUUID(), newImagesFirst: false, sizeGuide: '', sizeGuideImageUrl: '', sizeGuideImageFile: null, composition: '', careInstructions: '', names: { uk: '', en: '' }, descriptions: { uk: '', en: '' }, price: '0', defaultCost: '', defaultCostEdited: false, weightGrams: '', categoryIds: [], isActive: true, isNew: false, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
+const blankVariant = (): DraftVariant => ({ key: crypto.randomUUID(), name: 'M', sku: '', compare_at_price: null, stock_quantity: 0, low_stock_threshold: defaultLowStockThreshold, is_preorder: false, unitCost: '', currency: 'UAH', unitCostEdited: false })
+const blankDraft = (): Draft => ({ key: crypto.randomUUID(), newImagesFirst: false, sizeGuide: '', sizeGuideImageUrl: '', sizeGuideImageFile: null, composition: '', careInstructions: '', names: { uk: '', en: '' }, descriptions: { uk: '', en: '' }, price: '0', defaultCost: '', defaultCostCurrency: 'UAH', defaultCostEdited: false, weightGrams: '', categoryIds: [], isActive: true, isNew: false, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
 const categorySlug = (name: string) => `${name.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'category'}-${crypto.randomUUID().slice(0, 8)}`
-
-function parseUnitCost(value: string) {
-  if (!value.trim()) return null
-  const amount = Number(value)
-  const cost = Math.round(amount * 100)
-  return Number.isSafeInteger(cost) && amount >= 0 && cost <= 2147483647 ? cost : undefined
-}
 
 function assignedCategoryIds(product: CatalogProduct) {
   return [...new Set([
@@ -105,7 +101,8 @@ function toDraft(product: CatalogProduct, language?: string): Draft {
     names,
     descriptions,
     price: String(Number(product.product_variants[0]?.price ?? 0) / 100),
-    defaultCost: product.product_costs ? String(product.product_costs.cost_amount / 100) : '',
+    defaultCost: costInputAmount(product.product_costs),
+    defaultCostCurrency: product.product_costs?.currency ?? 'UAH',
     defaultCostEdited: false,
     weightGrams: product.weight_grams == null ? '' : String(product.weight_grams),
     categoryIds: assignedCategoryIds(product),
@@ -116,7 +113,8 @@ function toDraft(product: CatalogProduct, language?: string): Draft {
     removedImageIds: [],
     variants: product.product_variants.map(({ id, name, sku, compare_at_price, stock_quantity, low_stock_threshold, is_preorder, variant_costs }) => ({
       key: id ?? crypto.randomUUID(), id, name, sku, compare_at_price, stock_quantity, low_stock_threshold, is_preorder,
-      unitCost: variant_costs ? String(variant_costs.cost_amount / 100) : '',
+      unitCost: costInputAmount(variant_costs),
+      currency: variant_costs?.currency ?? 'UAH',
       unitCostEdited: false,
     })),
   }
@@ -133,6 +131,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
   const { addToast } = useToast()
   const [member, setMember] = useState<boolean | null>(null)
   const [stockSchemaReady, setStockSchemaReady] = useState(false)
+  const [rates, setRates] = useState<CatalogExchangeRate[]>([])
   const [products, setProducts] = useState<CatalogProduct[]>([])
   const [categories, setCategories] = useState<CatalogCategory[]>([])
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -240,13 +239,14 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
         return
       }
       const productQuery = (includeThreshold: boolean) =>
-        fetchAll<CatalogProduct>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=*,product_costs(cost_amount),product_categories(category_id),product_images(id,public_url,storage_path,position),product_variants(id,name,sku,price,compare_at_price,stock_quantity,is_preorder,variant_costs(cost_amount)${includeThreshold ? ',low_stock_threshold' : ''})&order=position.asc,id.asc&product_variants.order=position.asc,id.asc`, token)
-      const [catalog, nextCategories] = await Promise.all([
+        fetchAll<CatalogProduct>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=*,product_costs(cost_amount,source_amount,currency),product_categories(category_id),product_images(id,public_url,storage_path,position),product_variants(id,name,sku,price,compare_at_price,stock_quantity,is_preorder,variant_costs(cost_amount,source_amount,currency)${includeThreshold ? ',low_stock_threshold' : ''})&order=position.asc,id.asc&product_variants.order=position.asc,id.asc`, token)
+      const [catalog, nextCategories, nextRates] = await Promise.all([
         productQuery(true).then(products => ({ products, hasThreshold: true })).catch(async (cause: unknown) => {
           if (!(cause instanceof Error) || !/column .*low_stock_threshold.*does not exist/i.test(cause.message)) throw cause
           return { products: await productQuery(false), hasThreshold: false }
         }),
         fetchAll<CatalogCategory>(`/rest/v1/categories?store_id=eq.${encodeURIComponent(store.id)}&select=*&order=position.asc,id.asc`, token),
+        supabaseRequest<CatalogExchangeRate[]>('/rest/v1/catalog_exchange_rates?select=currency,uah_rate,rate_date', { token, cache: 'no-store' }).catch(() => []),
       ])
       setMember(true)
       setStockSchemaReady(catalog.hasThreshold)
@@ -258,6 +258,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
         })),
       })))
       setCategories(nextCategories)
+      setRates(nextRates)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not load catalogue')
     } finally {
@@ -421,6 +422,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
     const costs = draft.variants.filter(variant => variant.unitCostEdited).map(variant => ({
       variant_id: variant.key,
       cost_amount: parseUnitCost(variant.unitCost),
+      currency: variant.currency,
     }))
     if (defaultCost === undefined || costs.some(cost => cost.cost_amount === undefined)) {
       setError(t('Enter a valid unit cost.'))
@@ -525,15 +527,8 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
       ))
       await setProductCategories([productId], draft.categoryIds, token)
       if (draft.defaultCostEdited || costs.length > 0) {
-        await supabaseRequest('/rest/v1/rpc/save_catalog_costs', {
-          method: 'POST', token,
-          body: JSON.stringify({
-            p_product_id: productId,
-            p_update_default: draft.defaultCostEdited,
-            p_default_cost: defaultCost,
-            p_variant_costs: costs,
-          }),
-        })
+        await saveCatalogCosts(token, productId,
+          draft.defaultCostEdited ? { amount: defaultCost, currency: draft.defaultCostCurrency } : null, costs)
       }
       await supabaseRequest(productPath, { method: 'PATCH', token, body: JSON.stringify({ ...payload, size_guide_image_url: sizeGuideImageUrl }) })
       await Promise.all([load(), refreshProducts().catch(() => {})])
@@ -763,12 +758,8 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
               </div>
               <div className="catalog-stock-row__actions" key={variant.id}>
                 <button type="button" className="text-btn" onClick={() => openProduct(product)}>{t('Edit')}</button>
-                {variant.id && token && <VariantCostEditor variantId={variant.id} token={token} onSaved={cost_amount => {
-                  setProducts(current => current.map(item => item.id === product.id ? {
-                    ...item,
-                    product_variants: item.product_variants.map(size => size.id === variant.id ? { ...size, variant_costs: { cost_amount } } : size),
-                  } : item))
-                }} />}
+                {variant.id && token && <VariantCostEditor productId={product.id} variantId={variant.id}
+                  cost={variant.variant_costs} rates={rates} token={token} onSaved={load} />}
                 {stockSchemaReady && !variant.is_preorder && variant.id && token && <StockAdjustment variantId={variant.id} token={token} reload={load} />}
               </div>
             </li>
@@ -806,12 +797,9 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
             <input type="number" min="0" step="0.01" value={draft.price} disabled={saving} onChange={event => setDraft({ ...draft, price: event.target.value })} />
             {hasDifferentPrices && <small>{t('Sizes currently have different prices. Saving applies this price to all sizes.')}</small>}
           </label>
-          <label className="field">
-            <span>{t('Default unit cost, UAH')}</span>
-            <input type="number" min="0" max="21474836.47" step="0.01" value={draft.defaultCost} disabled={saving}
-              onChange={event => setDraft({ ...draft, defaultCost: event.target.value, defaultCostEdited: true })} />
-            <small>{t('Used for variants with an empty cost field.')}</small>
-          </label>
+          <CatalogCostInput label={t('Default unit cost')} amount={draft.defaultCost} currency={draft.defaultCostCurrency}
+            rates={rates} disabled={saving} hint={t('Used for variants with an empty cost field.')}
+            onChange={(amount, currency) => setDraft({ ...draft, defaultCost: amount, defaultCostCurrency: currency, defaultCostEdited: true })} />
           <label className="field">
             <span>{t('Item weight, g')}</span>
             <input type="number" min="1" max="2147483647" step="1" value={draft.weightGrams} disabled={saving}
@@ -877,8 +865,14 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products' }:
                 <label className="variant-field"><span>{t('Stock, units')}</span><input type="number" min="0" disabled={stockSchemaReady && Boolean(variant.id)} value={variant.stock_quantity} onChange={event => updateVariant(index, 'stock_quantity', Number(event.target.value))} /></label>
                 {stockSchemaReady && <label className="variant-field"><span>{t('Low stock threshold')}</span><input type="number" min="0" value={variant.low_stock_threshold} onChange={event => updateVariant(index, 'low_stock_threshold', Number(event.target.value))} /></label>}
               </>}
-              <label className="variant-field"><span>{t('Unit cost, UAH')}</span><input type="number" min="0" max="21474836.47" step="0.01"
-                value={variant.unitCost} placeholder={draft.defaultCost} disabled={saving} onChange={event => updateVariant(index, 'unitCost', event.target.value)} /></label>
+              <CatalogCostInput label={t('Unit cost')} amount={variant.unitCost} currency={variant.currency}
+                rates={rates} disabled={saving} placeholder={variant.currency === draft.defaultCostCurrency ? draft.defaultCost : undefined}
+                onChange={(amount, currency) => setDraft(current => current && {
+                  ...current,
+                  variants: current.variants.map(item => item.key === variant.key
+                    ? { ...item, unitCost: amount, currency, unitCostEdited: true }
+                    : item),
+                })} />
               <label title={t('Pre-order')}><input type="checkbox" checked={variant.is_preorder} onChange={(event) => updateVariant(index, 'is_preorder', event.target.checked)} /> {t('Pre-order')}</label>
               <button type="button" className="text-btn" disabled={draft.variants.length === 1} onClick={() => removeVariant(index)}>{t('Remove')}</button>
             </div>)}

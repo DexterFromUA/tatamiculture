@@ -1,33 +1,43 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { supabaseRequest } from '../lib/supabase'
+import { CatalogCostInput } from './CatalogCostInput'
+import { costInputAmount, parseUnitCost, saveCatalogCosts, type CatalogCost, type CatalogExchangeRate, type CostCurrency } from '../lib/catalogCosts'
 
-export function VariantCostEditor({ variantId, token, onSaved }: { variantId: string; token: string; onSaved: (cost: number) => void }) {
+export function VariantCostEditor({ productId, variantId, cost, rates, token, onSaved }: {
+  productId: string
+  variantId: string
+  cost: CatalogCost | null
+  rates: CatalogExchangeRate[]
+  token: string
+  onSaved: () => Promise<void>
+}) {
   const { t } = useTranslation()
-  const [amount, setAmount] = useState('')
+  const [amount, setAmount] = useState(costInputAmount(cost))
+  const [currency, setCurrency] = useState<CostCurrency>(cost?.currency ?? 'UAH')
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
-  useEffect(() => {
-    const abort = new AbortController()
-    supabaseRequest<Array<{ cost_amount: number }>>(`/rest/v1/variant_costs?variant_id=eq.${variantId}&select=cost_amount`, { token, signal: abort.signal })
-      .then(rows => setAmount(rows[0] ? String(rows[0].cost_amount / 100) : ''))
-      .catch(cause => { if (!abort.signal.aborted) setMessage(cause.message) })
-    return () => abort.abort()
-  }, [variantId, token])
   return <form className="inline-form" onSubmit={async event => {
     event.preventDefault()
     if (busy) return
-    const minor = Math.round(Number(amount) * 100)
-    if (!amount.trim() || !Number.isSafeInteger(minor) || minor < 0) return
+    const minor = parseUnitCost(amount)
+    if (minor === undefined) {
+      setMessage(t('Enter a valid unit cost.'))
+      return
+    }
     setBusy(true)
     setMessage('')
     try {
-      await supabaseRequest('/rest/v1/variant_costs?on_conflict=variant_id', { method: 'POST', token, headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ variant_id: variantId, cost_amount: minor }) })
-      onSaved(minor)
+      await saveCatalogCosts(token, productId, null, [{ variant_id: variantId, cost_amount: minor, currency }])
       setMessage(t('Saved'))
-    } catch (cause) { setMessage(cause instanceof Error ? cause.message : t('Action failed')) } finally { setBusy(false) }
+      await onSaved()
+    } catch (cause) {
+      setMessage(cause instanceof Error ? t(cause.message) : t('Action failed'))
+    } finally {
+      setBusy(false)
+    }
   }}>
-    <label className="field">{t('Unit cost, UAH')}<input required type="number" min="0" step="0.01" value={amount} onChange={event => setAmount(event.target.value)} /></label>
+    <CatalogCostInput label={t('Unit cost')} amount={amount} currency={currency} rates={rates} disabled={busy}
+      onChange={(nextAmount, nextCurrency) => { setAmount(nextAmount); setCurrency(nextCurrency) }} />
     <button className="text-btn" disabled={busy}>{t('Save')}</button>
     {message && <p role="status">{message}</p>}
   </form>

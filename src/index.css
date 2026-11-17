@@ -970,6 +970,13 @@ textarea {
 .variant-editor__row label { font-size: .85rem; white-space: nowrap; }
 .variant-field { display: block; min-width: 0; }
 .variant-field span { display: block; margin-bottom: 5px; color: var(--muted); font-size: .75rem; white-space: normal; }
+.catalog-cost-field { min-width: 0; display: grid; gap: 5px; }
+.product-editor > .catalog-cost-field { margin: 14px 0; }
+.catalog-cost-field__label { color: var(--muted); font-size: .75rem; }
+.catalog-cost-field__control { display: grid; grid-template-columns: minmax(0, 1fr) auto; max-width: 18rem; }
+.catalog-cost-field__control :is(input, select) { width: 100%; min-width: 0; min-height: 40px; padding: 8px; border: 1px solid var(--line); background: var(--card); color: inherit; }
+.catalog-cost-field__control select { border-inline-start: 0; }
+.variant-editor__row .catalog-cost-field { grid-column: span 2; }
 
 .image-manager {
   display: grid;
