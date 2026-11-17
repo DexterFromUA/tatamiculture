@@ -5,20 +5,27 @@ export function useDrawer({ openOnMount = false, onClose }: {
   onClose?: () => void
 } = {}) {
   const ref = useRef<HTMLDialogElement>(null)
+  const openingFrame = useRef<number | null>(null)
 
   const open = useCallback(() => {
     const panel = ref.current
     if (!panel || panel.open) return
     panel.showModal()
-    // Apply the starting position before transitioning into view.
-    void panel.offsetWidth
-    panel.setAttribute('data-visible', '')
+    // Paint the starting position without forcing synchronous layout.
+    openingFrame.current = requestAnimationFrame(() => {
+      openingFrame.current = requestAnimationFrame(() => {
+        openingFrame.current = null
+        if (panel.open) panel.setAttribute('data-visible', '')
+      })
+    })
   }, [])
 
   useEffect(() => {
     const panel = ref.current
     if (openOnMount) open()
     return () => {
+      if (openingFrame.current !== null) cancelAnimationFrame(openingFrame.current)
+      openingFrame.current = null
       panel?.removeAttribute('data-visible')
       panel?.close()
     }
@@ -26,7 +33,9 @@ export function useDrawer({ openOnMount = false, onClose }: {
 
   const close = (afterClose?: () => void) => {
     const panel = ref.current
-    if (!panel?.open || !panel.hasAttribute('data-visible')) return
+    if (!panel?.open) return
+    if (openingFrame.current !== null) cancelAnimationFrame(openingFrame.current)
+    openingFrame.current = null
     panel.removeAttribute('data-visible')
 
     const finish = () => {

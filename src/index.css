@@ -1603,14 +1603,13 @@ input[type="date"] { color-scheme: light; }
   background: var(--paper);
   color: var(--ink);
   overflow: hidden;
-  transform: translateX(100%);
+  transform: translate3d(100%, 0, 0);
   transition: transform var(--drawer-duration) cubic-bezier(.25, .8, .25, 1);
 }
-.order-drawer[open] { display: grid; grid-template-rows: auto minmax(0, 1fr); }
-.order-drawer[data-visible] { transform: translateX(0); }
+.order-drawer[open] { display: grid; grid-template-rows: auto minmax(0, 1fr); will-change: transform; }
+.order-drawer[data-visible] { transform: translate3d(0, 0, 0); }
 .order-drawer::backdrop {
   background: rgb(20 20 20 / 62%);
-  backdrop-filter: blur(3px);
   opacity: 0;
   transition: opacity var(--drawer-duration) ease;
 }
