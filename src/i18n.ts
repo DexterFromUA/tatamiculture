@@ -112,6 +112,8 @@ const uk = {
   "completed": "Завершено",
   "cancelled": "Скасовано",
   "Unit cost, UAH": "Собівартість одиниці, грн",
+  "Default unit cost, UAH": "Загальна собівартість одиниці, грн",
+  "Used for variants with an empty cost field.": "Застосовується до варіантів, для яких собівартість не вказана.",
   "Enter a valid unit cost.": "Введіть коректну собівартість одиниці.",
   "Sign in to get a restock notification": "Увійдіть, щоб отримати сповіщення про надходження",
   "We will notify you in your account when this size is back in stock.": "Ми повідомимо у вашому кабінеті, коли цей розмір з’явиться в наявності.",
