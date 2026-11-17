@@ -1,4 +1,18 @@
-import type { ProductText } from '../types'
+import type { Product, ProductText } from '../types'
+
+export function productInformation(product: Product, language?: string) {
+  const localized = (uk?: string, en?: string) => {
+    const preferred = language === 'en' ? en : uk
+    const alternate = language === 'en' ? uk : en
+    return preferred?.trim() ? preferred : alternate ?? ''
+  }
+  return {
+    sizeGuide: localized(product.sizeGuide, product.sizeGuideEn),
+    sizeGuideImageUrl: product.sizeGuideImageUrl || product.sizeGuideImageUrlEn || '',
+    composition: localized(product.composition, product.compositionEn),
+    careInstructions: localized(product.careInstructions, product.careInstructionsEn),
+  }
+}
 
 export function productName(product: Pick<ProductText, 'name' | 'name_uk' | 'name_en'>, language?: string) {
   const uk = product.name_uk?.trim()

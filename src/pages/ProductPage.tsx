@@ -7,7 +7,7 @@ import { useStore } from '../context/StoreContext'
 import { useToast } from '../context/ToastContext'
 import { formatPrice, optionPrice } from '../lib/format'
 import { categoriesForProduct, categoryPaths, productCategoryLabel } from '../lib/categories'
-import { productDescription, productName } from '../lib/productText'
+import { productDescription, productInformation, productName } from '../lib/productText'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
@@ -48,6 +48,7 @@ function ProductDetails() {
   const price = optionPrice(option)
   const name = productName(product, i18n.resolvedLanguage)
   const description = productDescription(product, i18n.resolvedLanguage)
+  const information = productInformation(product, i18n.resolvedLanguage)
   const categories = categoriesForProduct(product)
   const categoryIds = categories.map(category => category.id)
   const selectedCategories = new Set(categoryIds)
@@ -96,7 +97,7 @@ function ProductDetails() {
             <Markdown skipHtml remarkPlugins={[remarkBreaks]}>{description}</Markdown>
           </div>
         )}
-        {(product.sizeGuide || product.sizeGuideImageUrl) && <>
+        {(information.sizeGuide || information.sizeGuideImageUrl) && <>
           <button type="button" className="size-guide-trigger" aria-haspopup="dialog" onClick={() => sizeGuideDialog.current?.showModal()}>
             {t('Size guide and measurements')} <span aria-hidden="true">↗</span>
           </button>
@@ -111,14 +112,14 @@ function ProductDetails() {
               <button type="button" className="text-btn" autoFocus onClick={() => sizeGuideDialog.current?.close()}>{t('Close')}</button>
             </header>
             <div className="size-guide-dialog__body">
-              {product.sizeGuide && <p style={{ whiteSpace: 'pre-wrap' }}>{product.sizeGuide}</p>}
-              {product.sizeGuideImageUrl && <a href={product.sizeGuideImageUrl} target="_blank" rel="noopener noreferrer"><img src={product.sizeGuideImageUrl} alt={t('Size guide and measurements')} /></a>}
+              {information.sizeGuide && <p style={{ whiteSpace: 'pre-wrap' }}>{information.sizeGuide}</p>}
+              {information.sizeGuideImageUrl && <a href={information.sizeGuideImageUrl} target="_blank" rel="noopener noreferrer"><img src={information.sizeGuideImageUrl} alt={t('Size guide and measurements')} /></a>}
             </div>
           </dialog>
         </>}
         {[
-          [t('Composition'), product.composition],
-          [t('Care instructions'), product.careInstructions],
+          [t('Composition'), information.composition],
+          [t('Care instructions'), information.careInstructions],
         ].filter(([, value]) => value).map(([label, value]) => <details key={label} className="customer-section">
           <summary>{label}</summary><p style={{ whiteSpace: 'pre-wrap' }}>{value}</p>
         </details>)}

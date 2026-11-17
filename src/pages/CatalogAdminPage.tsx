@@ -31,6 +31,10 @@ type ProductImage = { id: string; public_url: string; storage_path: string; posi
 type DraftVariant = Omit<Variant, 'price' | 'variant_costs'> & { key: string; unitCost: string; currency: CostCurrency; unitCostEdited: boolean }
 type CatalogProduct = ProductText & {
   size_guide?: string
+  size_guide_en?: string
+  size_guide_image_url_en?: string
+  composition_en?: string
+  care_instructions_en?: string
   size_guide_image_url?: string
   composition?: string
   care_instructions?: string
@@ -60,11 +64,11 @@ function ProductTimestamps({ product }: { product: CatalogProduct }) {
 type Draft = {
   key: string
   newImagesFirst: boolean
-  sizeGuide: string
+  sizeGuide: Record<'uk' | 'en', string>
   sizeGuideImageUrl: string
   sizeGuideImageFile: File | null
-  composition: string
-  careInstructions: string
+  composition: Record<'uk' | 'en', string>
+  careInstructions: Record<'uk' | 'en', string>
   id?: string
   names: Record<'uk' | 'en', string>
   descriptions: Record<'uk' | 'en', string>
@@ -84,7 +88,7 @@ type Draft = {
 
 const defaultLowStockThreshold = 3
 const blankVariant = (): DraftVariant => ({ key: crypto.randomUUID(), name: 'M', sku: '', compare_at_price: null, stock_quantity: 0, low_stock_threshold: defaultLowStockThreshold, is_preorder: false, unitCost: '', currency: 'UAH', unitCostEdited: false })
-const blankDraft = (): Draft => ({ key: crypto.randomUUID(), newImagesFirst: false, sizeGuide: '', sizeGuideImageUrl: '', sizeGuideImageFile: null, composition: '', careInstructions: '', names: { uk: '', en: '' }, descriptions: { uk: '', en: '' }, price: '0', defaultCost: '', defaultCostCurrency: 'UAH', defaultCostEdited: false, weightGrams: '', categoryIds: [], isActive: true, isNew: false, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
+const blankDraft = (): Draft => ({ key: crypto.randomUUID(), newImagesFirst: false, sizeGuide: { uk: '', en: '' }, sizeGuideImageUrl: '', sizeGuideImageFile: null, composition: { uk: '', en: '' }, careInstructions: { uk: '', en: '' }, names: { uk: '', en: '' }, descriptions: { uk: '', en: '' }, price: '0', defaultCost: '', defaultCostCurrency: 'UAH', defaultCostEdited: false, weightGrams: '', categoryIds: [], isActive: true, isNew: false, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
 const categorySlug = (name: string) => `${name.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'category'}-${crypto.randomUUID().slice(0, 8)}`
 
 function assignedCategoryIds(product: CatalogProduct) {
@@ -109,8 +113,10 @@ function toDraft(product: CatalogProduct, language?: string): Draft {
   return {
     key: product.id,
     newImagesFirst: false,
-    sizeGuide: product.size_guide ?? '', composition: product.composition ?? '', careInstructions: product.care_instructions ?? '',
-    sizeGuideImageUrl: product.size_guide_image_url ?? '', sizeGuideImageFile: null,
+    sizeGuide: { uk: product.size_guide ?? '', en: product.size_guide_en ?? '' },
+    composition: { uk: product.composition ?? '', en: product.composition_en ?? '' },
+    careInstructions: { uk: product.care_instructions ?? '', en: product.care_instructions_en ?? '' },
+    sizeGuideImageUrl: product.size_guide_image_url || product.size_guide_image_url_en || '', sizeGuideImageFile: null,
     id: product.id,
     names,
     descriptions,
@@ -453,7 +459,9 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
         store_id: store.id,
         name, name_uk, name_en,
         description: description_uk ?? description_en ?? '', description_uk, description_en,
-        size_guide: draft.sizeGuide, composition: draft.composition, care_instructions: draft.careInstructions,
+        size_guide: draft.sizeGuide.uk, size_guide_en: draft.sizeGuide.en,
+        composition: draft.composition.uk, composition_en: draft.composition.en,
+        care_instructions: draft.careInstructions.uk, care_instructions_en: draft.careInstructions.en,
         is_active: draft.isActive,
         is_new: draft.isNew,
         weight_grams: weightGrams,
@@ -546,7 +554,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
         await saveCatalogCosts(token, productId,
           draft.defaultCostEdited ? { amount: defaultCost, currency: draft.defaultCostCurrency } : null, costs)
       }
-      await supabaseRequest(productPath, { method: 'PATCH', token, body: JSON.stringify({ ...payload, size_guide_image_url: sizeGuideImageUrl }) })
+      await supabaseRequest(productPath, { method: 'PATCH', token, body: JSON.stringify({ ...payload, size_guide_image_url: sizeGuideImageUrl, size_guide_image_url_en: '' }) })
       await Promise.all([load(), refreshProducts().catch(() => {})])
       closeSavedEditor()
     } catch (cause) {
@@ -845,7 +853,14 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
               onChange={event => setDraft({ ...draft, weightGrams: event.target.value })} />
           </label>
           <details className="customer-section"><summary>{t('Product information')}</summary>
-            <label className="field">{t('Size guide and measurements')}<textarea rows={5} maxLength={10000} value={draft.sizeGuide} onChange={event => setDraft({ ...draft, sizeGuide: event.target.value })} /></label>
+            <div className="product-editor__translations">
+              {(['uk', 'en'] as const).map(locale => <div key={locale}>
+                <h3>{t(locale === 'uk' ? 'Ukrainian' : 'English')}</h3>
+                <label className="field">{t('Size guide and measurements')}<textarea rows={5} maxLength={10000} value={draft.sizeGuide[locale]} onChange={event => setDraft({ ...draft, sizeGuide: { ...draft.sizeGuide, [locale]: event.target.value } })} /></label>
+                <label className="field">{t('Composition')}<textarea rows={3} maxLength={10000} value={draft.composition[locale]} onChange={event => setDraft({ ...draft, composition: { ...draft.composition, [locale]: event.target.value } })} /></label>
+                <label className="field">{t('Care instructions')}<textarea rows={3} maxLength={10000} value={draft.careInstructions[locale]} onChange={event => setDraft({ ...draft, careInstructions: { ...draft.careInstructions, [locale]: event.target.value } })} /></label>
+              </div>)}
+            </div>
             <label className="field"><span>{t('Size guide image')}</span><input type="file" accept="image/jpeg,image/png,image/webp" disabled={saving} onChange={event => {
               const file = event.target.files?.[0]
               if (file) setDraft({ ...draft, sizeGuideImageFile: file })
@@ -855,8 +870,6 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
               {draft.sizeGuideImageFile ? <LocalImagePreview file={draft.sizeGuideImageFile} /> : <img src={draft.sizeGuideImageUrl} alt={t('Size guide image')} />}
               <button type="button" className="text-btn" disabled={saving} onClick={() => setDraft({ ...draft, sizeGuideImageFile: null, sizeGuideImageUrl: '' })}>{t('Remove image')}</button>
             </div>}
-            <label className="field">{t('Composition')}<textarea rows={3} maxLength={10000} value={draft.composition} onChange={event => setDraft({ ...draft, composition: event.target.value })} /></label>
-            <label className="field">{t('Care instructions')}<textarea rows={3} maxLength={10000} value={draft.careInstructions} onChange={event => setDraft({ ...draft, careInstructions: event.target.value })} /></label>
           </details>
           <fieldset className="catalog-category-picker" disabled={saving || categoryBusy}>
             <legend>{t('Categories')}</legend>

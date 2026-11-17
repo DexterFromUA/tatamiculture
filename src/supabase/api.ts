@@ -26,6 +26,8 @@ function mapProduct(row: Row): Product {
     name_uk: text(row.name_uk), name_en: text(row.name_en),
     description_uk: text(row.description_uk), description_en: text(row.description_en),
     sizeGuide: text(row.size_guide), sizeGuideImageUrl: text(row.size_guide_image_url), composition: text(row.composition), careInstructions: text(row.care_instructions),
+    sizeGuideEn: text(row.size_guide_en), sizeGuideImageUrlEn: text(row.size_guide_image_url_en),
+    compositionEn: text(row.composition_en), careInstructionsEn: text(row.care_instructions_en),
     primaryCategory: category ?? undefined, isActive: Boolean(row.is_active),
     isNew: row.is_new === true,
     categories: assignments?.flatMap(link => link.categories ? [link.categories] : []),

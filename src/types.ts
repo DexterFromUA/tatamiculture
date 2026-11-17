@@ -57,6 +57,10 @@ export type Product = ProductText & {
   sizeGuideImageUrl?: string
   composition?: string
   careInstructions?: string
+  sizeGuideEn?: string
+  sizeGuideImageUrlEn?: string
+  compositionEn?: string
+  careInstructionsEn?: string
   id: string
   storeId: string
   primaryCategory?: CatalogCategory
