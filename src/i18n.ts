@@ -139,6 +139,7 @@ const uk = {
   'Delete product': 'Видалити товар',
   'Deleting…': 'Видалення…',
   'Permanently delete “{{name}}” from the catalogue?': 'Назавжди видалити «{{name}}» з каталогу?',
+  'This action cannot be undone.': 'Цю дію неможливо скасувати.',
   'Product deleted': 'Товар видалено',
   'Product no longer exists': 'Товару вже немає в каталозі',
   'Could not delete product': 'Не вдалося видалити товар',

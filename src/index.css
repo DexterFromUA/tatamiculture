@@ -1350,6 +1350,7 @@ textarea {
 .crm-page .catalog-admin__list li { flex-wrap: wrap; gap: 14px 20px; padding: 18px; border: 1px solid var(--crm-border); background: var(--card); }
 .crm-page .catalog-admin__list li:last-child { border-bottom: 1px solid var(--crm-border); }
 .catalog-admin__actions { flex: 0 0 100%; }
+.catalog-admin__actions .product-editor__delete { margin-left: auto; color: var(--danger); }
 .catalog-admin__list .order-select { flex: 0 0 28px; }
 .crm-page .catalog-admin__list li.active { background: var(--crm-soft); box-shadow: inset 3px 0 var(--accent); }
 .crm-page .catalog-admin__thumb { width: 60px; height: 72px; flex-basis: 60px; }

@@ -2,6 +2,7 @@ import { LocalImagePreview } from '../components/LocalImagePreview'
 import { CatalogCostInput } from '../components/CatalogCostInput'
 import { VariantCostEditor } from '../components/VariantCostEditor'
 import { StockAdjustment } from '../components/StockAdjustment'
+import { ConfirmationDialog } from '../components/ConfirmationDialog'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
@@ -151,6 +152,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [productToDelete, setProductToDelete] = useState<CatalogProduct | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState(initialSearch)
   const [view, setView] = useState<CatalogView>(initialView)
@@ -580,6 +582,24 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
     }
   }
 
+  const toggleProductVisibility = async (product: CatalogProduct) => {
+    if (!store || !token || saving || categoryBusy) return
+    const isActive = !product.is_active
+    setSaving(true)
+    setError(null)
+    try {
+      await supabaseRequest(`/rest/v1/products?store_id=eq.${store.id}&id=eq.${product.id}`, {
+        method: 'PATCH', token, body: JSON.stringify({ is_active: isActive }),
+      })
+      addToast(t(isActive ? 'Published' : 'Hidden'))
+      await Promise.all([load(), refreshProducts().catch(() => {})])
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t('Could not save product'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const duplicate = async (product: CatalogProduct) => {
     if (!token || saving) return
     setSaving(true)
@@ -596,12 +616,14 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
     }
   }
 
-  const deleteProduct = async () => {
-    const productId = draft?.id
-    if (!store || !token || !productId || saving || categoryBusy) return
+  const requestProductDeletion = (productId: string) => {
+    if (saving || categoryBusy) return
     const product = products.find(item => item.id === productId)
-    const name = product ? productName(product, language) : draft.names.uk || draft.names.en
-    if (!window.confirm(t('Permanently delete “{{name}}” from the catalogue?', { name }))) return
+    if (product) setProductToDelete(product)
+  }
+
+  const deleteProduct = async (productId: string) => {
+    if (!store || !token || !productId || saving || categoryBusy) return
 
     setSaving(true)
     setDeleting(true)
@@ -611,7 +633,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
         method: 'POST', token, body: JSON.stringify({ p_store_id: store.id, p_product_id: productId }),
       })
       setSelected(current => current.filter(id => id !== productId))
-      closeSavedEditor()
+      if (draft?.id === productId) closeSavedEditor()
       addToast(t(deleted ? 'Product deleted' : 'Product no longer exists'))
       await Promise.all([load(), refreshProducts().catch(() => {})])
     } catch (cause) {
@@ -749,6 +771,8 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
               <div className="crm-order__actions catalog-admin__actions">
                 <button type="button" className="text-btn" onClick={() => openProduct(product)}>{t('Edit')}</button>
                 {stockSchemaReady && <button type="button" className="text-btn" disabled={saving} onClick={() => void duplicate(product)}>{t('Duplicate')}</button>}
+                <button type="button" className="text-btn" disabled={saving || categoryBusy} onClick={() => void toggleProductVisibility(product)}>{t(product.is_active ? 'Hide' : 'Publish')}</button>
+                <button type="button" className="text-btn product-editor__delete" disabled={saving || categoryBusy} onClick={() => requestProductDeletion(product.id)}>{t('Delete')}</button>
               </div>
             </li>
           }) : stockMatches.slice((currentPage - 1) * 20, currentPage * 20).map(({ product, variants }) => {
@@ -787,7 +811,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
           <div className="product-editor__head">
             <h2 ref={editorHeading} tabIndex={-1}>{draft.id ? t('Edit product') : t('New product')}</h2>
             <div className="actions">
-              {draft.id && <button type="button" className="text-btn product-editor__delete" disabled={saving || categoryBusy} onClick={() => void deleteProduct()}>
+              {draft.id && <button type="button" className="text-btn product-editor__delete" disabled={saving || categoryBusy} onClick={() => requestProductDeletion(draft.id!)}>
                 {t(deleting ? 'Deleting…' : 'Delete product')}
               </button>}
               <button type="button" className="text-btn" disabled={saving || categoryBusy} onClick={closeEditor}>{t('Close')}</button>
@@ -897,6 +921,17 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
             <button type="button" className="btn btn--ghost" disabled={saving || categoryBusy} onClick={closeEditor}>{t('Cancel')}</button>
           </div>
         </section>}
+      {productToDelete && <ConfirmationDialog
+        title={t('Delete product')}
+        message={t('Permanently delete “{{name}}” from the catalogue?', { name: productName(productToDelete, language) })}
+        details={[t('This action cannot be undone.')]}
+        confirmLabel={t('Delete')}
+        confirmDisabled={saving || categoryBusy}
+        onClose={confirmed => {
+          setProductToDelete(null)
+          if (confirmed) void deleteProduct(productToDelete.id)
+        }}
+      />}
     </section>
   )
 }
