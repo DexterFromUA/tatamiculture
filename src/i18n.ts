@@ -257,6 +257,9 @@ const uk = {
   'Basic information': 'Основна інформація',
   'Pricing and weight': 'Ціна та вага',
   'Product images': 'Фотографії товару',
+  'Add photos': 'Додати фотографії',
+  'Choose files': 'Обрати файли',
+  'Main photo': 'Головне фото',
   'Visibility': 'Видимість',
 
   'Set as main image': 'Зробити головним фото',

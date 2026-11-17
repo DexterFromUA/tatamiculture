@@ -909,18 +909,44 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
           </section>
           <section className="product-workspace__section">
           <div className="product-workspace__section-heading"><span>04</span><h3>{t('Product images')}</h3></div>
-          <label className="field product-workspace__upload"><span>{t('Upload images')}</span><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => setDraft({ ...draft, newImageFiles: [...draft.newImageFiles, ...Array.from(event.target.files ?? [])] })} /><small>{t('JPG, PNG or WebP · up to 5 MB per file')}</small></label>
-          {draft.images.length > 0 || draft.newImageFiles.length > 0 ? <div className="image-manager">
-            {draft.images.filter((image) => !draft.removedImageIds.includes(image.id)).map((image) => <figure key={image.id} style={{ order: draft.newImagesFirst ? 1 : 0 }} className="image-manager__item" draggable onDragStart={() => { draggedImage.current = image.id }} onDragEnd={() => { draggedImage.current = null }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); if (draggedImage.current) moveImage(draggedImage.current, image.id); draggedImage.current = null }}><img src={image.public_url} alt={t('Product')} draggable={false} />
-              <button type="button" className="text-btn" onClick={() => { setDraft(current => current ? { ...current, newImagesFirst: false } : current); moveImage(image.id, draft.images.find(item => !draft.removedImageIds.includes(item.id))?.id ?? image.id) }}>{t('Set as main image')}</button><button type="button" className="text-btn" onClick={() => setDraft({ ...draft, removedImageIds: [...draft.removedImageIds, image.id] })}>{t('Remove')}</button></figure>)}
-            {draft.newImageFiles.map((file, index) => <figure key={`${file.name}-${index}`} style={{ order: draft.newImagesFirst ? 0 : 1 }} className="image-manager__item" draggable onDragStart={() => { draggedFile.current = index }} onDragEnd={() => { draggedFile.current = null }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); if (draggedFile.current !== null) moveFile(draggedFile.current, index); draggedFile.current = null }}>
-              <LocalImagePreview file={file} />
-              <button type="button" className="text-btn" onClick={() => { setDraft(current => current ? { ...current, newImagesFirst: true } : current); moveFile(index, 0) }}>{t('Set as main image')}</button>
-              <button type="button" className="text-btn" disabled={index === 0} onClick={() => moveFile(index, index - 1)}>{t('Move earlier')}</button>
-              <button type="button" className="text-btn" disabled={index === draft.newImageFiles.length - 1} onClick={() => moveFile(index, index + 1)}>{t('Move later')}</button>
-              <button type="button" className="text-btn" onClick={() => setDraft({ ...draft, newImageFiles: draft.newImageFiles.filter((_, fileIndex) => fileIndex !== index) })}>{t('Remove')}</button>
-            </figure>)}
-          </div> : null}
+          <label className="product-photo-upload">
+            <input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={saving} onChange={event => {
+              const files = Array.from(event.target.files ?? [])
+              if (files.length) setDraft(current => current && { ...current, newImageFiles: [...current.newImageFiles, ...files] })
+              event.target.value = ''
+            }} />
+            <span className="product-photo-upload__icon" aria-hidden="true">＋</span>
+            <span className="product-photo-upload__copy"><strong>{t('Add photos')}</strong><small>{t('JPG, PNG or WebP · up to 5 MB per file')}</small></span>
+            <span className="product-photo-upload__action" aria-hidden="true">{t('Choose files')}</span>
+          </label>
+          {(() => {
+            const visibleImages = draft.images.filter(image => !draft.removedImageIds.includes(image.id))
+            const hasNewFirst = draft.newImagesFirst && draft.newImageFiles.length > 0
+            const hasSavedFirst = !hasNewFirst && visibleImages.length > 0
+            return visibleImages.length > 0 || draft.newImageFiles.length > 0 ? <div className="image-manager product-photo-grid">
+              {visibleImages.map((image, index) => <figure key={image.id} style={{ order: hasNewFirst ? 1 : 0 }} className="image-manager__item product-photo" draggable onDragStart={() => { draggedImage.current = image.id }} onDragEnd={() => { draggedImage.current = null }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); if (draggedImage.current) moveImage(draggedImage.current, image.id); draggedImage.current = null }}>
+                <div className="product-photo__preview"><img src={image.public_url} alt={t('Product')} draggable={false} />
+                  {hasSavedFirst && index === 0 && <span className="product-photo__badge">{t('Main photo')}</span>}
+                  <button type="button" className="product-photo__delete" aria-label={t('Remove')} title={t('Remove')} disabled={saving} onClick={() => setDraft(current => current && { ...current, removedImageIds: [...current.removedImageIds, image.id] })}>×</button>
+                </div>
+                <figcaption className="product-photo__controls">
+                  <button type="button" className="product-photo__main" disabled={saving || (hasSavedFirst && index === 0)} onClick={() => { setDraft(current => current ? { ...current, newImagesFirst: false } : current); moveImage(image.id, visibleImages[0].id) }}>{t(hasSavedFirst && index === 0 ? 'Main photo' : 'Set as main image')}</button>
+                  <span className="product-photo__reorder"><button type="button" aria-label={t('Move earlier')} title={t('Move earlier')} disabled={saving || index === 0} onClick={() => moveImage(image.id, visibleImages[index - 1].id)}>←</button><button type="button" aria-label={t('Move later')} title={t('Move later')} disabled={saving || index === visibleImages.length - 1} onClick={() => moveImage(image.id, visibleImages[index + 1].id)}>→</button></span>
+                </figcaption>
+              </figure>)}
+              {draft.newImageFiles.map((file, index) => <figure key={`${file.name}-${index}`} style={{ order: hasNewFirst ? 0 : 1 }} className="image-manager__item product-photo" draggable onDragStart={() => { draggedFile.current = index }} onDragEnd={() => { draggedFile.current = null }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); if (draggedFile.current !== null) moveFile(draggedFile.current, index); draggedFile.current = null }}>
+                <div className="product-photo__preview"><LocalImagePreview file={file} />
+                  {!hasSavedFirst && index === 0 && <span className="product-photo__badge">{t('Main photo')}</span>}
+                  <button type="button" className="product-photo__delete" aria-label={t('Remove')} title={t('Remove')} disabled={saving} onClick={() => setDraft(current => current && { ...current, newImageFiles: current.newImageFiles.filter((_, fileIndex) => fileIndex !== index) })}>×</button>
+                </div>
+                <figcaption className="product-photo__controls">
+                  <button type="button" className="product-photo__main" disabled={saving || (!hasSavedFirst && index === 0)} onClick={() => { setDraft(current => current ? { ...current, newImagesFirst: true } : current); moveFile(index, 0) }}>{t(!hasSavedFirst && index === 0 ? 'Main photo' : 'Set as main image')}</button>
+                  <span className="product-photo__reorder"><button type="button" aria-label={t('Move earlier')} title={t('Move earlier')} disabled={saving || index === 0} onClick={() => moveFile(index, index - 1)}>←</button><button type="button" aria-label={t('Move later')} title={t('Move later')} disabled={saving || index === draft.newImageFiles.length - 1} onClick={() => moveFile(index, index + 1)}>→</button></span>
+                </figcaption>
+              </figure>)}
+            </div> : null
+          })()}
+
           </section>
           <section className="product-workspace__section product-workspace__visibility">
           <div className="product-workspace__section-heading"><span>05</span><h3>{t('Visibility')}</h3></div>
