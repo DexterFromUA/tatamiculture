@@ -2,6 +2,23 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 const uk = {
+  'CRM access': 'Доступ до CRM',
+  'Store owner': 'Власник магазину',
+  Administrator: 'Адміністратор',
+  'Limited access': 'Обмежений доступ',
+  'Your account': 'Ваш обліковий запис',
+  'The store owner’s access is protected.': 'Доступ власника магазину захищено.',
+  'Remove administrator access': 'Прибрати доступ адміністратора',
+  'Make administrator': 'Зробити адміністратором',
+  'Grant {{account}} access to the CRM and administrator management?': 'Надати {{account}} доступ до CRM та керування адміністраторами?',
+  'Remove CRM administrator access for {{account}}?': 'Прибрати доступ адміністратора CRM для {{account}}?',
+  'Administrator access granted': 'Доступ адміністратора надано',
+  'Administrator access removed': 'Доступ адміністратора прибрано',
+  'Administrator access required': 'Потрібен доступ адміністратора',
+  'You cannot change your own administrator access': 'Ви не можете змінити власний доступ адміністратора',
+  'Owner access cannot be changed here': 'Доступ власника магазину тут змінити неможливо',
+  'The registered account is no longer linked to this customer': 'Обліковий запис більше не пов’язаний із цим клієнтом',
+
   "No change": "Без змін",
   "Previous value is zero": "Попереднє значення — нуль",
   "Could not load this block.": "Не вдалося завантажити цей блок.",

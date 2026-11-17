@@ -105,14 +105,21 @@ export function StoreLayout() {
     if (!supabaseConfigured || !storeId || !userId || !token) return
 
     const abort = new AbortController()
-    void hasStoreMembership(storeId, userId, token, abort.signal)
-      .then(isMember => {
-        if (!abort.signal.aborted) setCrmAccess(isMember ? { storeId, userId, token } : null)
-      })
-      .catch(() => {
-        if (!abort.signal.aborted) setCrmAccess(null)
-      })
-    return () => abort.abort()
+    let requestId = 0
+    const refreshAccess = () => {
+      const current = ++requestId
+      void hasStoreMembership(storeId, userId, token, abort.signal)
+        .then(isMember => {
+          if (!abort.signal.aborted && current === requestId) setCrmAccess(isMember ? { storeId, userId, token } : null)
+        })
+        .catch(() => {
+          if (!abort.signal.aborted && current === requestId) setCrmAccess(null)
+        })
+    }
+    refreshAccess()
+    window.addEventListener('focus', refreshAccess)
+    const timer = window.setInterval(refreshAccess, 30000)
+    return () => { abort.abort(); window.removeEventListener('focus', refreshAccess); window.clearInterval(timer) }
   }, [storeId, userId, token])
 
   const canOpenCrm = crmAccess !== null

@@ -1,4 +1,5 @@
 import { CustomerDiscountEditor } from './CustomerDiscountEditor'
+import { CustomerAdminAccess } from './CustomerAdminAccess'
 import { CustomerAccountActions } from './CustomerAccountActions'
 import { customerPhone } from '../lib/crm'
 import { useState } from 'react'
@@ -37,6 +38,7 @@ export function CrmCustomerCard({ customer, customers, orders, storeId, token, o
     </dl>}
     <p>{own.length} {t('orders')} · {[...totals].map(([currency, amount]) => formatPrice(amount / 100, currency)).join(' · ')}</p>
     <CustomerAccountActions storeId={storeId} customerId={customer.id} token={token} onDeleted={onSaved} />
+    <CustomerAdminAccess key={customer.id} storeId={storeId} customerId={customer.id} token={token} />
     <CustomerDiscountEditor key={customer.id} storeId={storeId} customerId={customer.id} token={token} />
     {error && <p className="error" role="alert">{error}</p>}
     <form className="form" onSubmit={async event => {

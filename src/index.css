@@ -1982,3 +1982,17 @@ input[type="date"] { color-scheme: light; }
   .dashboard-chart__bars { gap: 2px; }
   .dashboard-chart__axis { max-width: 70px; }
 }
+
+.customer-admin-access { margin: 18px 0; padding: 18px; border: 1px solid var(--crm-border, var(--line)); background: var(--paper); }
+.customer-admin-access__heading h3 { margin: 0 0 14px; font-size: 1rem; }
+.customer-admin-access__account + .customer-admin-access__account { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.customer-admin-access__row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 12px; }
+.customer-admin-access__identity { min-width: 0; overflow-wrap: anywhere; }
+.customer-admin-access__identity strong, .customer-admin-access__identity small { display: block; }
+.customer-admin-access__identity small, .customer-admin-access__hint { margin: 3px 0 0; color: var(--muted); font-size: .75rem; }
+.customer-admin-access__status { padding: 5px 9px; border: 1px solid var(--line); color: var(--muted); font-size: .72rem; }
+.customer-admin-access__status.active { border-color: color-mix(in srgb, #30865c 35%, var(--line)); color: #30865c; }
+.customer-admin-access__action { margin-top: 12px; color: var(--accent); }
+.customer-admin-access__confirm { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.customer-admin-access__confirm p { font-size: .85rem; line-height: 1.5; overflow-wrap: anywhere; }
+.customer-admin-access__saved { margin: 12px 0 0; color: #30865c; font-size: .85rem; }

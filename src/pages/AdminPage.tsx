@@ -106,6 +106,19 @@ export function AdminPage() {
     return () => { cancelled = true }
   }, [store, token, user, ordersRevision])
 
+  useEffect(() => {
+    if (!store || !token || !user || !supabaseConfigured) return
+    const abort = new AbortController()
+    const checkAccess = () => {
+      void hasStoreMembership(store.id, user.id, token, abort.signal)
+        .then(isMember => { if (!abort.signal.aborted && !isMember) setMember(false) })
+        .catch(() => {})
+    }
+    window.addEventListener('focus', checkAccess)
+    const timer = window.setInterval(checkAccess, 30000)
+    return () => { abort.abort(); window.removeEventListener('focus', checkAccess); window.clearInterval(timer) }
+  }, [store, token, user])
+
   const liveOrders = useMemo(() => orders.filter(order => !order.payment_test_mode), [orders])
   const groupIds = (id: string) => {
     const ids = mergeMembers.filter(member => member.root_id === id).map(member => member.order_id)
