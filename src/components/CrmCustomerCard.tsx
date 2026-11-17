@@ -29,17 +29,34 @@ export function CrmCustomerCard({ customer, customers, orders, storeId, token, o
   const duplicates = customers.filter(item => item.id !== customer.id && customerPhone(customer.phone).length >= 9 && customerPhone(item.phone) === customerPhone(customer.phone))
   const totals = new Map<string, number>()
   for (const order of own.filter(order => !order.status.startsWith('CANCELLED'))) totals.set(order.currency, (totals.get(order.currency) ?? 0) + Number(order.total_price))
-  return <section className="crm-panel">
-    <div className="product-editor__head"><h2>{customer.name}</h2></div>
-    <p>{customer.phone} · {customer.email}</p>
-    {lastDelivery && <dl className="account-details">
-      <div><dt>{t('City')}</dt><dd>{lastDelivery.delivery_city}</dd></div>
-      <div><dt>{t('Last delivery address')}</dt><dd>{lastDelivery.delivery_address}</dd></div>
-    </dl>}
-    <p>{own.length} {t('orders')} · {[...totals].map(([currency, amount]) => formatPrice(amount / 100, currency)).join(' · ')}</p>
-    <CustomerAccountActions storeId={storeId} customerId={customer.id} token={token} onDeleted={onSaved} />
-    <CustomerAdminAccess key={customer.id} storeId={storeId} customerId={customer.id} token={token} />
-    <CustomerDiscountEditor key={customer.id} storeId={storeId} customerId={customer.id} token={token} />
+  const totalLabel = [...totals].map(([currency, amount]) => formatPrice(amount / 100, currency)).join(' · ') || '—'
+  const initial = customer.name.trim().charAt(0).toLocaleUpperCase() || '?'
+  return <section className="customer-profile">
+    <div className="customer-profile__identity">
+      <span className="customer-profile__avatar" aria-hidden="true">{initial}</span>
+      <div className="customer-profile__identity-text">
+        <h2>{customer.name}</h2>
+        <span>{t('Customer since')} {formatDate(customer.created_at)}</span>
+      </div>
+    </div>
+    <div className="customer-profile__stats">
+      <div><span>{t('Orders')}</span><strong>{own.length}</strong></div>
+      <div><span>{t('Order value')}</span><strong>{totalLabel}</strong><small>{t('Excluding cancelled orders')}</small></div>
+    </div>
+    <section className="customer-profile__card customer-profile__contact">
+      <h3>{t('Contact details')}</h3>
+      <dl>
+        <div><dt>{t('Phone')}</dt><dd>{customer.phone ? <a href={`tel:${customer.phone}`}>{customer.phone}</a> : '—'}</dd></div>
+        {customer.email && <div><dt>{t('Email')}</dt><dd><a href={`mailto:${customer.email}`}>{customer.email}</a></dd></div>}
+        {lastDelivery && <>
+          <div><dt>{t('City')}</dt><dd>{lastDelivery.delivery_city}</dd></div>
+          <div><dt>{t('Last delivery address')}</dt><dd>{lastDelivery.delivery_address}</dd></div>
+        </>}
+      </dl>
+      <CustomerAccountActions storeId={storeId} customerId={customer.id} token={token} onDeleted={onSaved} />
+    </section>
+    <section className="customer-profile__card">
+    <h3>{t('Customer details')}</h3>
     {error && <p className="error" role="alert">{error}</p>}
     <form className="form" onSubmit={async event => {
       event.preventDefault()
@@ -72,7 +89,17 @@ export function CrmCustomerCard({ customer, customers, orders, storeId, token, o
         <span className="customer-save-status" role="status">{savedMessage && <><span aria-hidden="true">✓</span> {t(savedMessage)}</>}</span>
       </div>
     </form>
-    <details className="customer-section"><summary>{t('Merge customers')} {duplicates.length > 0 && `(${duplicates.length} ${t('matching phone')})`}</summary>
+    </section>
+    <section className="customer-profile__card customer-profile__orders">
+      <div className="customer-profile__section-heading"><h3>{t('Order history')}</h3><span>{own.length}</span></div>
+      {own.length ? <ul className="customer-profile__order-list">{own.map(order => <li key={order.id}>
+        <div><strong>#{order.receipt_code}</strong><span>{formatDate(order.created_at)} · {t(order.status)}</span></div>
+        <strong>{formatPrice(Number(order.total_price) / 100, order.currency)}</strong>
+      </li>)}</ul> : <p className="customer-profile__empty">{t('No orders yet.')}</p>}
+    </section>
+    <CustomerDiscountEditor key={customer.id} storeId={storeId} customerId={customer.id} token={token} />
+    <CustomerAdminAccess key={customer.id} storeId={storeId} customerId={customer.id} token={token} />
+    <details className="customer-profile__card customer-profile__merge"><summary>{t('Merge customers')} {duplicates.length > 0 && <span>{duplicates.length} {t('matching phone')}</span>}</summary>
       <p>{t('Orders, notes and tags will move to the selected customer. Account access stays separate.')}</p>
       <label className="field">{t('Keep customer')}<select value={targetId} onChange={event => setTargetId(event.target.value)}>
         <option value="">{t('Select customer')}</option>
@@ -89,9 +116,5 @@ export function CrmCustomerCard({ customer, customers, orders, storeId, token, o
         } catch (cause) { setError(cause instanceof Error ? cause.message : t('Action failed')) } finally { setBusy(false) }
       }}>{t('Merge customers')}</button>
     </details>
-    <h3>{t('Order history')}</h3><ul className="customers-list">{own.map(order => <li key={order.id}>
-      <div><strong>#{order.receipt_code}</strong><span>{formatDate(order.created_at)} · {t(order.status)}</span></div>
-      <strong>{formatPrice(Number(order.total_price) / 100, order.currency)}</strong>
-    </li>)}</ul>
   </section>
 }

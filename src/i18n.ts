@@ -2,6 +2,10 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 const uk = {
+  'Customer since': 'Клієнт із',
+  'Excluding cancelled orders': 'Без скасованих замовлень',
+  'Contact details': 'Контактні дані',
+  'Customer details': 'Дані клієнта',
   'CRM access': 'Доступ до CRM',
   'Store owner': 'Власник магазину',
   Administrator: 'Адміністратор',
