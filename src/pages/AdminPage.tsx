@@ -73,7 +73,7 @@ export function AdminPage() {
   const [dashboardOrderIds, setDashboardOrderIds] = useState<string[] | null>(null)
   const [customerOrderFilter, setCustomerOrderFilter] = useState<{ id: string; name: string } | null>(null)
   const [catalogSearch, setCatalogSearch] = useState('')
-  const [catalogView, setCatalogView] = useState<'products' | 'stock'>('products')
+  const [catalogFilter, setCatalogFilter] = useState<'all' | 'stock'>('all')
   const [page, setPage] = useState(1)
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([])
@@ -440,7 +440,7 @@ export function AdminPage() {
       <header className="crm-header">
         <div className="crm-masthead"><div><p className="eyebrow">{store.name} / {t('management')}</p><h1>{t('CRM')}</h1><p>{t('Your store, in one place.')}</p></div><span className="crm-masthead__mark" aria-hidden="true">T.</span></div>
         <AdminTabs active={section} onChange={next => {
-          if (next === 'catalogue') { setCatalogView('products'); setCatalogSearch('') }
+          if (next === 'catalogue') { setCatalogFilter('all'); setCatalogSearch('') }
           if (next === 'orders') setDashboardOrderIds(null)
           if (next === 'overview') setOrdersRevision(value => value + 1)
           setSection(next)
@@ -461,10 +461,10 @@ export function AdminPage() {
           setSearch(''); setOrderFilter('ALL'); setFromDate(''); setToDate(''); setPage(1); setSection('orders')
         }}
         onOpenOrder={id => setSelectedOrderId(id)}
-        onOpenCatalog={query => { setCatalogSearch(query ?? ''); setCatalogView('stock'); setSection('catalogue') }}
+        onOpenCatalog={query => { setCatalogSearch(query ?? ''); setCatalogFilter('stock'); setSection('catalogue') }}
         onOpenCustomers={() => setSection('customers')}
       /></div>}
-      {section === 'customers' ? <CustomersPage revision={customerRevision} onOpenCustomer={id => setSelectedCustomer({ kind: 'customer', id })} /> : section === 'catalogue' ? <CatalogAdminPage key={`${catalogView}:${catalogSearch}`} embedded initialView={catalogView} initialSearch={catalogSearch} initialStockFilter="all" /> : section === 'settings' ? <SettingsWorkspace /> : section === 'orders' ? <>
+      {section === 'customers' ? <CustomersPage revision={customerRevision} onOpenCustomer={id => setSelectedCustomer({ kind: 'customer', id })} /> : section === 'catalogue' ? <CatalogAdminPage key={`${catalogFilter}:${catalogSearch}`} embedded initialFilter={catalogFilter} initialSearch={catalogSearch} /> : section === 'settings' ? <SettingsWorkspace /> : section === 'orders' ? <>
       <div className="crm-grid crm-grid--orders">
         <section className="crm-panel">
           <div className="order-filters">

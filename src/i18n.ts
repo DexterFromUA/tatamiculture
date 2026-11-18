@@ -271,6 +271,7 @@ const uk = {
   'Choose files': 'Обрати файли',
   'Main photo': 'Головне фото',
   'Visibility': 'Видимість',
+  'Catalogue filter': 'Фільтр каталогу',
 
   'Set as main image': 'Зробити головним фото',
   'Enter a valid price': 'Введіть коректну ціну',

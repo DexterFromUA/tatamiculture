@@ -181,11 +181,11 @@ function toDraft(product: CatalogProduct, language?: string): Draft {
   }
 }
 
-type CatalogView = 'products' | 'stock'
-type StockFilter = 'all' | 'low' | 'out'
-type VisibilityFilter = 'all' | 'published' | 'hidden'
+type CatalogFilter = 'all' | 'published' | 'hidden' | 'stock' | 'low-stock' | 'out-of-stock'
 
-export function CatalogAdminPage({ embedded = false, initialView = 'products', initialSearch = '', initialStockFilter }: { embedded?: boolean; initialView?: CatalogView; initialSearch?: string; initialStockFilter?: StockFilter }) {
+export function CatalogAdminPage({ embedded = false, initialSearch = '', initialFilter = 'all' }: {
+  embedded?: boolean; initialSearch?: string; initialFilter?: CatalogFilter
+}) {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage
   const { store, refreshProducts } = useStore()
@@ -203,11 +203,9 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
   const [productToDelete, setProductToDelete] = useState<CatalogProduct | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState(initialSearch)
-  const [view, setView] = useState<CatalogView>(initialView)
-  const [stockFilter, setStockFilter] = useState<StockFilter>(initialStockFilter ?? (initialView === 'stock' ? 'low' : 'all'))
+  const [filter, setFilter] = useState<CatalogFilter>(initialFilter)
   const [stockSelection, setStockSelection] = useState<Record<string, string>>({})
   const [categoryFilter, setCategoryFilter] = useState('all')
-  const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilter>('all')
   const [showCategories, setShowCategories] = useState(false)
   const [categoryNames, setCategoryNames] = useState({ uk: '', en: '' })
   const [categoryParent, setCategoryParent] = useState('')
@@ -226,22 +224,23 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
   const savedVariants = editingProduct?.product_variants
   const hasDifferentPrices = savedVariants?.some(variant => Number(variant.price) !== Number(savedVariants[0].price))
   const query = search.trim().toLowerCase()
-  const searchedProducts = products.filter(product => [
-    product.name, product.name_uk, product.name_en, ...product.product_variants.map(variant => variant.sku),
-  ].some(value => value?.toLowerCase().includes(query)))
-  const lowCount = products.flatMap(product => product.product_variants).filter(variant => variant.stock_quantity < variant.low_stock_threshold).length
-  const outCount = products.flatMap(product => product.product_variants).filter(variant => variant.stock_quantity === 0).length
-  const productMatches = searchedProducts.filter(product =>
+  const showStock = filter === 'stock' || filter === 'low-stock' || filter === 'out-of-stock'
+  const matchingProducts = products.filter(product =>
     (categoryFilter === 'all' || assignedCategoryIds(product).includes(categoryFilter))
-    && (visibilityFilter === 'all' || product.is_active === (visibilityFilter === 'published')))
-  const stockMatches = searchedProducts.map(product => ({
+    && (!query || [
+      product.name, product.name_uk, product.name_en, ...product.product_variants.map(variant => variant.sku),
+    ].some(value => value?.toLowerCase().includes(query))))
+  const productMatches = matchingProducts.filter(product =>
+    filter === 'published' ? product.is_active : filter === 'hidden' ? !product.is_active : true)
+  const stockMatches = showStock ? matchingProducts.map(product => ({
     product,
     variants: product.product_variants.filter(variant =>
-      stockFilter === 'all' || (stockFilter === 'out'
+      filter === 'stock' || (filter === 'out-of-stock'
         ? variant.stock_quantity === 0
         : variant.stock_quantity < variant.low_stock_threshold)),
-  })).filter(({ variants }) => variants.length > 0)
-  const pages = Math.max(1, Math.ceil((view === 'products' ? productMatches.length : stockMatches.length) / 20))
+  })).filter(({ variants }) => variants.length > 0) : []
+  const matchCount = showStock ? stockMatches.length : productMatches.length
+  const pages = Math.max(1, Math.ceil(matchCount / 20))
   const currentPage = Math.min(page, pages)
   const pageProducts = productMatches.slice((currentPage - 1) * 20, currentPage * 20)
   const pageProductIds = new Set(pageProducts.map(product => product.id))
@@ -320,7 +319,6 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
     closeSavedEditor()
   }
   const openProduct = (product: CatalogProduct, button: HTMLButtonElement) => beginDraft(toDraft(product, language), button)
-  const changeView = (next: CatalogView) => { setView(next); setPage(1); setDraft(null) }
 
   const load = useCallback(async () => {
     if (!store || !token || !user) return
@@ -836,28 +834,30 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
         {!draft && <div className="catalog-header-actions"><button type="button" className="btn btn--ghost" disabled={categoryBusy} onClick={() => { setShowCategories(current => !current); resetCategoryForm() }}>{t(showCategories ? 'Products' : 'Manage categories')}</button>{!showCategories && <button ref={addProductButton} type="button" className="btn" onClick={event => beginDraft(blankDraft(), event.currentTarget)}>{t('Add product')}</button>}</div>}
       </header>
       {error ? <p className="error" role="alert">{error}</p> : null}
-      {!draft && (showCategories ? categoryManager : <>
-      <div className="catalog-summary">
-        <button type="button" className={view === 'products' ? 'active' : ''} onClick={() => changeView('products')}><span>{t('Products')}</span><strong>{products.length}</strong></button>
-        <button type="button" className={view === 'stock' && stockFilter === 'all' ? 'active' : ''} onClick={() => { changeView('stock'); setStockFilter('all') }}><span>{t('Stock units')}</span><strong>{products.reduce((sum, product) => sum + product.product_variants.reduce((count, variant) => count + variant.stock_quantity, 0), 0)}</strong></button>
-        <button type="button" className={view === 'stock' && stockFilter === 'low' ? 'active' : ''} onClick={() => { changeView('stock'); setStockFilter('low') }}><span>{t('Low stock')}</span><strong>{lowCount}</strong></button>
-        <button type="button" className={view === 'stock' && stockFilter === 'out' ? 'active' : ''} onClick={() => { changeView('stock'); setStockFilter('out') }}><span>{t('Out of stock')}</span><strong>{outCount}</strong></button>
-      </div>
+      {!draft && (showCategories ? categoryManager :
       <section className="crm-panel catalog-list-panel">
-      <div className={view === 'products' ? 'catalog-toolbar catalog-toolbar--products' : 'catalog-toolbar'}>
+      <div className="catalog-toolbar">
         <input type="search" aria-label={t('Search by name or SKU')} placeholder={t('Search by name or SKU')} value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} />
-        {view === 'products' ? <select aria-label={t('Category')} value={categoryFilter} onChange={event => { setCategoryFilter(event.target.value); setPage(1) }}><option value="all">{t('All categories')}</option>{categoryOptions.map(({ category, label }) => <option key={category.id} value={category.id}>{label}</option>)}</select> : <select aria-label={t('Stock filter')} value={stockFilter} onChange={event => { setStockFilter(event.target.value as StockFilter); setPage(1) }}><option value="all">{t('All stock')}</option><option value="low">{t('Low stock')}</option><option value="out">{t('Out of stock')}</option></select>}
-        {view === 'products' && <select aria-label={t('Visibility')} value={visibilityFilter} onChange={event => {
-          setVisibilityFilter(event.target.value as VisibilityFilter)
+        <select aria-label={t('Category')} value={categoryFilter} onChange={event => { setCategoryFilter(event.target.value); setPage(1) }}>
+          <option value="all">{t('All categories')}</option>
+          {categoryOptions.map(({ category, label }) => <option key={category.id} value={category.id}>{label}</option>)}
+        </select>
+        <select aria-label={t('Catalogue filter')} value={filter} onChange={event => {
+          setFilter(event.target.value as CatalogFilter)
           setPage(1)
         }}>
-          <option value="all">{t('All statuses')}</option>
+          <option value="all">{t('All products')}</option>
           <option value="published">{t('Published')}</option>
           <option value="hidden">{t('Hidden')}</option>
-        </select>}
+          <optgroup label={t('Inventory')}>
+            <option value="stock">{t('All stock')}</option>
+            <option value="low-stock">{t('Low stock')}</option>
+            <option value="out-of-stock">{t('Out of stock')}</option>
+          </optgroup>
+        </select>
         <div className="crm-pagination"><button className="text-btn" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t('Previous')}</button><span>{currentPage} / {pages}</span><button className="text-btn" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>{t('Next')}</button></div>
       </div>
-        {view === 'products' && (pageProducts.length > 0 || selected.length > 0) && <div className="order-bulk" role="group" aria-label={t('Bulk action')}>
+        {!showStock && (pageProducts.length > 0 || selected.length > 0) && <div className="order-bulk" role="group" aria-label={t('Bulk action')}>
           <label className="order-select-all">
             <input type="checkbox" checked={pageSelected} disabled={saving || !pageProducts.length}
               ref={input => { if (input) input.indeterminate = !pageSelected && selected.length > selectedOutsidePage }}
@@ -892,7 +892,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
           </div>
         </div>}
         <ul ref={productList} className="catalog-admin__list">
-          {view === 'products' ? pageProducts.map(product => {
+          {!showStock ? pageProducts.map(product => {
             const unavailable = product.product_variants.filter(variant => variant.stock_quantity === 0).length
             return <li key={product.id} className={selected.includes(product.id) ? 'catalog-admin__selected' : undefined}>
               <label className="order-select"><input type="checkbox" aria-label={`${t('Select product')} · ${productName(product, language)}`} checked={selected.includes(product.id)} disabled={saving} onChange={event => { const checked = event.target.checked; setSelected(current => checked ? [...current, product.id] : current.filter(id => id !== product.id)) }} /></label>
@@ -932,11 +932,10 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
               </div>
             </li>
           })}
-          {(view === 'products' ? productMatches.length : stockMatches.length) === 0 ? <li className="catalog-admin__no-results">{t('No products match these filters.')}</li> : null}
+          {matchCount === 0 && <li className="catalog-admin__no-results">{t('No products match these filters.')}</li>}
         </ul>
       <div className="crm-pagination"><button className="text-btn" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t('Previous')}</button><span>{currentPage} / {pages}</span><button className="text-btn" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>{t('Next')}</button></div>
-      </section>
-      </>)}
+      </section>)}
         {draft && <section className="product-editor catalog-product-workspace">
           <div className="product-editor__head product-workspace__header">
             <h2 ref={editorHeading} tabIndex={-1}>{draft.id ? t('Edit product') : t('New product')}</h2>
