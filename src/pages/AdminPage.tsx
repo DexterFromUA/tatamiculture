@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CustomerPanel, type CustomerPanelTarget } from '../components/CustomerPanel'
 import { CreateTtnDrawer } from '../components/CreateTtnDrawer'
+import { CreateOrderDrawer } from '../components/CreateOrderDrawer'
 import { LoadingIndicator } from '../components/LoadingIndicator'
 import { MergeOrdersDrawer } from '../components/MergeOrdersDrawer'
 import { ConfirmationDialog, type ConfirmationDialogContent } from '../components/ConfirmationDialog'
@@ -48,6 +49,7 @@ export function AdminPage() {
   const [orders, setOrders] = useState<AdminOrder[]>([])
   const [mergeMembers, setMergeMembers] = useState<Array<{ order_id: string; root_id: string }>>([])
   const [ordersRevision, setOrdersRevision] = useState(0)
+  const [createOrderOpen, setCreateOrderOpen] = useState(false)
   const [mergeOpen, setMergeOpen] = useState(false)
   const [mergeError, setMergeError] = useState<string | null>(null)
   const [inventory, setInventory] = useState<InventoryProduct[]>([])
@@ -445,7 +447,11 @@ export function AdminPage() {
         }} />
       </header>
       {error ? <div className="crm-error" role="alert"><span>{error}</span><button type="button" className="text-btn" onClick={() => setError(null)}>{t('Close')}</button></div> : null}
-      {section !== 'catalogue' && <div className="crm-section-head"><div><span className="crm-section-head__label"><span>{store.name}</span> / CRM</span><h2>{section === 'overview' ? t('Overview') : section === 'orders' ? t('Orders') : section === 'customers' ? t('Customers') : t('Settings')}</h2></div></div>}
+      {section !== 'catalogue' && <div className="crm-section-head">
+        <div><span className="crm-section-head__label"><span>{store.name}</span> / CRM</span><h2>{section === 'overview' ? t('Overview') : section === 'orders' ? t('Orders') : section === 'customers' ? t('Customers') : t('Settings')}</h2></div>
+        {section === 'orders' && token && <button type="button" className="btn crm-create-order-button" aria-haspopup="dialog"
+          onClick={() => setCreateOrderOpen(true)}>{t('Create order')}</button>}
+      </div>}
       {token && <div hidden={section !== 'overview'}><AdminDashboard
         storeId={store.id} currency={store.currency} token={token} orders={liveOrders} inventory={inventory}
         mergeMembers={mergeMembers} revision={ordersRevision} onRefresh={() => setOrdersRevision(value => value + 1)}
@@ -570,6 +576,13 @@ export function AdminPage() {
         </section>
       </div>
       </> : null}
+      {createOrderOpen && token && <CreateOrderDrawer store={store} token={token} onClose={() => setCreateOrderOpen(false)}
+        onCreated={id => {
+          setOrdersRevision(value => value + 1)
+          setCustomerRevision(value => value + 1)
+          setSelectedOrderId(id)
+          addToast(t('Order created'))
+        }} />}
       {selectedCustomer && token && <CustomerPanel key={`${selectedCustomer.kind}:${selectedCustomer.id}`}
         target={selectedCustomer} storeId={store.id} token={token} mergeMembers={mergeMembers}
         onSaved={() => setCustomerRevision(value => value + 1)} onClose={() => setSelectedCustomer(null)}

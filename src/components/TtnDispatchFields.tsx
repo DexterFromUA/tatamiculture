@@ -9,10 +9,11 @@ type City = Warehouse & { area: string }
 const directory = '/functions/v1/nova-poshta-directory'
 const warehousePageSize = 100
 
-export function TtnDispatchFields({ location, onChange, disabled }: {
+export function TtnDispatchFields({ location, onChange, disabled, recipient = false }: {
   location: DispatchLocation
   onChange: (location: DispatchLocation) => void
   disabled: boolean
+  recipient?: boolean
 }) {
   const { t } = useTranslation()
   const cityId = useId()
@@ -82,7 +83,7 @@ export function TtnDispatchFields({ location, onChange, disabled }: {
 
   return <>
     <div className="field">
-      <label htmlFor={cityId}>{t('Dispatch city')}</label>
+      <label htmlFor={cityId}>{t(recipient ? 'City' : 'Dispatch city')}</label>
       <input id={cityId} required disabled={disabled} placeholder={t('Type city in Ukrainian')}
         value={location.cityName} onChange={event => changeCity(event.target.value)} />
       {searching && !error && (cities?.length ? (
@@ -94,7 +95,7 @@ export function TtnDispatchFields({ location, onChange, disabled }: {
       ) : <small role="status">{t(cities ? 'No cities found' : 'Loading…')}</small>)}
     </div>
     <label className="field">
-      <span>{t('Dispatch branch')}</span>
+      <span>{t(recipient ? 'Nova Poshta branch or parcel locker' : 'Dispatch branch')}</span>
       <select required value={location.warehouseRef} disabled={disabled || !cityRef}
         onChange={event => {
           const branch = warehouses.find(item => item.ref === event.target.value)
