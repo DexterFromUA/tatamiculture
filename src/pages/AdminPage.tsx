@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { CustomerPanel, type CustomerPanelTarget } from '../components/CustomerPanel'
 import { CreateTtnDrawer } from '../components/CreateTtnDrawer'
 import { CreateOrderDrawer } from '../components/CreateOrderDrawer'
+import { ImportOrdersDialog } from '../components/ImportOrdersDialog'
 import { LoadingIndicator } from '../components/LoadingIndicator'
 import { MergeOrdersDrawer } from '../components/MergeOrdersDrawer'
 import { ConfirmationDialog, type ConfirmationDialogContent } from '../components/ConfirmationDialog'
@@ -43,13 +44,14 @@ const canCreateTtn = (order: AdminOrder) =>
   !order.nova_poshta_ttn && !order.nova_poshta_document_ref && !order.status.startsWith('CANCELLED')
 
 export function AdminPage() {
-  const { store } = useStore()
+  const { store, refreshProducts } = useStore()
   const { token, user } = useAuth()
   const { addToast } = useToast()
   const [orders, setOrders] = useState<AdminOrder[]>([])
   const [mergeMembers, setMergeMembers] = useState<Array<{ order_id: string; root_id: string }>>([])
   const [ordersRevision, setOrdersRevision] = useState(0)
   const [createOrderOpen, setCreateOrderOpen] = useState(false)
+  const [importOrdersOpen, setImportOrdersOpen] = useState(false)
   const [mergeOpen, setMergeOpen] = useState(false)
   const [mergeError, setMergeError] = useState<string | null>(null)
   const [inventory, setInventory] = useState<InventoryProduct[]>([])
@@ -449,8 +451,12 @@ export function AdminPage() {
       {error ? <div className="crm-error" role="alert"><span>{error}</span><button type="button" className="text-btn" onClick={() => setError(null)}>{t('Close')}</button></div> : null}
       {section !== 'catalogue' && <div className="crm-section-head">
         <div><span className="crm-section-head__label"><span>{store.name}</span> / CRM</span><h2>{section === 'overview' ? t('Overview') : section === 'orders' ? t('Orders') : section === 'customers' ? t('Customers') : t('Settings')}</h2></div>
-        {section === 'orders' && token && <button type="button" className="btn crm-create-order-button" aria-haspopup="dialog"
-          onClick={() => setCreateOrderOpen(true)}>{t('Create order')}</button>}
+        {section === 'orders' && token && <div className="crm-order-actions">
+          <button type="button" className="btn btn--ghost crm-create-order-button" aria-haspopup="dialog"
+            onClick={() => setImportOrdersOpen(true)}>{t('Import')}</button>
+          <button type="button" className="btn crm-create-order-button" aria-haspopup="dialog"
+            onClick={() => setCreateOrderOpen(true)}>{t('Create order')}</button>
+        </div>}
       </div>}
       {token && <div hidden={section !== 'overview'}><AdminDashboard
         storeId={store.id} currency={store.currency} token={token} orders={liveOrders} inventory={inventory}
@@ -588,6 +594,12 @@ export function AdminPage() {
           setCustomerRevision(value => value + 1)
           setSelectedOrderId(id)
           addToast(t('Order created'))
+        }} />}
+      {importOrdersOpen && token && <ImportOrdersDialog store={store} token={token} onClose={() => setImportOrdersOpen(false)}
+        onImported={() => {
+          setOrdersRevision(value => value + 1)
+          setCustomerRevision(value => value + 1)
+          void refreshProducts().catch(() => {})
         }} />}
       {selectedCustomer && token && <CustomerPanel key={`${selectedCustomer.kind}:${selectedCustomer.id}`}
         target={selectedCustomer} storeId={store.id} token={token} mergeMembers={mergeMembers}

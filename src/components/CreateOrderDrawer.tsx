@@ -1,17 +1,17 @@
 import { useEffect, useId, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useStore } from '../context/StoreContext'
+import { createCrmOrder, maxOrderVariantQuantity } from '../lib/crmOrder'
 import { formatPrice, optionPrice } from '../lib/format'
 import { novaPoshtaEnabled } from '../lib/payments'
 import { normalizePhone } from '../lib/phone'
 import { productName } from '../lib/productText'
-import { SupabaseError, supabaseRequest } from '../lib/supabase'
+import { SupabaseError } from '../lib/supabase'
 import type { DispatchLocation } from '../lib/ttn'
 import { useDrawer } from '../lib/useDrawer'
 import type { Store } from '../types'
 import { TtnDispatchFields } from './TtnDispatchFields'
 
-const maxQuantity = 20
 const emptyLocation: DispatchLocation = { cityRef: '', cityName: '', warehouseRef: '', warehouseName: '' }
 
 export function CreateOrderDrawer({ store, token, onClose, onCreated }: {
@@ -54,7 +54,7 @@ export function CreateOrderDrawer({ store, token, onClose, onCreated }: {
   const lines = items.map(item => {
     const offer = offers.get(item.variantId)
     const quantity = Number(item.quantity)
-    const limit = Math.min(maxQuantity, offer?.option.quantity ?? 0)
+    const limit = Math.min(maxOrderVariantQuantity, offer?.option.quantity ?? 0)
     const valid = Number.isSafeInteger(quantity) && quantity >= 1 && quantity <= limit
     const total = valid && offer ? Math.round(optionPrice(offer.option) * 100) * quantity : 0
     return { ...item, offer, limit, valid, total }
@@ -89,19 +89,9 @@ export function CreateOrderDrawer({ store, token, onClose, onCreated }: {
     setSaving(true)
     setError(null)
     try {
-      const order = await supabaseRequest<{ id: string }>('/rest/v1/rpc/create_crm_order', {
-        method: 'POST',
-        token,
-        signal: AbortSignal.timeout(20000),
-        body: JSON.stringify({
-          p_store_id: store.id,
-          p_request_id: requestId,
-          p_customer: { ...customer, phone },
-          p_delivery: delivery,
-          p_note: note,
-          p_items: items.map(item => ({ variantId: item.variantId, quantity: Number(item.quantity) })),
-          p_expected_total: total,
-        }),
+      const order = await createCrmOrder(store.id, token, {
+        requestId, customer: { ...customer, phone }, delivery, note, total,
+        items: items.map(item => ({ variantId: item.variantId, quantity: Number(item.quantity) })),
       })
       close(() => onCreated(order.id))
     } catch (cause) {

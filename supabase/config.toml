@@ -17,6 +17,10 @@ verify_jwt = true
 # The function checks the signed-in user with Auth, then authorizes the store RPC.
 verify_jwt = false
 
+[functions.crm-import-sheet]
+# The function checks the bearer token and store membership before fetching a sheet.
+verify_jwt = false
+
 [functions.send-auth-sms]
 # Supabase Auth signs these requests with the Send SMS Hook secret.
 verify_jwt = false

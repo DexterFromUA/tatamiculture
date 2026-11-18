@@ -1590,6 +1590,26 @@ input[type="date"] { color-scheme: light; }
 .confirmation-dialog__details li + li { margin-top: 8px; }
 .confirmation-dialog__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
 
+.crm-order-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.order-import-dialog { width: min(640px, calc(100% - 32px)); }
+.order-import-dialog__content { display: grid; gap: 16px; margin-top: 20px; min-width: 0; }
+.order-import-dialog__content input { min-width: 0; }
+.order-import-dialog__upload strong { overflow-wrap: anywhere; }
+.order-import-dialog__guide { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--line); background: var(--paper); line-height: 1.45; }
+.order-import-dialog__guide-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; font-size: .9rem; }
+.order-import-dialog__guide small { color: var(--muted); }
+.order-import-dialog__guide code { color: var(--ink); white-space: normal; }
+.order-import-dialog__issues .confirmation-dialog__details { margin: 8px 0 0; }
+.order-import-dialog__summary, .order-import-dialog__order-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.order-import-dialog__summary > div { display: grid; gap: 4px; }
+.order-import-dialog__summary > strong, .order-import-dialog__order-head > strong:last-child { white-space: nowrap; }
+.order-import-dialog__orders { display: grid; gap: 8px; max-height: min(38dvh, 360px); overflow: auto; margin: 0; padding: 0; list-style: none; }
+.order-import-dialog__orders li { display: grid; gap: 5px; padding: 12px; border: 1px solid var(--line); overflow-wrap: anywhere; }
+@media (max-width: 520px) {
+  .crm-section-head:has(.crm-order-actions) { flex-wrap: wrap; align-items: flex-start; }
+  .crm-order-actions { justify-content: flex-start; }
+}
+
 .order-drawer {
   --drawer-duration: 220ms;
   position: fixed;

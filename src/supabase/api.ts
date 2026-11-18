@@ -1,5 +1,6 @@
 import { normalizePhone } from '../lib/phone'
 import { catalogOffer } from '../lib/catalogPricing'
+import { fetchAll } from '../lib/crm'
 import { getSizeGuideImageUrls } from '../lib/productText'
 import { supabaseRequest } from '../lib/supabase'
 import type { AuthSession, CartItem, CatalogCategory, CheckoutInput, Order, OrderItem, Product, ProductOption, Store, User } from '../types'
@@ -42,7 +43,7 @@ function mapProduct(row: Row): Product {
         discount_percent: variant.discount_percent == null ? null : Number(variant.discount_percent),
         stack_customer_discount: variant.stack_customer_discount === true,
       })
-      return { ...details, id: text(variant.id), name: text(variant.name), isPreOrder: Boolean(variant.is_preorder), isLimited: true, quantity: Number(variant.stock_quantity ?? 0) }
+      return { ...details, id: text(variant.id), name: text(variant.name), sku: text(variant.sku), isPreOrder: Boolean(variant.is_preorder), isLimited: true, quantity: Number(variant.stock_quantity ?? 0) }
     }),
   }
 }
@@ -94,8 +95,10 @@ export const supabaseApi = {
     return rows[0] ? mapStore(rows[0]) : null
   },
 
-  async getProducts(storeId: string): Promise<Product[]> {
-    const rows = await supabaseRequest<Row[]>(`/rest/v1/products?store_id=eq.${encodeURIComponent(storeId)}&is_active=eq.true&select=${productFields}`)
+  async getProducts(storeId: string, token?: string): Promise<Product[]> {
+    const path = `/rest/v1/products?store_id=eq.${encodeURIComponent(storeId)}&is_active=eq.true&select=${productFields}`
+    const rows = token ? await fetchAll<Row>(`${path}&order=id`, token, AbortSignal.timeout(20000))
+      : await supabaseRequest<Row[]>(path)
     return rows.map(mapProduct)
   },
 

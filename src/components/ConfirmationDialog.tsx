@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef } from 'react'
+import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
+import { CenteredDialog } from './CenteredDialog'
 
 export type ConfirmationDialogContent = {
   title: string
@@ -15,21 +16,12 @@ export function ConfirmationDialog({ title, message, details, confirmLabel, conf
   const { t } = useTranslation()
   const titleId = useId()
   const messageId = useId()
-  const ref = useRef<HTMLDialogElement>(null)
-
-  useEffect(() => {
-    const dialog = ref.current
-    if (dialog && !dialog.open) dialog.showModal()
-  }, [])
-
   return (
-    <dialog
-      ref={ref}
-      className="confirmation-dialog"
+    <CenteredDialog
       role="alertdialog"
       aria-labelledby={titleId}
       aria-describedby={messageId}
-      onClose={event => onClose(event.currentTarget.returnValue === 'confirm')}
+      onClose={value => onClose(value === 'confirm')}
     >
       <h2 id={titleId}>{title}</h2>
       <p id={messageId}>{message}</p>
@@ -42,6 +34,6 @@ export function ConfirmationDialog({ title, message, details, confirmLabel, conf
         <button type="submit" value="cancel" className="btn btn--ghost" autoFocus>{t('Cancel')}</button>
         <button type="submit" value="confirm" className="btn" disabled={confirmDisabled}>{confirmLabel ?? t('Confirm')}</button>
       </form>
-    </dialog>
+    </CenteredDialog>
   )
 }

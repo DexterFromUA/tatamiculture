@@ -18,6 +18,7 @@ export type Store = {
 
 export type ProductOption = {
   salePrice?: number
+  sku?: string
   id: string
   name: string
   price: number
