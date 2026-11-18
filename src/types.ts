@@ -28,10 +28,10 @@ export type ProductOption = {
   price: number
   isDiscount: boolean
   discountPercent: number
-} & (
-  | { isPreOrder: true; isLimited: false; quantity: null }
-  | { isPreOrder: false; isLimited: boolean; quantity: number }
-)
+  isPreOrder: boolean
+  isLimited: boolean
+  quantity: number
+}
 
 export type CatalogCategory = {
   id: string
@@ -54,11 +54,10 @@ export type ProductText = {
 export type Product = ProductText & {
   createdAt?: string
   sizeGuide?: string
-  sizeGuideImageUrl?: string
+  sizeGuideImageUrls?: string[]
   composition?: string
   careInstructions?: string
   sizeGuideEn?: string
-  sizeGuideImageUrlEn?: string
   compositionEn?: string
   careInstructionsEn?: string
   id: string

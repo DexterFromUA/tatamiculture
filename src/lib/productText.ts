@@ -1,5 +1,13 @@
 import type { Product, ProductText } from '../types'
 
+export const maxSizeGuideImages = 3
+
+export function getSizeGuideImageUrls(primary: unknown, legacy: unknown, additional: unknown): string[] {
+  return [primary || legacy, ...(Array.isArray(additional) ? additional : [])]
+    .filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
+    .slice(0, maxSizeGuideImages)
+}
+
 export function productInformation(product: Product, language?: string) {
   const localized = (uk?: string, en?: string) => {
     const preferred = language === 'en' ? en : uk
@@ -8,7 +16,6 @@ export function productInformation(product: Product, language?: string) {
   }
   return {
     sizeGuide: localized(product.sizeGuide, product.sizeGuideEn),
-    sizeGuideImageUrl: product.sizeGuideImageUrl || product.sizeGuideImageUrlEn || '',
     composition: localized(product.composition, product.compositionEn),
     careInstructions: localized(product.careInstructions, product.careInstructionsEn),
   }

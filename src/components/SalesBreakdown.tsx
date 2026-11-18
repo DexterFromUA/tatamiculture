@@ -60,7 +60,7 @@ export function SalesBreakdown({ storeId, token }: { storeId: string; token: str
     }
     totals.set(key, current)
   }
-  const idle = inventory.filter(product => now - new Date(product.created_at).getTime() >= days * 86400000 && !rows.some(row => row.product_id === product.id && now - new Date(row.orders.created_at).getTime() < days * 86400000) && product.product_variants.some(variant => !variant.is_preorder && variant.stock_quantity > 0))
+  const idle = inventory.filter(product => now - new Date(product.created_at).getTime() >= days * 86400000 && !rows.some(row => row.product_id === product.id && now - new Date(row.orders.created_at).getTime() < days * 86400000) && product.product_variants.some(variant => variant.stock_quantity > 0))
   const demandCounts = new Map<string, number>()
   for (const subscription of demand) demandCounts.set(subscription.variant_id, (demandCounts.get(subscription.variant_id) ?? 0) + 1)
   return <section className="crm-panel">
@@ -86,7 +86,7 @@ export function SalesBreakdown({ storeId, token }: { storeId: string; token: str
       {totals.size === 0 && <li>{t('No sales in this period')}</li>}
     </ul>}
     <h3>{t('Stock without sales in this period')}</h3>
-    <ul>{idle.map(product => <li key={product.id}>{product.name} · {product.product_variants.reduce((sum, variant) => sum + (variant.is_preorder ? 0 : variant.stock_quantity), 0)} {t('units')}</li>)}</ul>
+    <ul>{idle.map(product => <li key={product.id}>{product.name} · {product.product_variants.reduce((sum, variant) => sum + variant.stock_quantity, 0)} {t('units')}</li>)}</ul>
     <h3>{t('Restock demand')}</h3>
     <ul>{inventory.flatMap(product => product.product_variants.filter(variant => demandCounts.has(variant.id)).map(variant => <li key={variant.id}>{product.name} · {variant.name} · {demandCounts.get(variant.id)} {t('subscriptions')}</li>))}</ul>
   </section>

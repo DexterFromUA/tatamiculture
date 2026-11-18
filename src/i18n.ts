@@ -251,6 +251,8 @@ const uk = {
   'Delivered sales by order date. Previous period has the same length.': 'Доставлені замовлення за датою оформлення. Попередній період має таку саму тривалість.',
 
   'Size guide and measurements': 'Розмірна сітка та заміри',
+  'Size guide images': 'Зображення розмірної сітки',
+  'You can add up to {{count}} size guide images.': 'Можна додати до {{count}} зображень розмірної сітки.',
   'Composition': 'Склад',
   'Care instructions': 'Догляд',
   'Product information': 'Інформація про товар',

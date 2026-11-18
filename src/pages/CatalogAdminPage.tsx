@@ -13,7 +13,7 @@ import { fetchAll, hasStoreMembership } from '../lib/crm'
 import { categoryGroups, categoryLabel, categoryPaths } from '../lib/categories'
 import { costInputAmount, parseUnitCost, saveCatalogCosts, type CatalogCost, type CatalogExchangeRate, type CostCurrency } from '../lib/catalogCosts'
 import { formatPrice } from '../lib/format'
-import { productName } from '../lib/productText'
+import { getSizeGuideImageUrls, maxSizeGuideImages, productName } from '../lib/productText'
 import type { CatalogCategory, ProductText } from '../types'
 
 type Variant = {
@@ -30,6 +30,7 @@ type Variant = {
 type ProductImage = { id: string; public_url: string; storage_path: string; position: number }
 type DraftVariant = Omit<Variant, 'price' | 'variant_costs'> & { key: string; unitCost: string; currency: CostCurrency; unitCostEdited: boolean }
 type CatalogProduct = ProductText & {
+  size_guide_extra_image_urls?: string[]
   size_guide?: string
   size_guide_en?: string
   size_guide_image_url_en?: string
@@ -61,12 +62,13 @@ function ProductTimestamps({ product }: { product: CatalogProduct }) {
     <span>{t('Updated')} <time dateTime={product.updated_at}>{formatter.format(new Date(product.updated_at))}</time></span>
   </div>
 }
+type SizeGuideDraftImage = { key: string } & ({ file: File } | { url: string })
+
 type Draft = {
   key: string
   imageOrder: string[]
   sizeGuide: Record<'uk' | 'en', string>
-  sizeGuideImageUrl: string
-  sizeGuideImageFile: File | null
+  sizeGuideImages: SizeGuideDraftImage[]
   composition: Record<'uk' | 'en', string>
   careInstructions: Record<'uk' | 'en', string>
   id?: string
@@ -88,7 +90,7 @@ type Draft = {
 
 const defaultLowStockThreshold = 3
 const blankVariant = (): DraftVariant => ({ key: crypto.randomUUID(), name: 'M', sku: '', compare_at_price: null, stock_quantity: 0, low_stock_threshold: defaultLowStockThreshold, is_preorder: false, unitCost: '', currency: 'UAH', unitCostEdited: false })
-const blankDraft = (): Draft => ({ key: crypto.randomUUID(), imageOrder: [], sizeGuide: { uk: '', en: '' }, sizeGuideImageUrl: '', sizeGuideImageFile: null, composition: { uk: '', en: '' }, careInstructions: { uk: '', en: '' }, names: { uk: '', en: '' }, descriptions: { uk: '', en: '' }, price: '0', defaultCost: '', defaultCostCurrency: 'UAH', defaultCostEdited: false, weightGrams: '', categoryIds: [], isActive: true, isNew: false, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
+const blankDraft = (): Draft => ({ key: crypto.randomUUID(), imageOrder: [], sizeGuide: { uk: '', en: '' }, sizeGuideImages: [], composition: { uk: '', en: '' }, careInstructions: { uk: '', en: '' }, names: { uk: '', en: '' }, descriptions: { uk: '', en: '' }, price: '0', defaultCost: '', defaultCostCurrency: 'UAH', defaultCostEdited: false, weightGrams: '', categoryIds: [], isActive: true, isNew: false, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
 const categorySlug = (name: string) => `${name.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'category'}-${crypto.randomUUID().slice(0, 8)}`
 
 function assignedCategoryIds(product: CatalogProduct) {
@@ -116,7 +118,8 @@ function toDraft(product: CatalogProduct, language?: string): Draft {
     sizeGuide: { uk: product.size_guide ?? '', en: product.size_guide_en ?? '' },
     composition: { uk: product.composition ?? '', en: product.composition_en ?? '' },
     careInstructions: { uk: product.care_instructions ?? '', en: product.care_instructions_en ?? '' },
-    sizeGuideImageUrl: product.size_guide_image_url || product.size_guide_image_url_en || '', sizeGuideImageFile: null,
+    sizeGuideImages: getSizeGuideImageUrls(product.size_guide_image_url, product.size_guide_image_url_en, product.size_guide_extra_image_urls)
+      .map((url, index) => ({ key: `saved-${index}`, url })),
     id: product.id,
     names,
     descriptions,
@@ -186,15 +189,15 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
   const searchedProducts = products.filter(product => [
     product.name, product.name_uk, product.name_en, ...product.product_variants.map(variant => variant.sku),
   ].some(value => value?.toLowerCase().includes(query)))
-  const lowCount = products.flatMap(product => product.product_variants).filter(variant => !variant.is_preorder && variant.stock_quantity < variant.low_stock_threshold).length
-  const outCount = products.flatMap(product => product.product_variants).filter(variant => !variant.is_preorder && variant.stock_quantity === 0).length
+  const lowCount = products.flatMap(product => product.product_variants).filter(variant => variant.stock_quantity < variant.low_stock_threshold).length
+  const outCount = products.flatMap(product => product.product_variants).filter(variant => variant.stock_quantity === 0).length
   const productMatches = searchedProducts.filter(product => categoryFilter === 'all' || assignedCategoryIds(product).includes(categoryFilter))
   const stockMatches = searchedProducts.map(product => ({
     product,
     variants: product.product_variants.filter(variant =>
-      stockFilter === 'all' || (!variant.is_preorder && (stockFilter === 'out'
+      stockFilter === 'all' || (stockFilter === 'out'
         ? variant.stock_quantity === 0
-        : variant.stock_quantity < variant.low_stock_threshold))),
+        : variant.stock_quantity < variant.low_stock_threshold)),
   })).filter(({ variants }) => variants.length > 0)
   const pages = Math.max(1, Math.ceil((view === 'products' ? productMatches.length : stockMatches.length) / 20))
   const currentPage = Math.min(page, pages)
@@ -210,7 +213,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
     if (editorOpen) editorHeading.current?.focus()
   }, [editorOpen])
   const [originalDraft, setOriginalDraft] = useState('')
-  const dirty = draft !== null && (draft.newImageFiles.length > 0 || draft.sizeGuideImageFile !== null || JSON.stringify(draft) !== originalDraft)
+  const dirty = draft !== null && (draft.newImageFiles.length > 0 || JSON.stringify(draft) !== originalDraft)
   useEffect(() => {
     if (!dirty) return
     const preventExit = (event: BeforeUnloadEvent) => event.preventDefault()
@@ -463,13 +466,19 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
         })
       }
 
-      let sizeGuideImageUrl = draft.sizeGuideImageUrl
-      if (draft.sizeGuideImageFile) {
-        const image = await uploadProductImage(productId, draft.sizeGuideImageFile, token)
-        sizeGuideImageUrl = image.publicUrl
-        setDraft(current => current?.key === productId
-          ? { ...current, sizeGuideImageUrl, sizeGuideImageFile: null }
-          : current)
+      const sizeGuideImageUrls: string[] = []
+      for (const image of draft.sizeGuideImages) {
+        if ('url' in image) {
+          sizeGuideImageUrls.push(image.url)
+          continue
+        }
+        const { publicUrl } = await uploadProductImage(productId, image.file, token)
+        sizeGuideImageUrls.push(publicUrl)
+        // Keep completed uploads in the draft if a later step fails.
+        setDraft(current => current?.key === productId ? {
+          ...current,
+          sizeGuideImages: current.sizeGuideImages.map(item => item.key === image.key ? { key: item.key, url: publicUrl } : item),
+        } : current)
       }
 
       const current = products.find((product) => product.id === productId)
@@ -502,9 +511,9 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
           body: JSON.stringify(newVariants.map(({ variant, fields }) => ({
             ...fields,
             id: variant.key,
-            stock_quantity: variant.is_preorder ? 0 : variant.stock_quantity,
+            stock_quantity: variant.stock_quantity,
             ...(stockSchemaReady && {
-              low_stock_threshold: variant.is_preorder ? defaultLowStockThreshold : variant.low_stock_threshold,
+              low_stock_threshold: variant.low_stock_threshold,
             }),
           }))),
         })
@@ -515,9 +524,9 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
           method: 'PATCH', token,
           body: JSON.stringify({
             ...fields,
-            ...(!variant.is_preorder && (stockSchemaReady
+            ...(stockSchemaReady
               ? { low_stock_threshold: variant.low_stock_threshold }
-              : { stock_quantity: variant.stock_quantity })),
+              : { stock_quantity: variant.stock_quantity }),
           }),
         }),
       ))
@@ -541,7 +550,14 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
         await saveCatalogCosts(token, productId,
           draft.defaultCostEdited ? { amount: defaultCost, currency: draft.defaultCostCurrency } : null, costs)
       }
-      await supabaseRequest(productPath, { method: 'PATCH', token, body: JSON.stringify({ ...payload, size_guide_image_url: sizeGuideImageUrl, size_guide_image_url_en: '' }) })
+      await supabaseRequest(productPath, {
+        method: 'PATCH', token, body: JSON.stringify({
+          ...payload,
+          size_guide_image_url: sizeGuideImageUrls[0] ?? '',
+          size_guide_image_url_en: '',
+          size_guide_extra_image_urls: sizeGuideImageUrls.slice(1),
+        }),
+      })
       await Promise.all([load(), refreshProducts().catch(() => {})])
       closeSavedEditor()
     } catch (cause) {
@@ -712,7 +728,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
       {!draft && (showCategories ? categoryManager : <>
       <div className="catalog-summary">
         <button type="button" className={view === 'products' ? 'active' : ''} onClick={() => changeView('products')}><span>{t('Products')}</span><strong>{products.length}</strong></button>
-        <button type="button" className={view === 'stock' && stockFilter === 'all' ? 'active' : ''} onClick={() => { changeView('stock'); setStockFilter('all') }}><span>{t('Stock units')}</span><strong>{products.reduce((sum, product) => sum + product.product_variants.reduce((count, variant) => count + (variant.is_preorder ? 0 : variant.stock_quantity), 0), 0)}</strong></button>
+        <button type="button" className={view === 'stock' && stockFilter === 'all' ? 'active' : ''} onClick={() => { changeView('stock'); setStockFilter('all') }}><span>{t('Stock units')}</span><strong>{products.reduce((sum, product) => sum + product.product_variants.reduce((count, variant) => count + variant.stock_quantity, 0), 0)}</strong></button>
         <button type="button" className={view === 'stock' && stockFilter === 'low' ? 'active' : ''} onClick={() => { changeView('stock'); setStockFilter('low') }}><span>{t('Low stock')}</span><strong>{lowCount}</strong></button>
         <button type="button" className={view === 'stock' && stockFilter === 'out' ? 'active' : ''} onClick={() => { changeView('stock'); setStockFilter('out') }}><span>{t('Out of stock')}</span><strong>{outCount}</strong></button>
       </div>
@@ -758,7 +774,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
         </div>}
         <ul className="catalog-admin__list">
           {view === 'products' ? pageProducts.map(product => {
-            const unavailable = product.product_variants.filter(variant => !variant.is_preorder && variant.stock_quantity === 0).length
+            const unavailable = product.product_variants.filter(variant => variant.stock_quantity === 0).length
             return <li key={product.id} className={selected.includes(product.id) ? 'catalog-admin__selected' : undefined}>
               <label className="order-select"><input type="checkbox" aria-label={`${t('Select product')} · ${productName(product, language)}`} checked={selected.includes(product.id)} disabled={saving} onChange={event => { const checked = event.target.checked; setSelected(current => checked ? [...current, product.id] : current.filter(id => id !== product.id)) }} /></label>
               {product.product_images[0] && <img className="catalog-admin__thumb" src={product.product_images[0].public_url} alt="" />}
@@ -787,13 +803,13 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
                   </select>
                 </label>
                 <span>{variant.sku || t('No SKU')} · {product.is_active ? t('Published') : t('Hidden')}</span>
-                <span className={!variant.is_preorder && variant.stock_quantity < variant.low_stock_threshold ? 'stock-low' : ''}>{variant.is_preorder ? t('Pre-order') : `${variant.stock_quantity} ${t('in stock')}`}</span>
+                <span className={variant.stock_quantity < variant.low_stock_threshold ? 'stock-low' : ''}>{variant.stock_quantity} {t('in stock')}{variant.is_preorder && ` · ${t('Pre-order')}`}</span>
               </div>
               <div className="catalog-stock-row__actions" key={variant.id}>
                 <button type="button" className="text-btn" onClick={() => openProduct(product)}>{t('Edit')}</button>
                 {variant.id && token && <VariantCostEditor productId={product.id} variantId={variant.id}
                   cost={variant.variant_costs} rates={rates} token={token} onSaved={load} />}
-                {stockSchemaReady && !variant.is_preorder && variant.id && token && <StockAdjustment variantId={variant.id} token={token} reload={load} />}
+                {stockSchemaReady && variant.id && token && <StockAdjustment variantId={variant.id} token={token} reload={load} />}
               </div>
             </li>
           })}
@@ -857,19 +873,37 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
                 <label className="field">{t('Care instructions')}<textarea rows={3} maxLength={10000} value={draft.careInstructions[locale]} onChange={event => setDraft({ ...draft, careInstructions: { ...draft.careInstructions, [locale]: event.target.value } })} /></label>
               </div>)}
             </div>
-            <label className="product-photo-upload size-guide-upload"><input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" disabled={saving} onChange={event => {
-              const file = event.target.files?.[0]
-              if (file) setDraft({ ...draft, sizeGuideImageFile: file })
-              event.target.value = ''
-            }} /><span className="product-photo-upload__icon" aria-hidden="true">＋</span>
-              <span className="product-photo-upload__copy"><strong>{t('Size guide image')}</strong><small>{t('JPG, PNG or WebP · up to 5 MB per file')}</small></span>
+            <label className="product-photo-upload size-guide-upload">
+              <input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" multiple
+                disabled={saving || draft.sizeGuideImages.length >= maxSizeGuideImages} onChange={event => {
+                  const files = Array.from(event.target.files ?? [])
+                  event.target.value = ''
+                  const available = maxSizeGuideImages - draft.sizeGuideImages.length
+                  if (files.length > available) addToast(t('You can add up to {{count}} size guide images.', { count: maxSizeGuideImages }))
+                  const images = files.slice(0, available).map(file => ({ key: crypto.randomUUID(), file }))
+                  if (images.length) setDraft(current => current?.key === draft.key ? {
+                    ...current,
+                    sizeGuideImages: [...current.sizeGuideImages, ...images].slice(0, maxSizeGuideImages),
+                  } : current)
+                }} />
+              <span className="product-photo-upload__icon" aria-hidden="true">＋</span>
+              <span className="product-photo-upload__copy">
+                <strong>{t('Size guide images')}</strong>
+                <small>{t('JPG, PNG or WebP · up to 5 MB per file')}</small>
+              </span>
+              <span className="size-guide-upload__count">{draft.sizeGuideImages.length} / {maxSizeGuideImages}</span>
               <span className="product-photo-upload__action" aria-hidden="true">{t('Choose files')}</span>
             </label>
-            {(draft.sizeGuideImageFile || draft.sizeGuideImageUrl) && <div className="size-guide-preview image-manager__item product-photo">
-              <div className="product-photo__preview">
-                {draft.sizeGuideImageFile ? <LocalImagePreview file={draft.sizeGuideImageFile} /> : <img src={draft.sizeGuideImageUrl} alt={t('Size guide image')} />}
-                <button type="button" className="product-photo__delete" aria-label={t('Remove image')} title={t('Remove image')} disabled={saving} onClick={() => setDraft({ ...draft, sizeGuideImageFile: null, sizeGuideImageUrl: '' })}>×</button>
-              </div>
+            {draft.sizeGuideImages.length > 0 && <div className="image-manager product-photo-grid">
+              {draft.sizeGuideImages.map((image, index) => <div key={image.key} className="size-guide-preview image-manager__item product-photo">
+                <div className="product-photo__preview">
+                  {'file' in image ? <LocalImagePreview file={image.file} /> : <img src={image.url} alt={`${t('Size guide image')} ${index + 1}`} />}
+                  <button type="button" className="product-photo__delete" aria-label={`${t('Remove image')} ${index + 1}`} title={t('Remove image')} disabled={saving}
+                    onClick={() => setDraft(current => current?.key === draft.key ? {
+                      ...current, sizeGuideImages: current.sizeGuideImages.filter(item => item.key !== image.key),
+                    } : current)}>×</button>
+                </div>
+              </div>)}
             </div>}
           </details>
           <section className="product-workspace__section">
@@ -950,10 +984,8 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
             {draft.variants.map((variant, index) => <div className="variant-editor__row" key={variant.key}>
               <label className="variant-field"><span>{t('Size')}</span><input value={variant.name} onChange={(event) => updateVariant(index, 'name', event.target.value)} /></label>
               <label className="variant-field"><span>{t('SKU')}</span><input value={variant.sku} onChange={(event) => updateVariant(index, 'sku', event.target.value)} /></label>
-              {!variant.is_preorder && <>
-                <label className="variant-field"><span>{t('Stock, units')}</span><input type="number" min="0" disabled={stockSchemaReady && Boolean(variant.id)} value={variant.stock_quantity} onChange={event => updateVariant(index, 'stock_quantity', Number(event.target.value))} /></label>
-                {stockSchemaReady && <label className="variant-field"><span>{t('Low stock threshold')}</span><input type="number" min="0" value={variant.low_stock_threshold} onChange={event => updateVariant(index, 'low_stock_threshold', Number(event.target.value))} /></label>}
-              </>}
+              <label className="variant-field"><span>{t('Stock, units')}</span><input type="number" min="0" disabled={stockSchemaReady && Boolean(variant.id)} value={variant.stock_quantity} onChange={event => updateVariant(index, 'stock_quantity', Number(event.target.value))} /></label>
+              {stockSchemaReady && <label className="variant-field"><span>{t('Low stock threshold')}</span><input type="number" min="0" value={variant.low_stock_threshold} onChange={event => updateVariant(index, 'low_stock_threshold', Number(event.target.value))} /></label>}
               <CatalogCostInput label={t('Unit cost')} amount={variant.unitCost} currency={variant.currency}
                 rates={rates} disabled={saving} placeholder={variant.currency === draft.defaultCostCurrency ? draft.defaultCost : undefined}
                 onChange={(amount, currency) => setDraft(current => current && {

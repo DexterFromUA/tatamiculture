@@ -134,7 +134,7 @@ export function AdminDashboard({ storeId, currency: storeCurrency, token, orders
   const demandCounts = new Map<string, number>()
   for (const row of data.demand ?? []) demandCounts.set(row.variant_id, (demandCounts.get(row.variant_id) ?? 0) + 1)
   const variants = inventory.filter(product => product.is_active).flatMap(product => product.product_variants
-    .filter(variant => !variant.is_preorder).map(variant => ({ ...variant, product })))
+    .map(variant => ({ ...variant, product })))
   const lowStock = variants.filter(variant => variant.stock_quantity < (variant.low_stock_threshold ?? 3))
     .sort((a, b) => a.stock_quantity - b.stock_quantity)
   const idleStock = variants.filter(variant => variant.stock_quantity > 0 && !soldVariants.has(variant.id) && range && dashboardDay(variant.product.created_at) < range.from)

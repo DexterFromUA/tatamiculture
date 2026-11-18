@@ -97,7 +97,7 @@ function ProductDetails() {
             <Markdown skipHtml remarkPlugins={[remarkBreaks]}>{description}</Markdown>
           </div>
         )}
-        {(information.sizeGuide || information.sizeGuideImageUrl) && <>
+        {(information.sizeGuide || Boolean(product.sizeGuideImageUrls?.length)) && <>
           <button type="button" className="size-guide-trigger" aria-haspopup="dialog" onClick={() => sizeGuideDialog.current?.showModal()}>
             {t('Size guide and measurements')} <span aria-hidden="true">↗</span>
           </button>
@@ -113,7 +113,9 @@ function ProductDetails() {
             </header>
             <div className="size-guide-dialog__body">
               {information.sizeGuide && <p style={{ whiteSpace: 'pre-wrap' }}>{information.sizeGuide}</p>}
-              {information.sizeGuideImageUrl && <a href={information.sizeGuideImageUrl} target="_blank" rel="noopener noreferrer"><img src={information.sizeGuideImageUrl} alt={t('Size guide and measurements')} /></a>}
+              {product.sizeGuideImageUrls?.map((url, index) => <a key={`${url}-${index}`} href={url} target="_blank" rel="noopener noreferrer">
+                <img src={url} alt={`${t('Size guide image')} ${index + 1}`} loading="lazy" />
+              </a>)}
             </div>
           </dialog>
         </>}
@@ -141,24 +143,23 @@ function ProductDetails() {
             {product.productOptions.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name}
-                {item.isPreOrder
-                  ? ` · ${t('pre-order')}`
-                  : item.isLimited ? ` · ${t('{{count}} available', { count: item.quantity })}` : ''}
+                {item.isPreOrder && ` · ${t('pre-order')}`}
+                {item.isLimited && ` · ${t('{{count}} available', { count: item.quantity })}`}
               </option>
             ))}
           </select>
         </label>
-        {option.isPreOrder ? (
+        {option.quantity > 0 && (option.isPreOrder ? (
           <p className="note product-delivery-note">
             <strong>{t('Average delivery time: 5–15 business days')}</strong>
             <small>{t('This is an estimate. Your parcel may arrive earlier or take longer.')}</small>
           </p>
-        ) : option.quantity > 0 && (
+        ) : (
           <p className="note product-delivery-note">{t('Ships in 1–5 business days')}</p>
-        )}
-        {!option.isPreOrder && option.quantity === 0 && <RestockSubscription key={option.id} variantId={option.id} />}
+        ))}
+        {option.quantity === 0 && <RestockSubscription key={option.id} variantId={option.id} />}
         <div className="actions">
-          <button type="button" className="btn" disabled={!option.isPreOrder && option.quantity < 1} onClick={addToCart}>
+          <button type="button" className="btn" disabled={option.quantity < 1} onClick={addToCart}>
             {t('Add to cart')}
           </button>
           <Link to="/cart" className="btn btn--ghost">

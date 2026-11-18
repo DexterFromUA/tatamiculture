@@ -1,4 +1,5 @@
 import { normalizePhone } from '../lib/phone'
+import { getSizeGuideImageUrls } from '../lib/productText'
 import { supabaseRequest } from '../lib/supabase'
 import type { AuthSession, CartItem, CatalogCategory, CheckoutInput, Order, OrderItem, Product, ProductOption, ShortLink, Store, User } from '../types'
 
@@ -25,8 +26,9 @@ function mapProduct(row: Row): Product {
     id: text(row.id), storeId: text(row.store_id), name: text(row.name), description: text(row.description), createdAt: text(row.created_at),
     name_uk: text(row.name_uk), name_en: text(row.name_en),
     description_uk: text(row.description_uk), description_en: text(row.description_en),
-    sizeGuide: text(row.size_guide), sizeGuideImageUrl: text(row.size_guide_image_url), composition: text(row.composition), careInstructions: text(row.care_instructions),
-    sizeGuideEn: text(row.size_guide_en), sizeGuideImageUrlEn: text(row.size_guide_image_url_en),
+    sizeGuide: text(row.size_guide), composition: text(row.composition), careInstructions: text(row.care_instructions),
+    sizeGuideImageUrls: getSizeGuideImageUrls(row.size_guide_image_url, row.size_guide_image_url_en, row.size_guide_extra_image_urls),
+    sizeGuideEn: text(row.size_guide_en),
     compositionEn: text(row.composition_en), careInstructionsEn: text(row.care_instructions_en),
     primaryCategory: category ?? undefined, isActive: Boolean(row.is_active),
     isNew: row.is_new === true,
@@ -40,9 +42,7 @@ function mapProduct(row: Row): Product {
         id: text(variant.id), name: text(variant.name), price: compareAt ?? price, salePrice: price,
         isDiscount: discountPercent > 0, discountPercent,
       }
-      return variant.is_preorder
-        ? { ...details, isPreOrder: true, isLimited: false, quantity: null }
-        : { ...details, isPreOrder: false, isLimited: true, quantity: Number(variant.stock_quantity ?? 0) }
+      return { ...details, isPreOrder: Boolean(variant.is_preorder), isLimited: true, quantity: Number(variant.stock_quantity ?? 0) }
     }),
   }
 }
