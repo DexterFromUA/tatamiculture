@@ -1975,8 +1975,9 @@ input[type="date"] { color-scheme: light; }
   .dashboard-table td:not(:first-child) { text-align: left; white-space: normal; }
   .dashboard-table td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 4px; color: var(--muted); font-size: .7rem; font-weight: 400; }
   .dashboard-toolbar { padding: 14px; }
-  .dashboard-toolbar__fields { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .dashboard-toolbar input { width: 100%; }
+  .dashboard-toolbar__fields { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr); }
+  .dashboard-toolbar input[type="date"] { display: block; width: 100%; min-width: 0; max-width: 100%; -webkit-appearance: none; appearance: none; }
+  .dashboard-toolbar input[type="date"]::-webkit-date-and-time-value { min-height: 1.2em; text-align: left; }
   .dashboard-toolbar .btn { width: 100%; }
   .dashboard-periods { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; width: 100%; gap: 5px; align-items: stretch; }
   .dashboard-periods button { width: 100%; height: 100%; min-width: 0; min-height: 40px; padding: 9px 7px; font-size: .72rem; }
