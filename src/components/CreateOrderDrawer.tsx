@@ -29,7 +29,7 @@ export function CreateOrderDrawer({ store, token, onClose, onCreated }: {
   const [productId, setProductId] = useState('')
   const [variantId, setVariantId] = useState('')
   const [items, setItems] = useState<Array<{ variantId: string; quantity: string }>>([])
-  const [customer, setCustomer] = useState({ name: '', phone: '', email: '' })
+  const [customer, setCustomer] = useState({ name: '', phone: '' })
   const [manualAddress, setManualAddress] = useState(!novaPoshtaEnabled)
   const [location, setLocation] = useState(emptyLocation)
   const [address, setAddress] = useState({ city: '', address: '' })
@@ -122,7 +122,7 @@ export function CreateOrderDrawer({ store, token, onClose, onCreated }: {
       <button type="button" className="btn btn--ghost" disabled={saving} onClick={() => close()}>{t('Close')}</button>
     </header>
     <div className="order-drawer__body">
-      <form className="form" onSubmit={event => void submit(event)}>
+      <form className="crm-create-order" onSubmit={event => void submit(event)}>
         <section className="order-drawer__card form">
           <h3>{t('Order items')}</h3>
           <label className="field">
@@ -175,15 +175,12 @@ export function CreateOrderDrawer({ store, token, onClose, onCreated }: {
 
         <section className="order-drawer__card form">
           <h3>{t('Customer details')}</h3>
-          <label className="field"><span>{t('Name')}</span>
-            <input required maxLength={200} value={customer.name} disabled={saving} onChange={event => setCustomer({ ...customer, name: event.target.value })} />
-          </label>
           <div className="crm-create-order__fields">
+            <label className="field"><span>{t('Name')}</span>
+              <input required maxLength={200} value={customer.name} disabled={saving} onChange={event => setCustomer({ ...customer, name: event.target.value })} />
+            </label>
             <label className="field"><span>{t('Phone')}</span>
               <input type="tel" required value={customer.phone} disabled={saving} onChange={event => setCustomer({ ...customer, phone: event.target.value })} />
-            </label>
-            <label className="field"><span>{t('Email')}</span>
-              <input type="email" maxLength={254} value={customer.email} disabled={saving} onChange={event => setCustomer({ ...customer, email: event.target.value })} />
             </label>
           </div>
         </section>

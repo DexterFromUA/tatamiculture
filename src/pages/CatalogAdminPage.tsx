@@ -252,7 +252,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
   const addProductButton = useRef<HTMLButtonElement>(null)
   const editorHeading = useRef<HTMLHeadingElement>(null)
   const listScroll = useRef<{ productId?: string; scrollY: number; buttonTop: number } | null>(null)
-  const attemptedVariantIds = useRef(new Set<string>())
+  const savedStock = useRef(new Map<string, number>())
   const editorOpen = draft !== null
   useLayoutEffect(() => {
     if (!editorOpen) return
@@ -301,7 +301,8 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
       scrollY: Math.max(0, window.scrollY),
       buttonTop: button.getBoundingClientRect().top,
     }
-    attemptedVariantIds.current.clear()
+    savedStock.current = new Map(next.variants.filter(variant => variant.id)
+      .map(variant => [variant.key, Number(variant.stock_quantity)]))
     setOriginalDraft(JSON.stringify(next))
     setError(null)
     setDraft(next)
@@ -565,7 +566,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
       const keepIds = new Set(draft.variants.map(variant => variant.key))
       const knownIds = new Set([
         ...(current?.product_variants ?? []).flatMap(variant => variant.id ? [variant.id] : []),
-        ...attemptedVariantIds.current,
+        ...savedStock.current.keys(),
       ])
       await Promise.all([...knownIds].filter(id => !keepIds.has(id)).map(id =>
         supabaseRequest(`/rest/v1/product_variants?id=eq.${encodeURIComponent(id)}&product_id=eq.${encodeURIComponent(productId)}`, { method: 'DELETE', token }),
@@ -587,7 +588,9 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
       const newVariants = variants.filter(({ variant }) => !variant.id)
       const insertedIds = new Set<string>()
       if (newVariants.length > 0) {
-        for (const { variant } of newVariants) attemptedVariantIds.current.add(variant.key)
+        for (const { variant } of newVariants) {
+          if (!savedStock.current.has(variant.key)) savedStock.current.set(variant.key, Number(variant.stock_quantity))
+        }
         const inserted = await supabaseRequest<{ id: string }[]>('/rest/v1/product_variants?on_conflict=id&select=id', {
           method: 'POST', token, headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
           body: JSON.stringify(newVariants.map(({ variant, fields }) => ({
@@ -600,15 +603,16 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
           }))),
         })
         for (const row of inserted ?? []) insertedIds.add(row.id)
+        for (const { variant } of newVariants) {
+          if (insertedIds.has(variant.key)) savedStock.current.set(variant.key, Number(variant.stock_quantity))
+        }
       }
       await Promise.all(variants.filter(({ variant }) => !insertedIds.has(variant.key)).map(({ variant, fields }) =>
         supabaseRequest(`/rest/v1/product_variants?id=eq.${encodeURIComponent(variant.key)}&product_id=eq.${encodeURIComponent(productId)}`, {
           method: 'PATCH', token,
           body: JSON.stringify({
             ...fields,
-            ...(stockSchemaReady
-              ? { low_stock_threshold: Number(variant.low_stock_threshold) }
-              : { stock_quantity: Number(variant.stock_quantity) }),
+            ...(stockSchemaReady && { low_stock_threshold: Number(variant.low_stock_threshold) }),
           }),
         }),
       ))
@@ -639,6 +643,32 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
           size_guide_extra_image_urls: sizeGuideImageUrls.slice(1),
         }),
       })
+      for (const { variant, fields } of variants) {
+        const previousQuantity = savedStock.current.get(variant.key)
+        const quantity = Number(variant.stock_quantity)
+        if (previousQuantity === undefined || previousQuantity === quantity) continue
+
+        const path = `/rest/v1/product_variants?id=eq.${encodeURIComponent(variant.key)}&product_id=eq.${encodeURIComponent(productId)}&select=stock_quantity`
+        const updated = await supabaseRequest<Array<{ stock_quantity: number }>>(`${path}&stock_quantity=eq.${previousQuantity}`, {
+          method: 'PATCH', token, headers: { Prefer: 'return=representation' },
+          body: JSON.stringify({ stock_quantity: quantity }),
+        })
+        if (!updated?.length) {
+          const [latest] = await supabaseRequest<Array<{ stock_quantity: number }>>(path, { token, cache: 'no-store' })
+          if (!latest) throw new Error(t('This size is no longer available. Reload the catalogue.'))
+          if (latest.stock_quantity !== quantity) {
+            savedStock.current.set(variant.key, latest.stock_quantity)
+            setDraft(current => current?.key === productId ? {
+              ...current,
+              variants: current.variants.map(entry => entry.key === variant.key
+                ? { ...entry, stock_quantity: String(latest.stock_quantity) }
+                : entry),
+            } : current)
+            throw new Error(t('Stock for {{size}} changed while editing. Review the current quantity and save again.', { size: fields.name }))
+          }
+        }
+        savedStock.current.set(variant.key, quantity)
+      }
       await Promise.all([load(), refreshProducts().catch(() => {})])
       closeSavedEditor()
     } catch (cause) {
@@ -1074,7 +1104,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
               <div className="variant-editor__fields">
                 <label className="variant-field"><span>{t('Size')}</span><input value={variant.name} onChange={event => updateVariant(index, 'name', event.target.value)} /></label>
                 <label className="variant-field"><span>{t('SKU')}</span><input value={variant.sku ?? ''} onChange={event => updateVariant(index, 'sku', event.target.value)} /></label>
-                <label className="variant-field"><span>{t('Stock, units')}</span><input type="number" min="0" disabled={stockSchemaReady && Boolean(variant.id)} value={variant.stock_quantity} onChange={event => updateVariant(index, 'stock_quantity', event.target.value)} /></label>
+                <label className="variant-field"><span>{t('Stock, units')}</span><input type="number" min="0" disabled={saving} value={variant.stock_quantity} onChange={event => updateVariant(index, 'stock_quantity', event.target.value)} /></label>
                 {stockSchemaReady && <label className="variant-field"><span>{t('Low stock threshold')}</span><input type="number" min="0" value={variant.low_stock_threshold} onChange={event => updateVariant(index, 'low_stock_threshold', event.target.value)} /></label>}
               </div>
               <div className="variant-editor__controls">

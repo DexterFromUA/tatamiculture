@@ -284,6 +284,8 @@ const uk = {
   "Low stock threshold": "Поріг малого залишку",
   "Stock operations": "Операції із залишком",
   "Stock updated": "Залишок оновлено",
+  'Stock for {{size}} changed while editing. Review the current quantity and save again.': 'Залишок розміру {{size}} змінився під час редагування. Перевірте поточну кількість та збережіть ще раз.',
+  'This size is no longer available. Reload the catalogue.': 'Цей розмір більше недоступний. Оновіть каталог.',
   "Stock update failed": "Не вдалося оновити залишок",
   "Operation": "Операція",
   "Stock receipt": "Надходження",
