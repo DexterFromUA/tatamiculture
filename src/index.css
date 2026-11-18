@@ -2140,6 +2140,7 @@ input[type="date"] { color-scheme: light; }
 .catalog-product-workspace .variant-editor__preorder { grid-column: 3 / 5; grid-row: 2; }
 .catalog-product-workspace .variant-editor__remove { grid-column: 5; grid-row: 2; }
 .product-workspace__footer { justify-content: flex-end; }
+.product-workspace__footer-delete { margin-right: auto; }
 @media (max-width: 700px) {
   .catalog-product-workspace .variant-editor__row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .catalog-product-workspace .variant-editor__row .catalog-cost-field { grid-column: 1 / -1; grid-row: auto; }

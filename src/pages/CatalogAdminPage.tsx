@@ -822,9 +822,6 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
           <div className="product-editor__head product-workspace__header">
             <h2 ref={editorHeading} tabIndex={-1}>{draft.id ? t('Edit product') : t('New product')}</h2>
             <div className="actions">
-              {draft.id && <button type="button" className="text-btn product-editor__delete" disabled={saving || categoryBusy} onClick={() => requestProductDeletion(draft.id!)}>
-                {t(deleting ? 'Deleting…' : 'Delete product')}
-              </button>}
               <button type="button" className="text-btn" disabled={saving || categoryBusy} onClick={closeEditor}>{t('Close')}</button>
             </div>
           </div>
@@ -999,6 +996,9 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
             </div>)}
           </div>
           <div className="actions product-workspace__footer">
+            {draft.id && <button type="button" className="text-btn product-editor__delete product-workspace__footer-delete" disabled={saving || categoryBusy} onClick={() => requestProductDeletion(draft.id!)}>
+              {t(deleting ? 'Deleting…' : 'Delete product')}
+            </button>}
             <button type="button" className="btn" disabled={saving || categoryBusy} onClick={() => void save()}>{t(saving && !deleting ? 'Saving…' : 'Save product')}</button>
             <button type="button" className="btn btn--ghost" disabled={saving || categoryBusy} onClick={closeEditor}>{t('Cancel')}</button>
           </div>
