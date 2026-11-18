@@ -887,6 +887,7 @@ textarea {
 .catalog-summary span { display: block; color: var(--muted); font-size: .85rem; }
 .catalog-summary strong { display: block; margin-top: 6px; font: 1.6rem/1 var(--sans); }
 .catalog-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(170px, 240px) max-content; align-items: center; gap: 10px; }
+.catalog-toolbar--products { grid-template-columns: minmax(0, 1fr) minmax(140px, 220px) minmax(135px, 170px) max-content; }
 .catalog-list-panel .catalog-toolbar { margin-bottom: 16px; }
 .catalog-toolbar .crm-pagination { margin: 0; }
 .catalog-toolbar input, .catalog-toolbar select { width: 100%; padding: 10px 12px; border: 1px solid var(--line); background: var(--card); color: inherit; }

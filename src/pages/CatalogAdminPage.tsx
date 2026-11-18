@@ -183,6 +183,7 @@ function toDraft(product: CatalogProduct, language?: string): Draft {
 
 type CatalogView = 'products' | 'stock'
 type StockFilter = 'all' | 'low' | 'out'
+type VisibilityFilter = 'all' | 'published' | 'hidden'
 
 export function CatalogAdminPage({ embedded = false, initialView = 'products', initialSearch = '', initialStockFilter }: { embedded?: boolean; initialView?: CatalogView; initialSearch?: string; initialStockFilter?: StockFilter }) {
   const { t, i18n } = useTranslation()
@@ -206,6 +207,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
   const [stockFilter, setStockFilter] = useState<StockFilter>(initialStockFilter ?? (initialView === 'stock' ? 'low' : 'all'))
   const [stockSelection, setStockSelection] = useState<Record<string, string>>({})
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilter>('all')
   const [showCategories, setShowCategories] = useState(false)
   const [categoryNames, setCategoryNames] = useState({ uk: '', en: '' })
   const [categoryParent, setCategoryParent] = useState('')
@@ -229,7 +231,9 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
   ].some(value => value?.toLowerCase().includes(query)))
   const lowCount = products.flatMap(product => product.product_variants).filter(variant => variant.stock_quantity < variant.low_stock_threshold).length
   const outCount = products.flatMap(product => product.product_variants).filter(variant => variant.stock_quantity === 0).length
-  const productMatches = searchedProducts.filter(product => categoryFilter === 'all' || assignedCategoryIds(product).includes(categoryFilter))
+  const productMatches = searchedProducts.filter(product =>
+    (categoryFilter === 'all' || assignedCategoryIds(product).includes(categoryFilter))
+    && (visibilityFilter === 'all' || product.is_active === (visibilityFilter === 'published')))
   const stockMatches = searchedProducts.map(product => ({
     product,
     variants: product.product_variants.filter(variant =>
@@ -785,9 +789,17 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
         <button type="button" className={view === 'stock' && stockFilter === 'out' ? 'active' : ''} onClick={() => { changeView('stock'); setStockFilter('out') }}><span>{t('Out of stock')}</span><strong>{outCount}</strong></button>
       </div>
       <section className="crm-panel catalog-list-panel">
-      <div className="catalog-toolbar">
+      <div className={view === 'products' ? 'catalog-toolbar catalog-toolbar--products' : 'catalog-toolbar'}>
         <input type="search" aria-label={t('Search by name or SKU')} placeholder={t('Search by name or SKU')} value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} />
         {view === 'products' ? <select aria-label={t('Category')} value={categoryFilter} onChange={event => { setCategoryFilter(event.target.value); setPage(1) }}><option value="all">{t('All categories')}</option>{categoryOptions.map(({ category, label }) => <option key={category.id} value={category.id}>{label}</option>)}</select> : <select aria-label={t('Stock filter')} value={stockFilter} onChange={event => { setStockFilter(event.target.value as StockFilter); setPage(1) }}><option value="all">{t('All stock')}</option><option value="low">{t('Low stock')}</option><option value="out">{t('Out of stock')}</option></select>}
+        {view === 'products' && <select aria-label={t('Visibility')} value={visibilityFilter} onChange={event => {
+          setVisibilityFilter(event.target.value as VisibilityFilter)
+          setPage(1)
+        }}>
+          <option value="all">{t('All statuses')}</option>
+          <option value="published">{t('Published')}</option>
+          <option value="hidden">{t('Hidden')}</option>
+        </select>}
         <div className="crm-pagination"><button className="text-btn" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t('Previous')}</button><span>{currentPage} / {pages}</span><button className="text-btn" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>{t('Next')}</button></div>
       </div>
         {view === 'products' && (pageProducts.length > 0 || selected.length > 0) && <div className="order-bulk" role="group" aria-label={t('Bulk action')}>
