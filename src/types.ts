@@ -28,6 +28,7 @@ export type ProductOption = {
   price: number
   isDiscount: boolean
   discountPercent: number
+  allowsCustomerDiscount?: boolean
   isPreOrder: boolean
   isLimited: boolean
   quantity: number
@@ -132,6 +133,7 @@ export type ShortLink = {
 
 export type CheckoutInput = {
   expectedDiscountPercent?: number
+  expectedTotal?: number
   name: string
   email: string
   phone: string

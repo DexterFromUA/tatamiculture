@@ -29,8 +29,7 @@ begin
   begin
     perform public.create_store_order(shop, cart, 'Test', '', '+380990002222', 'Test', 'Test');
     raise exception 'COD accepted a sold-out pre-order';
-  exception when raise_exception then
-    if sqlerrm not like 'Insufficient stock for %' then raise; end if;
+  exception when sqlstate 'PT409' then null;
   end;
   begin
     perform public.prepare_online_checkout('LIQPAY', manager, shop, cart, details, false);

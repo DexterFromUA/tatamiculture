@@ -1,4 +1,5 @@
 import { normalizePhone } from '../lib/phone'
+import { catalogOffer } from '../lib/catalogPricing'
 import { getSizeGuideImageUrls } from '../lib/productText'
 import { supabaseRequest } from '../lib/supabase'
 import type { AuthSession, CartItem, CatalogCategory, CheckoutInput, Order, OrderItem, Product, ProductOption, ShortLink, Store, User } from '../types'
@@ -35,14 +36,15 @@ function mapProduct(row: Row): Product {
     categories: assignments?.flatMap(link => link.categories ? [link.categories] : []),
     imgUrls: images.sort((a, b) => Number(a.position) - Number(b.position)).map((image) => text(image.public_url)),
     productOptions: variants.sort((a, b) => Number(a.position) - Number(b.position)).map((variant): ProductOption => {
-      const price = money(variant.price)
-      const compareAt = variant.compare_at_price === null ? null : money(variant.compare_at_price)
-      const discountPercent = compareAt && compareAt > price ? Math.round((1 - price / compareAt) * 100) : 0
-      const details = {
-        id: text(variant.id), name: text(variant.name), price: compareAt ?? price, salePrice: price,
-        isDiscount: discountPercent > 0, discountPercent,
-      }
-      return { ...details, isPreOrder: Boolean(variant.is_preorder), isLimited: true, quantity: Number(variant.stock_quantity ?? 0) }
+      const details = catalogOffer({
+        discount_percent: row.discount_percent == null ? null : Number(row.discount_percent),
+        stack_customer_discount: row.stack_customer_discount === true,
+      }, {
+        price: Number(variant.price ?? 0), compare_at_price: Number(variant.compare_at_price ?? 0),
+        discount_percent: variant.discount_percent == null ? null : Number(variant.discount_percent),
+        stack_customer_discount: variant.stack_customer_discount === true,
+      })
+      return { ...details, id: text(variant.id), name: text(variant.name), isPreOrder: Boolean(variant.is_preorder), isLimited: true, quantity: Number(variant.stock_quantity ?? 0) }
     }),
   }
 }
@@ -152,6 +154,7 @@ export const supabaseApi = {
       body: JSON.stringify({
         p_store_id: input.store.id,
         p_expected_discount_percent: input.checkout.expectedDiscountPercent ?? null,
+        p_expected_total: input.checkout.expectedTotal ?? null,
         p_items: input.items.map((item) => ({ variantId: item.optionId, quantity: item.quantity })),
         p_customer_name: input.checkout.name, p_customer_email: input.checkout.email,
         p_customer_phone: input.checkout.phone, p_delivery_city: input.checkout.city,

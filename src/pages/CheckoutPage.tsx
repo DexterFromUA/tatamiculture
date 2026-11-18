@@ -1,4 +1,4 @@
-import { personalUnitPrice } from '../hooks/useCustomerDiscount'
+import { customerUnitPrice } from '../lib/catalogPricing'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -23,7 +23,7 @@ export function CheckoutPage() {
 }
 
 function CheckoutForm() {
-  const { store, products } = useStore()
+  const { store, products, refreshProducts } = useStore()
   const { items, clear, rememberOnlineCheckout, customerDiscount } = useCart()
   const { user, token } = useAuth()
   const { addToast } = useToast()
@@ -133,8 +133,9 @@ function CheckoutForm() {
   }, 0)
   const total = items.reduce((sum, item) => {
     const option = products.find(product => product.id === item.productId)?.productOptions.find(option => option.id === item.optionId)
-    return sum + (option ? personalUnitPrice(optionPrice(option), customerDiscount.percent) * item.quantity : 0)
+    return sum + (option ? customerUnitPrice(option, customerDiscount.percent) * item.quantity : 0)
   }, 0)
+  const personalSavings = Math.round((subtotal - total) * 100) / 100
   const cartLines = items.flatMap((item) => {
     const product = products.find((entry) => entry.id === item.productId)
     const option = product?.productOptions.find((entry) => entry.id === item.optionId)
@@ -158,7 +159,7 @@ function CheckoutForm() {
     setSubmitting(true)
     try {
       if (novaPoshtaEnabled && (!cityRef || !addressRef || !form.address)) throw new Error(t('Choose a city and Nova Poshta branch'))
-      const checkout = { ...form, expectedDiscountPercent: customerDiscount.percent,
+      const checkout = { ...form, expectedDiscountPercent: customerDiscount.percent, expectedTotal: Math.round(total * 100),
         ...(novaPoshtaEnabled && { cityRef: cityRef ?? undefined, addressRef: addressRef ?? undefined, deliveryServiceType }) }
       if (total > 0 && (provider === 'MONOBANK' || provider === 'LIQPAY')) {
         try {
@@ -173,7 +174,9 @@ function CheckoutForm() {
             throw new Error('Could not open payment')
           }
         } catch (err) {
-          addToast(t(err instanceof Error ? err.message : 'Could not open payment'))
+          const message = err instanceof Error ? err.message : 'Could not open payment'
+          if (message === 'Cart prices changed. Review your cart and try again.') void refreshProducts().catch(() => {})
+          addToast(t(message))
           navigate('/cart', { replace: true })
         }
         return
@@ -185,6 +188,7 @@ function CheckoutForm() {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Checkout failed'
       customerDiscount.retry()
+      if (message === 'Cart prices changed. Review your cart and try again.') void refreshProducts().catch(() => {})
       setError(message)
       if (message === paymentUnavailable || message === paymentSettingsChanged) {
         setPreferredProvider(null)
@@ -271,7 +275,7 @@ function CheckoutForm() {
         <div className="checkout-summary__head"><p className="eyebrow">02 / {t('Your order')}</p><h2>{t('Order summary')}</h2><span>{t('Items in order: {{quantity}}', { quantity: items.reduce((sum, item) => sum + item.quantity, 0) })}</span></div>
         <ul className="checkout-lines">{cartLines.map((line) => <li key={line.id}>{line.image && <img src={line.image} alt="" />}<div><strong>{line.name}</strong><span>{line.option} · {t('{{quantity}} units', { quantity: line.quantity })}</span></div><b>{formatPrice(line.total, store.currency)}</b></li>)}</ul>
         <div className="checkout-delivery"><span>{t('Delivery')}</span><strong>{novaPoshtaEnabled ? t('Nova Poshta branch or parcel locker') : t('Details at checkout')}</strong><small>{t('Shipping cost is confirmed after dispatch.')}</small></div>
-        {customerDiscount.percent > 0 && <div className="cart-summary__detail personal-discount-summary"><span>{t('Personal discount')} · {customerDiscount.percent}%</span><strong>−{formatPrice(subtotal - total, store.currency)}</strong></div>}
+        {personalSavings > 0 && <div className="cart-summary__detail personal-discount-summary"><span>{t('Personal discount')} · {customerDiscount.percent}%</span><strong>−{formatPrice(personalSavings, store.currency)}</strong></div>}
         {customerDiscount.loading && <p role="status">{t('Checking your discount…')}</p>}
         {customerDiscount.error && <p className="error" role="alert">{t(customerDiscount.error)} <button type="button" className="text-btn" onClick={customerDiscount.retry}>{t('Try again')}</button></p>}
         <div className="checkout-total"><span>{t('Total')}</span><strong>{formatPrice(total, store.currency)}</strong></div>

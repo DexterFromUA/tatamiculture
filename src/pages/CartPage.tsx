@@ -1,4 +1,4 @@
-import { personalUnitPrice } from '../hooks/useCustomerDiscount'
+import { customerUnitPrice } from '../lib/catalogPricing'
 import { useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useCart } from '../context/CartContext'
@@ -80,7 +80,8 @@ export function CartPage() {
     .filter((row) => row !== null)
 
   const subtotal = rows.reduce((sum, row) => sum + row.line, 0)
-  const total = rows.reduce((sum, row) => sum + personalUnitPrice(row.unit, customerDiscount.percent) * row.item.quantity, 0)
+  const total = rows.reduce((sum, row) => sum + customerUnitPrice(row.option, customerDiscount.percent) * row.item.quantity, 0)
+  const personalSavings = Math.round((subtotal - total) * 100) / 100
 
   if (rows.length === 0) {
     return (
@@ -136,7 +137,7 @@ export function CartPage() {
         <p className="eyebrow">02 / {t('Your order')}</p><h2>{t('Order summary')}</h2>
         <div className="cart-summary__detail"><span>{t('Items in order: {{quantity}}', { quantity: rows.reduce((sum, row) => sum + row.item.quantity, 0) })}</span><strong>{formatPrice(subtotal, store.currency)}</strong></div>
         <div className="cart-summary__detail"><span>{t('Delivery')}</span><span>{t('Shipping cost is confirmed after dispatch.')}</span></div>
-        {customerDiscount.percent > 0 && <div className="cart-summary__detail personal-discount-summary"><span>{t('Personal discount')} · {customerDiscount.percent}%</span><strong>−{formatPrice(subtotal - total, store.currency)}</strong></div>}
+        {personalSavings > 0 && <div className="cart-summary__detail personal-discount-summary"><span>{t('Personal discount')} · {customerDiscount.percent}%</span><strong>−{formatPrice(personalSavings, store.currency)}</strong></div>}
         {customerDiscount.loading && <p role="status">{t('Checking your discount…')}</p>}
         {customerDiscount.error && <p className="error" role="alert">{t(customerDiscount.error)} <button type="button" className="text-btn" onClick={customerDiscount.retry}>{t('Try again')}</button></p>}
         <div className="summary"><span>{t('Total')}</span><strong>{formatPrice(total, store.currency)}</strong></div>

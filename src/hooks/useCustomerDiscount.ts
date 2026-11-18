@@ -39,7 +39,3 @@ export function useCustomerDiscount() {
     retry: () => { setError(''); setRevision(value => value + 1) },
   }
 }
-
-export function personalUnitPrice(price: number, percent: number) {
-  return Math.floor((Math.round(price * 100) * (10000 - Math.round(percent * 100)) + 5000) / 10000) / 100
-}
