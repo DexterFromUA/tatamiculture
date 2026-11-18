@@ -3,7 +3,7 @@ import { CatalogCostInput } from '../components/CatalogCostInput'
 import { VariantCostEditor } from '../components/VariantCostEditor'
 import { StockAdjustment } from '../components/StockAdjustment'
 import { ConfirmationDialog } from '../components/ConfirmationDialog'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
@@ -248,12 +248,32 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
   const selectedOutsidePage = selected.filter(id => !pageProductIds.has(id)).length
   const pageSelected = pageProducts.length > 0 && pageProducts.every(product => selected.includes(product.id))
   const draggedPhoto = useRef<number | null>(null)
+  const productList = useRef<HTMLUListElement>(null)
+  const addProductButton = useRef<HTMLButtonElement>(null)
   const editorHeading = useRef<HTMLHeadingElement>(null)
+  const listScroll = useRef<{ productId?: string; scrollY: number; buttonTop: number } | null>(null)
   const attemptedVariantIds = useRef(new Set<string>())
   const editorOpen = draft !== null
-  useEffect(() => {
-    if (editorOpen) editorHeading.current?.focus()
+  useLayoutEffect(() => {
+    if (!editorOpen) return
+    editorHeading.current?.focus({ preventScroll: true })
+    window.scrollTo({ top: 0, behavior: 'instant' })
   }, [editorOpen])
+  useLayoutEffect(() => {
+    const savedScroll = listScroll.current
+    if (editorOpen || loading || !savedScroll || !productList.current) return
+
+    const button = savedScroll.productId
+      ? Array.from(productList.current.querySelectorAll<HTMLButtonElement>('[data-edit-product]'))
+        .find(item => item.dataset.editProduct === savedScroll.productId)
+      : addProductButton.current
+    const top = button
+      ? window.scrollY + button.getBoundingClientRect().top - savedScroll.buttonTop
+      : savedScroll.scrollY
+    window.scrollTo({ top, behavior: 'instant' })
+    button?.focus({ preventScroll: true })
+    listScroll.current = null
+  }, [editorOpen, loading])
   const [originalDraft, setOriginalDraft] = useState('')
   const dirty = draft !== null && (draft.newImageFiles.length > 0 || JSON.stringify(draft) !== originalDraft)
   useEffect(() => {
@@ -275,7 +295,12 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
     }
   }, [dirty, t])
 
-  const beginDraft = (next: Draft) => {
+  const beginDraft = (next: Draft, button: HTMLButtonElement) => {
+    listScroll.current = {
+      productId: next.id,
+      scrollY: Math.max(0, window.scrollY),
+      buttonTop: button.getBoundingClientRect().top,
+    }
     attemptedVariantIds.current.clear()
     setOriginalDraft(JSON.stringify(next))
     setError(null)
@@ -293,7 +318,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
     if (dirty && !window.confirm(t('Discard unsaved changes?'))) return
     closeSavedEditor()
   }
-  const openProduct = (product: CatalogProduct) => beginDraft(toDraft(product, language))
+  const openProduct = (product: CatalogProduct, button: HTMLButtonElement) => beginDraft(toDraft(product, language), button)
   const changeView = (next: CatalogView) => { setView(next); setPage(1); setDraft(null) }
 
   const load = useCallback(async () => {
@@ -778,7 +803,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
     <section>
       <header className={embedded ? 'crm-section-head catalog-section-head' : 'page-head page-head--row'}>
         {!embedded ? <div><p className="muted">{store.name} · {t('management')}</p><h1>{t('Catalogue')}</h1></div> : <div><span className="crm-section-head__label"><span>{store.name}</span> / CRM</span><h2>{t('Catalogue')}</h2></div>}
-        {!draft && <div className="catalog-header-actions"><button type="button" className="btn btn--ghost" disabled={categoryBusy} onClick={() => { setShowCategories(current => !current); resetCategoryForm() }}>{t(showCategories ? 'Products' : 'Manage categories')}</button>{!showCategories && <button type="button" className="btn" onClick={() => beginDraft(blankDraft())}>{t('Add product')}</button>}</div>}
+        {!draft && <div className="catalog-header-actions"><button type="button" className="btn btn--ghost" disabled={categoryBusy} onClick={() => { setShowCategories(current => !current); resetCategoryForm() }}>{t(showCategories ? 'Products' : 'Manage categories')}</button>{!showCategories && <button ref={addProductButton} type="button" className="btn" onClick={event => beginDraft(blankDraft(), event.currentTarget)}>{t('Add product')}</button>}</div>}
       </header>
       {error ? <p className="error" role="alert">{error}</p> : null}
       {!draft && (showCategories ? categoryManager : <>
@@ -836,7 +861,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
             </div>
           </div>
         </div>}
-        <ul className="catalog-admin__list">
+        <ul ref={productList} className="catalog-admin__list">
           {view === 'products' ? pageProducts.map(product => {
             const unavailable = product.product_variants.filter(variant => variant.stock_quantity === 0).length
             return <li key={product.id} className={selected.includes(product.id) ? 'catalog-admin__selected' : undefined}>
@@ -844,7 +869,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
               {product.product_images[0] && <img className="catalog-admin__thumb" src={product.product_images[0].public_url} alt="" />}
               <div className="catalog-admin__item"><strong>{productName(product, language)}</strong><span>{categoryPaths(categories, assignedCategoryIds(product), language).join(' · ') || t('Uncategorized')} · {product.is_active ? t('Published') : t('Hidden')}{product.is_new && ` · ${t('New arrival')}`}</span><span>{product.product_variants.length} {t('variants')}{unavailable ? ` · ${unavailable} ${t('out of stock')}` : ''}</span><ProductTimestamps product={product} /></div>
               <div className="crm-order__actions catalog-admin__actions">
-                <button type="button" className="text-btn" onClick={() => openProduct(product)}>{t('Edit')}</button>
+                <button type="button" className="text-btn" data-edit-product={product.id} onClick={event => openProduct(product, event.currentTarget)}>{t('Edit')}</button>
                 {stockSchemaReady && <button type="button" className="text-btn" disabled={saving} onClick={() => void duplicate(product)}>{t('Duplicate')}</button>}
                 <button type="button" className="text-btn" disabled={saving || categoryBusy} onClick={() => void toggleProductVisibility(product)}>{t(product.is_active ? 'Hide' : 'Publish')}</button>
                 <button type="button" className="text-btn product-editor__delete" disabled={saving || categoryBusy} onClick={() => requestProductDeletion(product.id)}>{t('Delete')}</button>
@@ -870,7 +895,7 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
                 <span className={variant.stock_quantity < variant.low_stock_threshold ? 'stock-low' : ''}>{variant.stock_quantity} {t('in stock')}{variant.is_preorder && ` · ${t('Pre-order')}`}</span>
               </div>
               <div className="catalog-stock-row__actions" key={variant.id}>
-                <button type="button" className="text-btn" onClick={() => openProduct(product)}>{t('Edit')}</button>
+                <button type="button" className="text-btn" data-edit-product={product.id} onClick={event => openProduct(product, event.currentTarget)}>{t('Edit')}</button>
                 {variant.id && token && <VariantCostEditor productId={product.id} variantId={variant.id}
                   cost={variant.variant_costs} rates={rates} token={token} onSaved={load} />}
                 {stockSchemaReady && variant.id && token && <StockAdjustment variantId={variant.id} token={token} reload={load} />}
