@@ -4,8 +4,8 @@ do $$
 declare owner_id uuid:=gen_random_uuid(); manager_id uuid:=gen_random_uuid(); buyer_id uuid:=gen_random_uuid(); outsider_id uuid:=gen_random_uuid(); other_id uuid:=gen_random_uuid(); shop uuid; other_shop uuid; customer uuid;
 begin
   insert into auth.users(id,raw_user_meta_data) values(owner_id,'{"name":"Owner"}'),(manager_id,'{"name":"Manager"}'),(buyer_id,'{"name":"Buyer"}'),(outsider_id,'{}'),(other_id,'{}');
-  insert into public.stores(slug,name,contact_email,contact_phone,contact_city) values('admin-check-'||substr(owner_id::text,1,8),'Check','','','') returning id into shop;
-  insert into public.stores(slug,name,contact_email,contact_phone,contact_city) values('admin-other-'||substr(owner_id::text,1,8),'Other','','','') returning id into other_shop;
+  insert into public.stores(slug,name) values('admin-check-'||substr(owner_id::text,1,8),'Check') returning id into shop;
+  insert into public.stores(slug,name) values('admin-other-'||substr(owner_id::text,1,8),'Other') returning id into other_shop;
   insert into public.store_members(store_id,user_id,role) values(shop,owner_id,'OWNER'),(shop,manager_id,'MANAGER'),(other_shop,other_id,'OWNER');
   insert into public.store_customers(store_id,user_id) values(shop,buyer_id),(shop,owner_id),(shop,manager_id),(other_shop,other_id);
   select customer_id into customer from public.crm_customer_keys where store_id=shop and key='user:'||buyer_id::text;

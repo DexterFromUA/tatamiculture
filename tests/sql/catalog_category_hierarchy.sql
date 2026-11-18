@@ -22,10 +22,10 @@ begin
   ) then raise exception 'Existing primary categories were not preserved'; end if;
 
   insert into auth.users (id, email) values (staff, staff || '@example.invalid');
-  insert into public.stores (slug, name, contact_email, contact_phone, contact_city)
-  values ('category-test-' || staff, 'Category test', '', '', '') returning id into shop;
-  insert into public.stores (slug, name, contact_email, contact_phone, contact_city)
-  values ('other-category-test-' || staff, 'Other category test', '', '', '') returning id into other_shop;
+  insert into public.stores (slug, name)
+  values ('category-test-' || staff, 'Category test') returning id into shop;
+  insert into public.stores (slug, name)
+  values ('other-category-test-' || staff, 'Other category test') returning id into other_shop;
   insert into public.store_members (store_id, user_id, role) values (shop, staff, 'MANAGER');
   insert into public.categories (id, store_id, name, slug) values (foreign_root, other_shop, 'Foreign', 'foreign');
   insert into public.products (id, store_id, name) values (other_item, other_shop, 'Foreign product');

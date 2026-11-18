@@ -41,7 +41,6 @@ type CatalogProduct = ProductText & {
   size_guide_extra_image_urls?: string[]
   size_guide?: string
   size_guide_en?: string
-  size_guide_image_url_en?: string
   composition_en?: string
   care_instructions_en?: string
   size_guide_image_url?: string
@@ -152,7 +151,7 @@ function toDraft(product: CatalogProduct, language?: string): Draft {
     sizeGuide: { uk: product.size_guide ?? '', en: product.size_guide_en ?? '' },
     composition: { uk: product.composition ?? '', en: product.composition_en ?? '' },
     careInstructions: { uk: product.care_instructions ?? '', en: product.care_instructions_en ?? '' },
-    sizeGuideImages: getSizeGuideImageUrls(product.size_guide_image_url, product.size_guide_image_url_en, product.size_guide_extra_image_urls)
+    sizeGuideImages: getSizeGuideImageUrls(product.size_guide_image_url, product.size_guide_extra_image_urls)
       .map((url, index) => ({ key: `saved-${index}`, url })),
     id: product.id,
     names,
@@ -608,7 +607,6 @@ export function CatalogAdminPage({ embedded = false, initialView = 'products', i
         method: 'PATCH', token, body: JSON.stringify({
           ...payload,
           size_guide_image_url: sizeGuideImageUrls[0] ?? '',
-          size_guide_image_url_en: '',
           size_guide_extra_image_urls: sizeGuideImageUrls.slice(1),
         }),
       })

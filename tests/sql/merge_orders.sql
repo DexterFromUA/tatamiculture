@@ -6,8 +6,8 @@ declare
   first_order uuid; second_order uuid; paid_order uuid; product uuid; stats record;
 begin
   insert into auth.users(id,raw_user_meta_data) values(manager,'{}'),(outsider,'{}');
-  insert into public.stores(slug,name,contact_email,contact_phone,contact_city)
-    values('merge-test-'||manager::text,'Merge test','merge@example.invalid','000','Test') returning id into shop;
+  insert into public.stores(slug,name)
+    values('merge-test-'||manager::text,'Merge test') returning id into shop;
   insert into public.store_members(store_id,user_id,role) values(shop,manager,'OWNER');
   perform set_config('request.jwt.claim.sub',manager::text,true);
   insert into public.products(store_id,name,weight_grams) values(shop,'Test product',500) returning id into product;

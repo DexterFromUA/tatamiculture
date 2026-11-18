@@ -11,7 +11,7 @@ declare
   placed public.orders;
 begin
   insert into auth.users(id) values (manager), (outsider);
-  insert into public.stores(slug, name, contact_email, contact_phone, contact_city) values ('verify-payment-' || manager, 'Payment verification', 'test@example.invalid', '000', 'Test') returning id into shop;
+  insert into public.stores(slug, name) values ('verify-payment-' || manager, 'Payment verification') returning id into shop;
   insert into public.store_members(store_id, user_id, role) values (shop, manager, 'OWNER');
   insert into public.products(store_id, name) values (shop, 'Fixture') returning id into product;
   insert into public.product_variants(product_id, name, price, stock_quantity) values (product, 'M', 10000, 3) returning id into variant;

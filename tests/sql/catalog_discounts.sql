@@ -17,8 +17,8 @@ declare
   details jsonb := '{"name":"Test","phone":"+380990002222","city":"Test","address":"Test","expectedDiscountPercent":15}';
 begin
   insert into auth.users(id, raw_user_meta_data) values (buyer, '{"name":"Pricing test"}');
-  insert into public.stores(slug, name, contact_email, contact_phone, contact_city, currency)
-    values ('catalog-pricing-' || buyer, 'Pricing test', '', '', 'Test', 'UAH') returning id into shop;
+  insert into public.stores(slug, name, currency)
+    values ('catalog-pricing-' || buyer, 'Pricing test', 'UAH') returning id into shop;
   insert into public.store_customers(store_id, user_id) values (shop, buyer);
   insert into public.customer_discounts(store_id, user_id, percent, mode, order_limit)
     values (shop, buyer, 15, 'orders', 10) returning id into discount;

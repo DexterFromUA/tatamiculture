@@ -2,7 +2,7 @@ import { normalizePhone } from '../lib/phone'
 import { catalogOffer } from '../lib/catalogPricing'
 import { getSizeGuideImageUrls } from '../lib/productText'
 import { supabaseRequest } from '../lib/supabase'
-import type { AuthSession, CartItem, CatalogCategory, CheckoutInput, Order, OrderItem, Product, ProductOption, ShortLink, Store, User } from '../types'
+import type { AuthSession, CartItem, CatalogCategory, CheckoutInput, Order, OrderItem, Product, ProductOption, Store, User } from '../types'
 
 type Row = Record<string, unknown>
 
@@ -12,9 +12,7 @@ const productFields = '*,categories!products_category_id_fkey(*),product_categor
 
 function mapStore(row: Row): Store {
   return {
-    id: text(row.id), slug: text(row.slug), name: text(row.name), description: text(row.description),
-    contactEmail: text(row.contact_email), contactPhone: text(row.contact_phone),
-    contactCity: text(row.contact_city), currency: text(row.currency), primaryColor: text(row.primary_color),
+    id: text(row.id), slug: text(row.slug), name: text(row.name), currency: text(row.currency),
   }
 }
 
@@ -28,7 +26,7 @@ function mapProduct(row: Row): Product {
     name_uk: text(row.name_uk), name_en: text(row.name_en),
     description_uk: text(row.description_uk), description_en: text(row.description_en),
     sizeGuide: text(row.size_guide), composition: text(row.composition), careInstructions: text(row.care_instructions),
-    sizeGuideImageUrls: getSizeGuideImageUrls(row.size_guide_image_url, row.size_guide_image_url_en, row.size_guide_extra_image_urls),
+    sizeGuideImageUrls: getSizeGuideImageUrls(row.size_guide_image_url, row.size_guide_extra_image_urls),
     sizeGuideEn: text(row.size_guide_en),
     compositionEn: text(row.composition_en), careInstructionsEn: text(row.care_instructions_en),
     primaryCategory: category ?? undefined, isActive: Boolean(row.is_active),
@@ -147,7 +145,7 @@ export const supabaseApi = {
     return mapUser(user, await profileFor(user, token).catch(() => null))
   },
 
-  async createOrder(input: { store: Store; items: CartItem[]; checkout: CheckoutInput; token: string | null; shortLinkId?: string }): Promise<Order> {
+  async createOrder(input: { store: Store; items: CartItem[]; checkout: CheckoutInput; token: string | null }): Promise<Order> {
     if (input.items.length === 0) throw new Error('Cart is empty')
     const row = await supabaseRequest<Row>('/rest/v1/rpc/create_discounted_store_order', {
       method: 'POST', token: input.token,
@@ -216,19 +214,5 @@ export const supabaseApi = {
     return supabaseRequest<'PENDING' | 'FAILED' | 'PAID' | null>('/rest/v1/rpc/get_online_checkout_status', {
       method: 'POST', body: JSON.stringify({ p_receipt_code: code }),
     })
-  },
-
-  async getShortLink(code: string) {
-    const links = await supabaseRequest<Row[]>(`/rest/v1/short_links?code=eq.${encodeURIComponent(code)}&select=*`)
-    const link = links[0]
-    if (!link) return null
-    const [stores, products] = await Promise.all([
-      supabaseRequest<Row[]>(`/rest/v1/stores?id=eq.${encodeURIComponent(text(link.store_id))}&select=*`),
-      supabaseRequest<Row[]>(`/rest/v1/products?id=eq.${encodeURIComponent(text(link.product_id))}&store_id=eq.${encodeURIComponent(text(link.store_id))}&is_active=eq.true&select=${productFields}`),
-    ])
-    const store = stores[0] ? mapStore(stores[0]) : null
-    const product = products[0] ? mapProduct(products[0]) : null
-    if (!store || !product) return null
-    return { link: { id: text(link.id), code: text(link.code), storeId: text(link.store_id), productId: text(link.product_id) } satisfies ShortLink, store, product }
   },
 }

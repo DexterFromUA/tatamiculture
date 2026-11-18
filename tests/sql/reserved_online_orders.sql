@@ -15,8 +15,8 @@ declare
 begin
   insert into auth.users (id, raw_user_meta_data) values (v_owner, '{"name":"Buyer"}'), (v_other, '{"name":"Other buyer"}');
   insert into public.profiles (id) values (v_owner), (v_other) on conflict (id) do nothing;
-  insert into public.stores (slug, name, contact_email, contact_phone, contact_city)
-  values ('reservation-test-' || gen_random_uuid(), 'Reservation test', '', '', '') returning id into v_store;
+  insert into public.stores (slug, name)
+  values ('reservation-test-' || gen_random_uuid(), 'Reservation test') returning id into v_store;
   insert into public.products (store_id, name) values (v_store, 'Rashguard') returning id into v_product;
   insert into public.product_variants (product_id, name, price, stock_quantity)
   values (v_product, 'M', 150000, 5) returning id into v_variant;

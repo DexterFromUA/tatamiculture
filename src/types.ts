@@ -13,12 +13,7 @@ export type Store = {
   id: string
   slug: string
   name: string
-  description: string
-  contactEmail: string
-  contactPhone: string
-  contactCity: string
   currency: string
-  primaryColor: string
 }
 
 export type ProductOption = {
@@ -116,19 +111,11 @@ export type Order = {
   deliveryAddress: string
   note: string
   createdAt: string
-  shortLinkId?: string
   paymentMethod?: 'ONLINE' | 'CASH_ON_DELIVERY'
   reservedInProfile?: boolean
   paymentTestMode?: boolean
   novaPoshtaTtn?: string
   novaPoshtaStatus?: string
-}
-
-export type ShortLink = {
-  id: string
-  code: string
-  storeId: string
-  productId: string
 }
 
 export type CheckoutInput = {

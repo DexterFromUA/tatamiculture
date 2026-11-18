@@ -6,7 +6,7 @@ declare
  ord uuid; item uuid; ret uuid:=gen_random_uuid(); copy uuid; source_customer uuid; target_customer uuid; guest_order uuid;
 begin
  insert into auth.users(id,raw_user_meta_data) values(manager,'{"name":"CRM verification"}'),(outsider,'{"name":"CRM outsider"}');
- insert into public.stores(slug,name,contact_email,contact_phone,contact_city) values('verify-'||substr(manager::text,1,8),'Verification','test@example.invalid','000','Test') returning id into shop;
+ insert into public.stores(slug,name) values('verify-'||substr(manager::text,1,8),'Verification') returning id into shop;
  insert into public.store_members(store_id,user_id,role) values(shop,manager,'OWNER');
  perform set_config('request.jwt.claim.sub',manager::text,true);
  insert into public.products(store_id,name) values(shop,'Test product') returning id into product;

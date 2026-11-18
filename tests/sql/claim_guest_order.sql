@@ -15,8 +15,8 @@ begin
          (other_buyer, '380000110002', now()),
          (unverified, '380000110003', null);
   update public.profiles set phone = '+380000110001' where id = unverified;
-  insert into public.stores (slug, name, contact_email, contact_phone, contact_city)
-  values ('verify-claim-' || buyer, 'Claim verification', 'test@example.invalid', '000', 'Test')
+  insert into public.stores (slug, name)
+  values ('verify-claim-' || buyer, 'Claim verification')
   returning id into shop;
   insert into public.orders
     (store_id, customer_name, customer_email, customer_phone, delivery_city, delivery_address, total_price, currency)

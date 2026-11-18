@@ -12,8 +12,8 @@ declare
   details jsonb := '{"name":"Test","phone":"+380990002222","city":"Test","address":"Test","email":""}';
 begin
   insert into auth.users(id, raw_user_meta_data) values (manager, '{"name":"Inventory test"}');
-  insert into public.stores(slug, name, contact_email, contact_phone, contact_city, currency)
-    values ('preorder-stock-' || manager::text, 'Pre-order inventory test', '', '', 'Test', 'UAH') returning id into shop;
+  insert into public.stores(slug, name, currency)
+    values ('preorder-stock-' || manager::text, 'Pre-order inventory test', 'UAH') returning id into shop;
   insert into public.store_members(store_id, user_id, role) values (shop, manager, 'OWNER');
   perform set_config('request.jwt.claim.sub', manager::text, true);
   insert into public.products(store_id, name) values (shop, 'Limited pre-order') returning id into product;

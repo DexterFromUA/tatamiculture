@@ -15,7 +15,6 @@ import { CheckoutPage } from './pages/CheckoutPage'
 import { PhoneAuthPage } from './pages/PhoneAuthPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { ProductPage } from './pages/ProductPage'
-import { QuickBuyPage } from './pages/QuickBuyPage'
 import { ReceiptPage } from './pages/ReceiptPage'
 
 function StoreTree() {
@@ -41,7 +40,6 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/q/:code" element={<QuickBuyPage />} />
       <Route path="/" element={<StoreTree />}>
         <Route element={<StoreLayout />}>
           <Route index element={<CatalogPage />} />

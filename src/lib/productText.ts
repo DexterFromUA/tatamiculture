@@ -2,8 +2,8 @@ import type { Product, ProductText } from '../types'
 
 export const maxSizeGuideImages = 3
 
-export function getSizeGuideImageUrls(primary: unknown, legacy: unknown, additional: unknown): string[] {
-  return [primary || legacy, ...(Array.isArray(additional) ? additional : [])]
+export function getSizeGuideImageUrls(primary: unknown, additional: unknown): string[] {
+  return [primary, ...(Array.isArray(additional) ? additional : [])]
     .filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
     .slice(0, maxSizeGuideImages)
 }
