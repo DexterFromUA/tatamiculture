@@ -15,6 +15,7 @@ import { productName } from '../lib/productText'
 const bannerTimeout = 5000
 const siteIcon = '/tatami-mark-transparent.png'
 const newArrivalsCategory = '__new_arrivals__'
+const discountedCategory = '__discounted__'
 
 export function CatalogPage() {
   const { store, products } = useStore()
@@ -87,6 +88,8 @@ export function CatalogPage() {
   const groups = categoryGroups(categories, language)
   const hasNewArrivals = products.some(product => product.isActive && product.isNew)
   const showingNewArrivals = category === newArrivalsCategory && hasNewArrivals
+  const hasDiscountedProducts = products.some(product => product.isActive && product.productOptions.some(option => option.isDiscount))
+  const showingDiscountedProducts = category === discountedCategory && hasDiscountedProducts
   const activeGroup = groups.find(({ parent }) => parent.id === category)
   const activeSubcategory = activeGroup?.children.find(child => child.id === subcategory)
   const filterId = activeSubcategory?.id ?? activeGroup?.parent.id
@@ -95,9 +98,11 @@ export function CatalogPage() {
   const query = search.trim().toLocaleLowerCase(language)
   const visibleProducts = products.filter(product =>
     (!showingNewArrivals || (product.isActive && product.isNew))
+    && (!showingDiscountedProducts || product.isActive)
     && (!filterId || categoriesForProduct(product).some(item => item.id === filterId))
     && (!query || [product.name, product.name_uk, product.name_en].some(name => name?.toLocaleLowerCase(language).includes(query)))
-    && (!size || product.productOptions.some(option => option.name.trim() === size)),
+    && ((!size && !showingDiscountedProducts) || product.productOptions.some(option =>
+      (!size || option.name.trim() === size) && (!showingDiscountedProducts || option.isDiscount))),
   ).sort((a, b) => {
     if (sort !== 'newest') {
       const price = (options: typeof a.productOptions) => options.length ? Math.min(...options.map(optionPrice)) : Infinity
@@ -108,7 +113,9 @@ export function CatalogPage() {
     return (Date.parse(b.createdAt || '') || 0) - (Date.parse(a.createdAt || '') || 0)
   })
   const activeCategory = activeSubcategory ?? activeGroup?.parent
-  const collectionName = showingNewArrivals ? t('New arrivals') : activeCategory ? categoryLabel(activeCategory, language) : t('All products')
+  const showingAllProducts = !activeGroup && !showingNewArrivals && !showingDiscountedProducts
+  const collectionName = activeCategory ? categoryLabel(activeCategory, language)
+    : t(showingNewArrivals ? 'New arrivals' : showingDiscountedProducts ? 'On sale' : 'All products')
   const selectCategory = (id: string) => {
     setFilters(current => ({ ...current, category: id, subcategory: '' }))
   }
@@ -148,8 +155,9 @@ export function CatalogPage() {
               </div>
             </div>
             <div className="collection-filters" role="group" aria-label={t('Categories')}>
-              <button type="button" className={!activeGroup && !showingNewArrivals ? 'active' : ''} aria-pressed={!activeGroup && !showingNewArrivals} onClick={() => selectCategory('')}>{t('All products')}</button>
+              <button type="button" className={showingAllProducts ? 'active' : ''} aria-pressed={showingAllProducts} onClick={() => selectCategory('')}>{t('All products')}</button>
               {hasNewArrivals && <button type="button" className={showingNewArrivals ? 'active' : ''} aria-pressed={showingNewArrivals} onClick={() => selectCategory(newArrivalsCategory)}>{t('New arrivals')}</button>}
+              {hasDiscountedProducts && <button type="button" className={showingDiscountedProducts ? 'active' : ''} aria-pressed={showingDiscountedProducts} onClick={() => selectCategory(discountedCategory)}>{t('On sale')}</button>}
               {groups.map(({ parent }) => (
                 <button type="button" key={parent.id} className={category === parent.id ? 'active' : ''} aria-pressed={category === parent.id} onClick={() => selectCategory(parent.id)}>{categoryLabel(parent, language)}</button>
               ))}

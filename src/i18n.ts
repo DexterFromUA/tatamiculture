@@ -119,6 +119,7 @@ const uk = {
   'If no banner images are added, photos of new products will be shown.': 'Якщо зображення банера не додані, показуватимуться фото новинок.',
   'New arrival': 'Новинка',
   'New arrivals': 'Новинки',
+  'On sale': 'Зі знижкою',
   'Mark as new': 'Позначити як новинку',
   'Size guide image': 'Фото розмірної сітки',
   'Store temporarily unavailable': 'Магазин тимчасово недоступний',
