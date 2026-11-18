@@ -47,7 +47,7 @@ export function ItemReturns({ orderIds, items, token, currency, onChange }: {
     } catch (cause) { setError(cause instanceof Error ? cause.message : t('Action failed')) } finally { setBusy(false) }
   }
   return <section className="order-drawer__card">
-    <div className="order-drawer__section-heading"><span className="order-drawer__section-number">01</span><h3>{t('Returns and size exchanges')}</h3></div>
+    <h3>{t('Returns and size exchanges')}</h3>
     <p className="muted">{t('Confirm payment here after issuing the refund through your payment provider.')}</p>
     {error && <p className="error" role="alert">{error}</p>}
     <ul className="note-list">{returns.map(row => <li key={row.id}>

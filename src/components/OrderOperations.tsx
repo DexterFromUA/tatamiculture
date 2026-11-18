@@ -115,7 +115,7 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose }
       {error && <p className="error" role="alert">{error}</p>}
       {canManageReturns && <ItemReturns orderIds={orderIds} items={details.order_items} token={token} currency={order.currency} onChange={() => setRevision(value => value + 1)} />}
       <section className="order-drawer__card">
-        <div className="order-drawer__section-heading"><span className="order-drawer__section-number">{canManageReturns ? '02' : '01'}</span><h3>{t('Confirmed refunds')}</h3></div>
+        <h3>{t('Confirmed refunds')}</h3>
         {returns.length ? <ul className="note-list">{returns.map(item => <li key={item.id}><strong>{formatPrice(item.amount / 100, order.currency)}</strong><p>{item.reason}</p></li>)}</ul> : <p className="muted">{t('No confirmed refunds yet')}</p>}
       </section>
       <OrderActivity key={revision} orderId={order.id} token={token} currency={order.currency} />
