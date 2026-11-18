@@ -477,8 +477,14 @@ export function AdminPage() {
               <option value="NO_TTN">{t('Without TTN')}</option>
               {statuses.map((status) => <option key={status} value={status}>{t(status)}</option>)}
             </select>
-            <input aria-label={t('Orders from date')} type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
-            <input aria-label={t('Orders to date')} type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
+            <div className="order-date-filter">
+              <input aria-label={t('Orders from date')} type="date" value={fromDate} onChange={event => { setFromDate(event.target.value); setPage(1) }} />
+              {!fromDate && <span className="order-date-filter__placeholder" aria-hidden="true">{t('From date')}</span>}
+            </div>
+            <div className="order-date-filter">
+              <input aria-label={t('Orders to date')} type="date" value={toDate} onChange={event => { setToDate(event.target.value); setPage(1) }} />
+              {!toDate && <span className="order-date-filter__placeholder" aria-hidden="true">{t('To date')}</span>}
+            </div>
           </div>
           {(dashboardOrderIds !== null || customerOrderFilter !== null) && <div className="dashboard-order-filter" role="status">
             <span>{customerOrderFilter ? t('Orders for {{name}}', { name: customerOrderFilter.name }) : t('Dashboard selection')} · {visibleOrders.length}</span>
