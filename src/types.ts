@@ -18,6 +18,7 @@ export type Store = {
 }
 
 export type ProductOption = {
+  allowOutOfStock?: boolean
   salePrice?: number
   sku?: string
   id: string

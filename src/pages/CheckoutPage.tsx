@@ -1,4 +1,5 @@
 import { customerUnitPrice } from '../lib/catalogPricing'
+import { purchaseQuantityLimit, unavailableQuantity } from '../lib/catalogAvailability'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -139,8 +140,12 @@ function CheckoutForm() {
   const cartLines = items.flatMap((item) => {
     const product = products.find((entry) => entry.id === item.productId)
     const option = product?.productOptions.find((entry) => entry.id === item.optionId)
-    return product && option ? [{ id: `${item.productId}-${item.optionId}`, name: productName(product, i18n.resolvedLanguage), image: product.imgUrls[0], option: option.name, quantity: item.quantity, total: optionPrice(option) * item.quantity }] : []
+    return product && option ? [{
+      id: `${item.productId}-${item.optionId}`, name: productName(product, i18n.resolvedLanguage), image: product.imgUrls[0],
+      option: option.name, quantity: item.quantity, total: optionPrice(option) * item.quantity, limit: purchaseQuantityLimit(option),
+    }] : []
   })
+  const unavailableItems = cartLines.some(line => line.quantity > line.limit)
 
   if (items.length === 0) {
     return (
@@ -154,7 +159,7 @@ function CheckoutForm() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault()
-    if ((!provider && total > 0) || submitting || customerDiscount.loading || customerDiscount.error) return
+    if ((!provider && total > 0) || submitting || unavailableItems || customerDiscount.loading || customerDiscount.error) return
     setError(null)
     setSubmitting(true)
     try {
@@ -175,7 +180,7 @@ function CheckoutForm() {
           }
         } catch (err) {
           const message = err instanceof Error ? err.message : 'Could not open payment'
-          if (message === 'Cart prices changed. Review your cart and try again.') void refreshProducts().catch(() => {})
+          if (message === unavailableQuantity || message === 'Cart prices changed. Review your cart and try again.') void refreshProducts().catch(() => {})
           addToast(t(message))
           navigate('/cart', { replace: true })
         }
@@ -188,7 +193,7 @@ function CheckoutForm() {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Checkout failed'
       customerDiscount.retry()
-      if (message === 'Cart prices changed. Review your cart and try again.') void refreshProducts().catch(() => {})
+      if (message === unavailableQuantity || message === 'Cart prices changed. Review your cart and try again.') void refreshProducts().catch(() => {})
       setError(message)
       if (message === paymentUnavailable || message === paymentSettingsChanged) {
         setPreferredProvider(null)
@@ -298,7 +303,8 @@ function CheckoutForm() {
           </div> : !paymentSettings ? <p className="muted" role="status">{t('Loading payment methods…')}</p>
             : !provider ? <p className="muted" role="status">{t('No payment methods are currently available. Please try again later.')}</p> : null}
         </fieldset>}
-        <button type="submit" form="checkout-form" className="btn checkout-submit" disabled={submitting || (!provider && total > 0) || customerDiscount.loading || Boolean(customerDiscount.error)}>
+        {unavailableItems && error !== unavailableQuantity && <p className="error" role="alert">{t(unavailableQuantity)}</p>}
+        <button type="submit" form="checkout-form" className="btn checkout-submit" disabled={submitting || unavailableItems || (!provider && total > 0) || customerDiscount.loading || Boolean(customerDiscount.error)}>
           {submitting ? t('Placing order…') : total === 0 || !provider || provider === 'CASH_ON_DELIVERY' ? t('Place order') : `${t('Pay')} ${formatPrice(total, store.currency)}`}
         </button>
       </aside></div>

@@ -39,7 +39,7 @@ export function CustomersPage({ onOpenCustomer, revision }: { onOpenCustomer: (i
     const abort = new AbortController()
     Promise.all([
       fetchAll<CustomerListRow>(`/rest/v1/rpc/list_crm_customers?p_store_id=${store.id}&order=created_at.desc,id`, token, abort.signal),
-      fetchAll<CustomerExportOrder>(`/rest/v1/orders?store_id=eq.${store.id}&select=id,crm_customer_id,user_id,receipt_code,total_price,currency,status,payment_status,payment_test_mode,monobank_test_mode,created_at&order=created_at.desc,id`, token, abort.signal),
+      fetchAll<CustomerExportOrder>(`/rest/v1/orders?store_id=eq.${store.id}&select=id,crm_customer_id,user_id,receipt_code,total_price,currency,status,payment_status,payment_method,payment_test_mode,monobank_test_mode,created_at&order=created_at.desc,id`, token, abort.signal),
     ]).then(([people, purchases]) => {
       if (abort.signal.aborted) return
       setCustomers(people); setOrders(purchases); setError('')

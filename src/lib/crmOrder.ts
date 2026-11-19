@@ -1,7 +1,5 @@
 import { supabaseRequest } from './supabase'
 
-export const maxOrderVariantQuantity = 20
-
 export type CrmOrderInput = {
   requestId: string
   customer: { name: string; phone: string }

@@ -2145,13 +2145,14 @@ input[type="date"] { color-scheme: light; }
 .variant-editor__controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 12px; }
 .variant-editor__controls .catalog-cost-field__control { max-width: none; }
 .variant-editor__controls .catalog-cost-field select { border-inline-start: 0; }
-.variant-editor__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 1.4rem; }
-.variant-editor__actions .check { min-height: 44px; margin: 0; cursor: pointer; }
+.variant-editor__availability { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; }
+.variant-editor__availability .check { min-width: 0; min-height: 44px; margin: 0; overflow-wrap: anywhere; cursor: pointer; }
+.variant-editor__controls > .variant-editor__remove { grid-area: 1 / 2; align-self: end; }
 .variant-editor__row .catalog-discount-fields small { color: var(--muted); }
 @container (max-width: 590px) {
   .variant-editor__fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .variant-editor__controls { grid-template-columns: minmax(0, 1fr); }
-  .variant-editor__actions { margin-top: 0; }
+  .variant-editor__controls > .variant-editor__remove { grid-area: auto; }
 }
 .product-workspace__footer { display: flex; flex-wrap: wrap; gap: 10px; padding: 18px clamp(18px, 3vw, 28px); border: 1px solid var(--crm-border); background: var(--card); }
 @media (max-width: 700px) {

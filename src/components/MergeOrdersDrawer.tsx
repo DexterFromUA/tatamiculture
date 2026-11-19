@@ -1,13 +1,12 @@
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatPrice } from '../lib/format'
+import { orderPaymentStatusKey } from '../lib/crm'
 import { useDrawer } from '../lib/useDrawer'
-import type { CustomerOrder } from './CustomerPanel'
-
-type MergeOrder = CustomerOrder & { nova_poshta_ttn: string | null }
+import type { OrderDetailsOrder } from './OrderOperations'
 
 export function MergeOrdersDrawer({ orders, busy, error, onClose, onMerge }: {
-  orders: MergeOrder[]
+  orders: OrderDetailsOrder[]
   busy: boolean
   error: string | null
   onClose: () => void
@@ -38,7 +37,7 @@ export function MergeOrdersDrawer({ orders, busy, error, onClose, onMerge }: {
           </select>
         </label>
         <ul className="order-drawer__items">{orders.map(order => <li key={order.id}>
-          <div><strong>#{order.receipt_code}</strong><small>{order.customer_name} · {t(order.status)} · {t(`payment_${order.payment_status}`)}</small></div>
+          <div><strong>#{order.receipt_code}</strong><small>{order.customer_name} · {t(order.status)} · {t(orderPaymentStatusKey(order))}</small></div>
           <strong>{formatPrice(Number(order.total_price) / 100, order.currency)}</strong>
         </li>)}</ul>
         {differentStatuses && target && <p className="error" role="alert">{t('The orders have different statuses. The list will show the selected order status: {{status}}.', { status: t(target.status) })}</p>}

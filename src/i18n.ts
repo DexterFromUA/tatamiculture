@@ -372,8 +372,12 @@ const uk = {
   'The order note is too long.': 'Примітка до замовлення надто довга.',
   'Order prices changed. Review the total and try again.': 'Ціни змінилися. Перевірте суму й спробуйте ще раз.',
   'A product is no longer available in the requested quantity.': 'Товар більше не доступний у вказаній кількості.',
+  'Allow purchase when out of stock': 'Дозволити продаж без залишку',
+  'Available to order': 'Доступно до замовлення',
+  'Available to order. Dispatch time will be confirmed.': 'Доступно до замовлення. Термін відправлення уточнюється.',
   'View in order history': 'Переглянути в історії замовлень',
   'Order items': 'Товари в замовленні', 'Order details': 'Деталі замовлення', 'Payment status': 'Статус оплати', payment_PENDING: 'Очікує оплати', payment_PAID: 'Оплачено', payment_MOCK_PAID: 'Тестова оплата', payment_FAILED: 'Помилка оплати', payment_REFUNDED: 'Повернуто',
+  payment_UNPAID: 'Не оплачено',
   'Order date': 'Дата замовлення', 'No items in this order': 'У цьому замовленні немає товарів', 'Could not load order details': 'Не вдалося завантажити деталі замовлення', TTN: 'ТТН', 'Shipment status': 'Статус відправлення',
   'Show image {{number}}': 'Показати зображення {{number}}', '{{count}} available_one': 'В наявності: {{count}}', '{{count}} available_few': 'В наявності: {{count}}', '{{count}} available_many': 'В наявності: {{count}}', '{{count}} available_other': 'В наявності: {{count}}', 'Items in order: {{quantity}}': 'Товарів у замовленні: {{quantity}}', '{{quantity}} units': '{{quantity}} шт.', 'Details at checkout': 'Уточнюється під час оформлення', 'Payment is processed on the secure page of {{provider}}.': 'Оплата здійснюється на захищеній сторінці {{provider}}.',
   'Banner images': 'Зображення банера', 'Previous slide': 'Попередній слайд', 'Next slide': 'Наступний слайд',
@@ -604,6 +608,7 @@ void i18n
   .init({
     resources: { en: { translation: {
       payment_PENDING: 'Awaiting payment', payment_PAID: 'Paid', payment_MOCK_PAID: 'Test payment', payment_FAILED: 'Payment failed', payment_REFUNDED: 'Refunded',
+      payment_UNPAID: 'Unpaid',
       return_requested: 'Awaiting goods', return_received: 'Goods received, settlement pending', return_completed: 'Completed', return_cancelled: 'Cancelled', event_item_return: 'Item return',
       event_status: 'Order status', event_payment_status: 'Payment status', event_cost: 'Cost', event_return: 'Return',
       PENDING: 'Pending', PAID: 'Paid', IN_PROGRESS: 'In progress', READY_FOR_PICKUP: 'Ready for pickup', DELIVERED: 'Delivered', CANCELLED_BY_USER: 'Cancelled by customer', CANCELLED_BY_STORE: 'Cancelled by store',

@@ -6,6 +6,7 @@ import { useCart } from '../context/CartContext'
 import { useStore } from '../context/StoreContext'
 import { useToast } from '../context/ToastContext'
 import { formatPrice, optionPrice } from '../lib/format'
+import { purchaseQuantityLimit } from '../lib/catalogAvailability'
 import { categoriesForProduct, categoryPaths, productCategoryLabel } from '../lib/categories'
 import { productDescription, productInformation, productName } from '../lib/productText'
 import { useTranslation } from 'react-i18next'
@@ -20,7 +21,7 @@ export function ProductPage() {
 function ProductDetails() {
   const { productId } = useParams()
   const { store, products } = useStore()
-  const { addItem } = useCart()
+  const { addItem, items } = useCart()
   const { addToast } = useToast()
   const product = products.find((item) => item.id === productId)
   const [optionId, setOptionId] = useState(product?.productOptions[0]?.id ?? '')
@@ -46,6 +47,9 @@ function ProductDetails() {
   }
 
   const price = optionPrice(option)
+  const inCart = items.find(item => item.productId === product.id && item.optionId === option.id)?.quantity ?? 0
+  const purchaseLimit = purchaseQuantityLimit(option)
+  const canAdd = inCart < purchaseLimit
   const name = productName(product, i18n.resolvedLanguage)
   const description = productDescription(product, i18n.resolvedLanguage)
   const information = productInformation(product, i18n.resolvedLanguage)
@@ -67,6 +71,7 @@ function ProductDetails() {
   }
 
   const addToCart = () => {
+    if (!canAdd) return
     addItem(product.id, option.id, 1)
     addToast(t('Added to cart'))
   }
@@ -144,22 +149,24 @@ function ProductDetails() {
               <option key={item.id} value={item.id}>
                 {item.name}
                 {item.isPreOrder && ` · ${t('pre-order')}`}
-                {item.isLimited && ` · ${t('{{count}} available', { count: item.quantity })}`}
+                {item.quantity === 0 && item.allowOutOfStock ? ` · ${t('Available to order')}`
+                  : item.isLimited && ` · ${t('{{count}} available', { count: item.quantity })}`}
               </option>
             ))}
           </select>
         </label>
-        {option.quantity > 0 && (option.isPreOrder ? (
+        {purchaseLimit > 0 && (option.isPreOrder ? (
           <p className="note product-delivery-note">
             <strong>{t('Average delivery time: 5–15 business days')}</strong>
             <small>{t('This is an estimate. Your parcel may arrive earlier or take longer.')}</small>
           </p>
         ) : (
-          <p className="note product-delivery-note">{t('Ships in 1–5 business days')}</p>
+          <p className="note product-delivery-note">{t(option.quantity > 0
+            ? 'Ships in 1–5 business days' : 'Available to order. Dispatch time will be confirmed.')}</p>
         ))}
         {store.smsNotificationsEnabled && option.quantity === 0 && <RestockSubscription key={option.id} variantId={option.id} />}
         <div className="actions">
-          <button type="button" className="btn" disabled={option.quantity < 1} onClick={addToCart}>
+          <button type="button" className="btn" disabled={!canAdd} onClick={addToCart}>
             {t('Add to cart')}
           </button>
           <Link to="/cart" className="btn btn--ghost">

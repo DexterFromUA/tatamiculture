@@ -3,7 +3,7 @@
 -- Выполните файл целиком в SQL Editor под ролью postgres.
 -- Создаётся пустой магазин tatami. Существующие заказы, пользователи, файлы
 -- и ключи интеграций не копируются. Команда назначения владельца — в конце.
--- Учтены миграции репозитория по 20261119101000 включительно.
+-- Учтены миграции репозитория по 20261119110200 включительно.
 BEGIN;
 
 DO $$
@@ -618,7 +618,7 @@ CREATE FUNCTION "public"."confirm_online_checkout"("p_provider" "text", "p_refer
     AS $$
 declare
   v_attempt public.online_checkouts;
-  v_item public.order_items;
+  v_item record;
   v_preorder boolean;
   v_stock_deducted boolean;
 begin
@@ -647,7 +647,10 @@ begin
   );
 
   for v_item in
-    select * from jsonb_populate_recordset(null::public.order_items, v_attempt.items) order by variant_id
+    select line.*, (entry.data->>'allow_out_of_stock')::boolean as allow_out_of_stock
+    from jsonb_array_elements(v_attempt.items) as entry(data)
+    cross join lateral jsonb_populate_record(null::public.order_items, entry.data) as line
+    order by line.variant_id
   loop
     -- Honor invoices already issued before pre-orders began counting stock.
     v_preorder := v_item.is_preorder;
@@ -657,7 +660,7 @@ begin
       where id = v_item.variant_id and stock_quantity >= v_item.quantity;
       v_stock_deducted := found;
       -- Record the paid order for fulfillment even if stock ran out during payment.
-      v_preorder := v_preorder or not v_stock_deducted;
+      v_preorder := v_preorder or (not v_stock_deducted and not coalesce(v_item.allow_out_of_stock, false));
     end if;
     insert into public.order_items (
       order_id, product_id, variant_id, product_name, variant_name, quantity,
@@ -790,9 +793,9 @@ begin
       unit_price, compare_at_price, line_total, is_preorder, stock_deducted
     ) values (
       created_order.id, line.product_id, line.variant_id, line.product_name, line.variant_name, line.quantity,
-      line.unit_price, line.compare_at_price, line.line_total, line.is_preorder, not test_mode
+      line.unit_price, line.compare_at_price, line.line_total, line.is_preorder, line.stock_deducted and not test_mode
     );
-    if not test_mode then
+    if line.stock_deducted and not test_mode then
       update public.product_variants set stock_quantity = stock_quantity - line.quantity where id = line.variant_id;
     end if;
   end loop;
@@ -1101,8 +1104,8 @@ begin
     order by (pc.category_id = source.category_id) desc nulls last, pc.category_id
   ));
 
-  insert into public.product_variants (product_id, name, sku, price, compare_at_price, stock_quantity, is_preorder, position, low_stock_threshold, discount_percent, stack_customer_discount)
-  select copy_id, name, null, price, compare_at_price, 0, is_preorder, position, low_stock_threshold, discount_percent, stack_customer_discount
+  insert into public.product_variants (product_id, name, sku, price, compare_at_price, stock_quantity, is_preorder, position, low_stock_threshold, discount_percent, stack_customer_discount, allow_out_of_stock)
+  select copy_id, name, null, price, compare_at_price, 0, is_preorder, position, low_stock_threshold, discount_percent, stack_customer_discount, allow_out_of_stock
   from public.product_variants where product_id = p_product;
   insert into public.product_images (product_id, public_url, storage_path, position)
   select copy_id, public_url, storage_path, position from public.product_images where product_id = p_product;
@@ -1489,6 +1492,8 @@ begin
   ), offers as (
     select p.id as product_id, v.id as variant_id, p.name as product_name, v.name as variant_name,
       r.quantity, v.is_preorder, v.price as stored_price,
+      v.allow_out_of_stock,
+      v.stock_quantity >= r.quantity as stock_deducted,
       greatest(v.price, v.compare_at_price) as regular_price,
       coalesce(v.discount_percent, p.discount_percent) as catalog_percent,
       case when v.discount_percent is null then p.stack_customer_discount
@@ -1497,7 +1502,9 @@ begin
     join public.product_variants v on v.id = r.variant_id
     join public.products p on p.id = v.product_id
     where p.store_id = p_store_id and p.is_active
-      and r.quantity <= 20 and v.stock_quantity >= r.quantity
+      and r.quantity <= 20
+      and (v.stock_quantity >= r.quantity
+        or (v.stock_quantity = 0 and v.allow_out_of_stock))
   ), catalog_prices as (
     select offers.*, case when catalog_percent is null then stored_price
       else round(regular_price * (1 - catalog_percent / 100))::integer end as catalog_price
@@ -1509,7 +1516,7 @@ begin
       else catalog_price end as unit_price
     from catalog_prices
   ), lines as (
-    select product_id, variant_id, product_name, variant_name, quantity, is_preorder, unit_price,
+    select product_id, variant_id, product_name, variant_name, quantity, is_preorder, allow_out_of_stock, stock_deducted, unit_price,
       case when regular_price > unit_price then regular_price end as compare_at_price,
       unit_price * quantity as line_total,
       (catalog_price - unit_price) * quantity as customer_savings
@@ -1684,7 +1691,9 @@ begin
   end loop;
 
   update public.orders
-  set status = 'CANCELLED_BY_STORE', payment_status = 'FAILED'
+  set status = 'CANCELLED_BY_STORE',
+      payment_status = case when v_order.payment_method = 'CASH_ON_DELIVERY'
+        then v_order.payment_status else 'FAILED'::public.payment_status end
   where id = v_order.id
   returning * into v_order;
 
@@ -2319,6 +2328,7 @@ CREATE TABLE "public"."product_images" (
 ALTER TABLE "public"."product_images" OWNER TO "postgres";
 
 CREATE TABLE "public"."product_variants" (
+    "allow_out_of_stock" boolean DEFAULT false NOT NULL,
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "product_id" "uuid" NOT NULL,
     "name" "text" NOT NULL,
@@ -3869,12 +3879,12 @@ begin
     unit_price, compare_at_price, line_total, is_preorder, stock_deducted
   )
   select created_order.id, line.product_id, line.variant_id, line.product_name, line.variant_name, line.quantity,
-    line.unit_price, line.compare_at_price, line.line_total, line.is_preorder, true
+    line.unit_price, line.compare_at_price, line.line_total, line.is_preorder, line.stock_deducted
   from jsonb_populate_recordset(null::public.order_items, quote.items) as line;
 
   update public.product_variants v set stock_quantity = v.stock_quantity - line.quantity
   from jsonb_populate_recordset(null::public.order_items, quote.items) as line
-  where v.id = line.variant_id;
+  where v.id = line.variant_id and line.stock_deducted;
 
   insert into public.order_status_history (order_id, status, author_id)
   values (created_order.id, created_order.status, auth.uid());
@@ -3946,7 +3956,10 @@ INSERT INTO supabase_migrations.schema_migrations (version, name) VALUES
   ('20261118120400', 'remove_obsolete_store_fields'),
   ('20261118120500', 'create_crm_order'),
   ('20261119090000', 'sms_notifications_setting'),
-  ('20261119101000', 'crm_customer_filters')
+  ('20261119101000', 'crm_customer_filters'),
+  ('20261119110000', 'allow_out_of_stock_purchases'),
+  ('20261119110100', 'variant_out_of_stock_purchases'),
+  ('20261119110200', 'correct_cod_payment_status')
 ON CONFLICT (version) DO NOTHING;
 
 create function public.list_crm_customers(p_store_id uuid)

@@ -1,5 +1,12 @@
 import { supabaseRequest } from './supabase'
 
+export function orderPaymentStatusKey(order: { status: string; payment_method: string; payment_status: string }) {
+  if (order.payment_method === 'CASH_ON_DELIVERY' && order.payment_status === 'PENDING' && order.status.startsWith('CANCELLED')) {
+    return 'payment_UNPAID'
+  }
+  return `payment_${order.payment_status}`
+}
+
 export async function hasStoreMembership(storeId: string, userId: string, token: string, signal?: AbortSignal): Promise<boolean> {
   const memberships = await supabaseRequest<Array<{ role: string }>>(
     `/rest/v1/store_members?store_id=eq.${encodeURIComponent(storeId)}&user_id=eq.${encodeURIComponent(userId)}&select=role`,

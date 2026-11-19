@@ -27,6 +27,7 @@ type Variant = {
   stock_quantity: number
   low_stock_threshold: number
   is_preorder: boolean
+  allow_out_of_stock: boolean
   variant_costs: CatalogCost | null
 }
 type ProductImage = { id: string; public_url: string; storage_path: string; position: number }
@@ -98,7 +99,7 @@ type Draft = {
 }
 
 const defaultLowStockThreshold = 3
-const blankVariant = (): DraftVariant => ({ key: crypto.randomUUID(), name: 'M', sku: '', compare_at_price: null, stock_quantity: '0', low_stock_threshold: String(defaultLowStockThreshold), is_preorder: false, unitCost: '', currency: 'UAH', unitCostEdited: false, discountPercent: '', stackCustomerDiscount: false })
+const blankVariant = (): DraftVariant => ({ key: crypto.randomUUID(), name: 'M', sku: '', compare_at_price: null, stock_quantity: '0', low_stock_threshold: String(defaultLowStockThreshold), is_preorder: false, allow_out_of_stock: false, unitCost: '', currency: 'UAH', unitCostEdited: false, discountPercent: '', stackCustomerDiscount: false })
 const blankDraft = (): Draft => ({ key: crypto.randomUUID(), imageOrder: [], sizeGuide: { uk: '', en: '' }, sizeGuideImages: [], composition: { uk: '', en: '' }, careInstructions: { uk: '', en: '' }, names: { uk: '', en: '' }, descriptions: { uk: '', en: '' }, price: '0', discountPercent: '', stackCustomerDiscount: false, defaultCost: '', defaultCostCurrency: 'UAH', defaultCostEdited: false, weightGrams: '', categoryIds: [], isActive: true, isNew: false, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
 
 function validDiscountPercent(value: string) {
@@ -169,8 +170,8 @@ function toDraft(product: CatalogProduct, language?: string): Draft {
     images: [...product.product_images].sort((a, b) => a.position - b.position),
     newImageFiles: [],
     removedImageIds: [],
-    variants: product.product_variants.map(({ id, name, sku, compare_at_price, stock_quantity, low_stock_threshold, is_preorder, variant_costs, discount_percent, stack_customer_discount }) => ({
-      key: id ?? crypto.randomUUID(), id, name, sku, compare_at_price, is_preorder,
+    variants: product.product_variants.map(({ id, name, sku, compare_at_price, stock_quantity, low_stock_threshold, is_preorder, allow_out_of_stock, variant_costs, discount_percent, stack_customer_discount }) => ({
+      key: id ?? crypto.randomUUID(), id, name, sku, compare_at_price, is_preorder, allow_out_of_stock,
       stock_quantity: String(stock_quantity), low_stock_threshold: String(low_stock_threshold),
       discountPercent: discount_percent == null ? '' : String(discount_percent),
       stackCustomerDiscount: stack_customer_discount === true,
@@ -329,7 +330,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
         return
       }
       const productQuery = (includeThreshold: boolean) =>
-        fetchAll<CatalogProduct>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=*,product_costs(cost_amount,source_amount,currency),product_categories(category_id),product_images(id,public_url,storage_path,position),product_variants(id,name,sku,price,compare_at_price,discount_percent,stack_customer_discount,stock_quantity,is_preorder,variant_costs(cost_amount,source_amount,currency)${includeThreshold ? ',low_stock_threshold' : ''})&order=created_at.desc,id.desc&product_variants.order=position.asc,id.asc`, token)
+        fetchAll<CatalogProduct>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=*,product_costs(cost_amount,source_amount,currency),product_categories(category_id),product_images(id,public_url,storage_path,position),product_variants(id,name,sku,price,compare_at_price,discount_percent,stack_customer_discount,stock_quantity,is_preorder,allow_out_of_stock,variant_costs(cost_amount,source_amount,currency)${includeThreshold ? ',low_stock_threshold' : ''})&order=created_at.desc,id.desc&product_variants.order=position.asc,id.asc`, token)
       const [catalog, nextCategories, nextRates] = await Promise.all([
         productQuery(true).then(products => ({ products, hasThreshold: true })).catch(async (cause: unknown) => {
           if (!(cause instanceof Error) || !/column .*low_stock_threshold.*does not exist/i.test(cause.message)) throw cause
@@ -580,6 +581,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
           discount_percent: variant.discountPercent === '' ? null : Number(variant.discountPercent),
           stack_customer_discount: variant.discountPercent !== '' && variant.stackCustomerDiscount,
           is_preorder: variant.is_preorder,
+          allow_out_of_stock: variant.allow_out_of_stock,
           position,
         },
       }))
@@ -1115,10 +1117,18 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
                       ? { ...item, unitCost: amount, currency, unitCostEdited: true }
                       : item),
                   })} />
-                <div className="variant-editor__actions">
-                  <label className="check"><input type="checkbox" checked={variant.is_preorder} onChange={event => updateVariant(index, 'is_preorder', event.target.checked)} /> {t('Pre-order')}</label>
-                  <button type="button" className="variant-editor__remove" disabled={draft.variants.length === 1} onClick={() => removeVariant(index)}>{t('Remove')}</button>
+                <div className="variant-editor__availability">
+                  <label className="check">
+                    <input type="checkbox" checked={variant.is_preorder} onChange={event => updateVariant(index, 'is_preorder', event.target.checked)} />
+                    <span>{t('Pre-order')}</span>
+                  </label>
+                  <label className="check">
+                    <input type="checkbox" checked={variant.allow_out_of_stock} disabled={saving}
+                      onChange={event => updateVariant(index, 'allow_out_of_stock', event.target.checked)} />
+                    <span>{t('Allow purchase when out of stock')}</span>
+                  </label>
                 </div>
+                <button type="button" className="variant-editor__remove" disabled={draft.variants.length === 1} onClick={() => removeVariant(index)}>{t('Remove')}</button>
               </div>
               <CatalogDiscountFields variant percent={variant.discountPercent} stacking={variant.stackCustomerDiscount} disabled={saving}
                 onPercentChange={value => updateVariant(index, 'discountPercent', value)}

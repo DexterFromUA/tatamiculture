@@ -44,7 +44,11 @@ function mapProduct(row: Row): Product {
         discount_percent: variant.discount_percent == null ? null : Number(variant.discount_percent),
         stack_customer_discount: variant.stack_customer_discount === true,
       })
-      return { ...details, id: text(variant.id), name: text(variant.name), sku: text(variant.sku), isPreOrder: Boolean(variant.is_preorder), isLimited: true, quantity: Number(variant.stock_quantity ?? 0) }
+      return {
+        ...details, id: text(variant.id), name: text(variant.name), sku: text(variant.sku),
+        isPreOrder: Boolean(variant.is_preorder), isLimited: true, quantity: Number(variant.stock_quantity ?? 0),
+        allowOutOfStock: variant.allow_out_of_stock === true,
+      }
     }),
   }
 }

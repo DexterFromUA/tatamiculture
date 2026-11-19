@@ -1,4 +1,5 @@
 import { customerUnitPrice } from '../lib/catalogPricing'
+import { purchaseQuantityLimit, unavailableQuantity } from '../lib/catalogAvailability'
 import { useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useCart } from '../context/CartContext'
@@ -75,11 +76,12 @@ export function CartPage() {
       const option = product?.productOptions.find((entry) => entry.id === item.optionId)
       if (!product || !option) return null
       const unit = optionPrice(option)
-      return { item, product, option, unit, line: unit * item.quantity }
+      return { item, product, option, unit, line: unit * item.quantity, limit: purchaseQuantityLimit(option) }
     })
     .filter((row) => row !== null)
 
   const subtotal = rows.reduce((sum, row) => sum + row.line, 0)
+  const unavailableItems = rows.some(row => row.item.quantity > row.limit)
   const total = rows.reduce((sum, row) => sum + customerUnitPrice(row.option, customerDiscount.percent) * row.item.quantity, 0)
   const personalSavings = Math.round((subtotal - total) * 100) / 100
 
@@ -106,7 +108,7 @@ export function CartPage() {
       <div className="cart-page__layout"><div>
       <div className="cart-list-heading"><div><p className="eyebrow">01 / {t('Your order')}</p><h2>{t('Your selection')}</h2></div><span>{rows.length}</span></div>
       <ul className="line-list">
-        {rows.map(({ item, product, option, unit, line }) => (
+        {rows.map(({ item, product, option, unit, line, limit }) => (
           <li key={`${item.productId}-${item.optionId}`} className="line cart-line">
             {product.imgUrls[0] && <img src={product.imgUrls[0]} alt="" />}
             <div className="cart-line__product">
@@ -114,15 +116,18 @@ export function CartPage() {
               <Link to={`/product/${product.id}`}>{productName(product, i18n.resolvedLanguage)}</Link>
               <p className="muted">{t('Option')}: {option.name}{option.isPreOrder ? ` · ${t('pre-order')}` : ''}</p>
               <p>{formatPrice(unit, store.currency)}</p>
+              {item.quantity > limit && <p className="error">{t(unavailableQuantity)}</p>}
             </div>
             <label className="qty cart-line__quantity">
               <span>{t('Quantity')}</span>
               <input
                 type="number"
                 min={1}
+                max={Math.max(1, limit)}
+                disabled={limit === 0}
                 value={item.quantity}
                 onChange={(event) =>
-                  setQuantity(item.productId, item.optionId, Math.max(1, Number(event.target.value) || 1))
+                  setQuantity(item.productId, item.optionId, Math.max(1, Math.min(limit, Math.trunc(Number(event.target.value)) || 1)))
                 }
               />
             </label>
@@ -141,7 +146,7 @@ export function CartPage() {
         {customerDiscount.loading && <p role="status">{t('Checking your discount…')}</p>}
         {customerDiscount.error && <p className="error" role="alert">{t(customerDiscount.error)} <button type="button" className="text-btn" onClick={customerDiscount.retry}>{t('Try again')}</button></p>}
         <div className="summary"><span>{t('Total')}</span><strong>{formatPrice(total, store.currency)}</strong></div>
-        {paymentCode ? <button type="button" className="btn" disabled>{t('Checkout')}</button> : <Link to="/checkout" className="btn">
+        {paymentCode || unavailableItems ? <button type="button" className="btn" disabled>{t('Checkout')}</button> : <Link to="/checkout" className="btn">
           {t('Checkout')} <span aria-hidden="true">↗</span>
         </Link>}
       </aside></div>

@@ -5,7 +5,7 @@ import { SalesBreakdown } from './SalesBreakdown'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { supabaseRequest } from '../lib/supabase'
-import { fetchAll } from '../lib/crm'
+import { fetchAll, orderPaymentStatusKey } from '../lib/crm'
 import { formatDate, formatPrice } from '../lib/format'
 import { OrderActivity } from './OrderActivity'
 import { calculateAnalytics } from '../lib/analytics'
@@ -82,7 +82,7 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose }
           {order.customer_email && <div><dt>{t('Email')}</dt><dd>{order.customer_email}</dd></div>}
           <div><dt>{t('Order date')}</dt><dd><time dateTime={order.created_at}>{formatDate(order.created_at)}</time></dd></div>
           <div><dt>{t('Payment method')}</dt><dd>{t(order.payment_method === 'CASH_ON_DELIVERY' ? 'Payment on delivery' : 'Online payment')}</dd></div>
-          <div><dt>{t('Payment status')}</dt><dd>{t(`payment_${order.payment_status}`)}</dd></div>
+          <div><dt>{t('Payment status')}</dt><dd>{t(orderPaymentStatusKey(order))}</dd></div>
           <div><dt>{t('Total')}</dt><dd><strong>{formatPrice(order.total_price / 100, order.currency)}</strong></dd></div>
         </dl>
       </section>

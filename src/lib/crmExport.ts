@@ -1,6 +1,6 @@
 import type { CrmCustomer, CrmOrder } from '../components/CrmCustomerCard'
 import type { OrderDetailsOrder } from '../components/OrderOperations'
-import { downloadCsv, fetchAll } from './crm'
+import { downloadCsv, fetchAll, orderPaymentStatusKey } from './crm'
 import { formatPrice } from './format'
 
 type Translate = (key: string) => string
@@ -25,7 +25,7 @@ type ExportOrder = Pick<OrderDetailsOrder,
   payments: { provider: string; status: string } | null
 }
 
-export type CustomerExportOrder = CrmOrder & Pick<ExportOrder, 'payment_status' | 'payment_test_mode' | 'monobank_test_mode'>
+export type CustomerExportOrder = CrmOrder & Pick<ExportOrder, 'payment_status' | 'payment_method' | 'payment_test_mode' | 'monobank_test_mode'>
 type ExportOrderRef = { id: string; primaryReceipt?: string }
 
 const orderFields = [
@@ -74,7 +74,7 @@ export async function downloadOrdersCsv(refs: ExportOrderRef[], token: string, t
       : order.delivery_service_type === 'WarehouseWarehouse' ? 'Branch' : ''
 
     return [
-      order.receipt_code, primaryReceipt, order.created_at, order.updated_at, t(order.status), t(`payment_${order.payment_status}`), t(method),
+      order.receipt_code, primaryReceipt, order.created_at, order.updated_at, t(order.status), t(orderPaymentStatusKey(order)), t(method),
       order.payments?.provider, order.payments ? t(`payment_${order.payments.status}`) : '',
       t(isTestOrder(order) ? 'Test mode' : 'Live mode'), order.crm_customer_id, order.customer_name, order.customer_phone, order.customer_email, order.note,
       order.delivery_city, order.delivery_address, deliveryType && t(deliveryType), order.nova_poshta_ttn, order.nova_poshta_ttn_created_at,
@@ -125,7 +125,7 @@ export function downloadCustomersCsv(customers: CrmCustomer[], orders: CustomerE
       customer.id, customer.name, customer.phone, customer.email, customer.tags.join(', '), customer.notes, customer.created_at,
       history.length, active.length, paid.length, delivered.length, history.length - active.length,
       first?.created_at, latest?.created_at, latest?.receipt_code, latest ? t(latest.status) : '',
-      latest ? t(`payment_${latest.payment_status}`) : '', ...totals,
+      latest ? t(orderPaymentStatusKey(latest)) : '', ...totals,
     ]
   })
   downloadCsv('tatami.culture-customers.csv', [headers, ...rows])

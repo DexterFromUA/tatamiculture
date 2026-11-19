@@ -1,7 +1,8 @@
 import { useEffect, useId, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useStore } from '../context/StoreContext'
-import { createCrmOrder, maxOrderVariantQuantity } from '../lib/crmOrder'
+import { createCrmOrder } from '../lib/crmOrder'
+import { purchaseQuantityLimit } from '../lib/catalogAvailability'
 import { formatPrice, optionPrice } from '../lib/format'
 import { novaPoshtaEnabled } from '../lib/payments'
 import { normalizePhone } from '../lib/phone'
@@ -46,7 +47,7 @@ export function CreateOrderDrawer({ store, token, onClose, onCreated }: {
     product.id === productId || [product.name, product.name_uk, product.name_en].some(name => name?.toLocaleLowerCase(language).includes(search)))
   const selectedProduct = publishedProducts.find(product => product.id === productId)
   const options = selectedProduct?.productOptions.filter(option => !items.some(item => item.variantId === option.id)) ?? []
-  const selectedVariant = options.find(option => option.id === variantId && option.quantity > 0)
+  const selectedVariant = options.find(option => option.id === variantId && purchaseQuantityLimit(option) > 0)
   const offers = new Map(publishedProducts.flatMap(product => product.productOptions.map(option => [option.id, {
     name: productName(product, language),
     option,
@@ -54,7 +55,7 @@ export function CreateOrderDrawer({ store, token, onClose, onCreated }: {
   const lines = items.map(item => {
     const offer = offers.get(item.variantId)
     const quantity = Number(item.quantity)
-    const limit = Math.min(maxOrderVariantQuantity, offer?.option.quantity ?? 0)
+    const limit = offer ? purchaseQuantityLimit(offer.option) : 0
     const valid = Number.isSafeInteger(quantity) && quantity >= 1 && quantity <= limit
     const total = valid && offer ? Math.round(optionPrice(offer.option) * 100) * quantity : 0
     return { ...item, offer, limit, valid, total }
@@ -125,7 +126,7 @@ export function CreateOrderDrawer({ store, token, onClose, onCreated }: {
               <select value={productId} disabled={saving} onChange={event => { setProductId(event.target.value); setVariantId('') }}>
                 <option value="">{t(matchingProducts.length ? 'Select a product' : 'No products match these filters.')}</option>
                 {matchingProducts.map(product => <option key={product.id} value={product.id}>
-                  {productName(product, language)}{!product.productOptions.some(option => option.quantity > 0) && ` · ${t('Out of stock')}`}
+                  {productName(product, language)}{!product.productOptions.some(option => purchaseQuantityLimit(option) > 0) && ` · ${t('Out of stock')}`}
                 </option>)}
               </select>
             </label>
@@ -133,8 +134,8 @@ export function CreateOrderDrawer({ store, token, onClose, onCreated }: {
               <span>{t('Size')}</span>
               <select value={variantId} disabled={saving || !options.length} onChange={event => setVariantId(event.target.value)}>
                 <option value="">{t('Choose size')}</option>
-                {options.map(option => <option key={option.id} value={option.id} disabled={option.quantity === 0}>
-                  {option.name} · {option.quantity === 0 ? t('Out of stock') : formatPrice(optionPrice(option), store.currency)}
+                {options.map(option => <option key={option.id} value={option.id} disabled={purchaseQuantityLimit(option) === 0}>
+                  {option.name} · {purchaseQuantityLimit(option) === 0 ? t('Out of stock') : formatPrice(optionPrice(option), store.currency)}
                 </option>)}
               </select>
             </label>

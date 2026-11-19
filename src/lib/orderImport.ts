@@ -1,4 +1,5 @@
-import { maxOrderVariantQuantity, type CrmOrderInput } from './crmOrder'
+import { maxOrderVariantQuantity } from './catalogAvailability'
+import type { CrmOrderInput } from './crmOrder'
 import { optionPrice } from './format'
 import { normalizePhone } from './phone'
 import { productName } from './productText'
@@ -26,7 +27,7 @@ const headers = {
 type Column = keyof typeof headers
 type SheetRow = { number: number; cells: string[] }
 type ImportIssue = { message: string; row?: number; value?: string }
-type ImportLine = CrmOrderInput['items'][number] & { name: string; stock: number; total: number }
+type ImportLine = CrmOrderInput['items'][number] & { name: string; stock: number; allowOutOfStock: boolean; total: number }
 export type ImportOrder = Omit<CrmOrderInput, 'items'> & {
   label: string
   row: number
@@ -105,7 +106,6 @@ export function prepareOrderImport(sheet: unknown[][], catalog: Product[], langu
       names: [product.name, product.name_uk ?? '', product.name_en ?? ''].map(normalize).filter(Boolean),
     })),
   )
-  const usage = new Map<string, { row: number; name: string; quantity: number; stock: number }>()
   for (const group of groups.values()) {
     const firstRow = group[0]
     const issueCount = issues.length
@@ -151,17 +151,11 @@ export function prepareOrderImport(sheet: unknown[][], catalog: Product[], langu
       }
       items.set(option.id, {
         variantId: option.id, name: `${name} · ${option.name}`, stock: option.quantity, quantity,
+        allowOutOfStock: option.allowOutOfStock === true,
         total: Math.round(optionPrice(option) * 100) * quantity,
       })
     }
     if (issues.length !== issueCount) continue
-    for (const item of items.values()) {
-      const previous = usage.get(item.variantId)
-      usage.set(item.variantId, {
-        row: previous?.row ?? firstRow.number, name: item.name, stock: item.stock,
-        quantity: (previous?.quantity ?? 0) + item.quantity,
-      })
-    }
     orders.push({
       requestId: crypto.randomUUID(), label: cell(firstRow, 'order_id'), row: firstRow.number,
       customer: { name, phone }, delivery: { city, address }, note, items: [...items.values()],
@@ -169,8 +163,17 @@ export function prepareOrderImport(sheet: unknown[][], catalog: Product[], langu
     })
   }
 
-  for (const { row, name, stock, quantity } of usage.values()) {
-    if (quantity > stock) issues.push({ row, message: 'Insufficient stock for the batch', value: `${name} · ${quantity} / ${stock}` })
+  const remainingStock = new Map<string, number>()
+  for (const order of orders) {
+    for (const item of order.items) {
+      const stock = remainingStock.get(item.variantId) ?? item.stock
+      if (stock === 0 && item.allowOutOfStock) continue
+      if (item.quantity > stock) {
+        issues.push({ row: order.row, message: 'Insufficient stock for the batch', value: `${item.name} · ${item.quantity} / ${stock}` })
+      } else {
+        remainingStock.set(item.variantId, stock - item.quantity)
+      }
+    }
   }
   return { orders, issues }
 }
