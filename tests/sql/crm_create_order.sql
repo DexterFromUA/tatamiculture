@@ -19,8 +19,9 @@ begin
   end if;
 
   begin
+    drop index public.shop_settings_single_row_idx; -- Allow isolated fixtures until rollback.
     insert into auth.users(id) values (manager), (outsider);
-    insert into public.stores(id, slug, name) values (shop, 'crm-order-test-' || shop, 'CRM order test');
+    insert into public.shop_settings (id, name) values (shop, 'CRM order test');
     insert into public.store_members(store_id, user_id, role) values (shop, manager, 'OWNER');
     insert into public.store_payment_methods(store_id, cash_on_delivery) values (shop, false);
     insert into public.products(id, store_id, name, discount_percent) values (product, shop, 'Test product', 10);
@@ -57,7 +58,8 @@ begin
           and i.stock_deducted and c.unit_cost = 2000
       )
       or not exists (
-        select from public.order_status_history where order_id = placed.id and author_id = manager
+        select from public.order_events where order_id = placed.id and kind = 'status'
+          and new_value = placed.status::text and author_id = manager
       ) then
       raise exception 'Unexpected manual order, stock balance, or order history';
     end if;

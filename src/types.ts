@@ -11,7 +11,6 @@ export type PaymentStatus = 'MOCK_PAID' | 'PENDING' | 'PAID' | 'FAILED' | 'REFUN
 
 export type Store = {
   id: string
-  slug: string
   name: string
   currency: string
   smsNotificationsEnabled: boolean

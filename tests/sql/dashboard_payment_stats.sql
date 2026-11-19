@@ -1,13 +1,15 @@
 -- The dashboard sees only its store's non-test attempts, grouped by Kyiv calendar dates.
 begin;
+-- The production singleton is restored when the fixtures roll back.
+drop index public.shop_settings_single_row_idx;
 do $$
 declare manager uuid:=gen_random_uuid(); outsider uuid:=gen_random_uuid(); shop uuid; other_shop uuid; stats jsonb;
 begin
   insert into auth.users(id,raw_user_meta_data) values(manager,'{}'),(outsider,'{}');
-  insert into public.stores(slug,name)
-    values('dashboard-check-'||substr(manager::text,1,8),'Check') returning id into shop;
-  insert into public.stores(slug,name)
-    values('dashboard-other-'||substr(manager::text,1,8),'Other') returning id into other_shop;
+  insert into public.shop_settings (name)
+    values('Check') returning id into shop;
+  insert into public.shop_settings (name)
+    values('Other') returning id into other_shop;
   insert into public.store_members(store_id,user_id,role) values(shop,manager,'OWNER');
   insert into public.online_checkouts(store_id,provider,test_mode,total_price,currency,status,created_at) values
     (shop,'LIQPAY',false,100,'UAH','PAID','2026-10-24T21:00:00Z'),

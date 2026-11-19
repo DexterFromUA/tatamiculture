@@ -1,5 +1,7 @@
 -- Financial and authorization regression checks. Every fixture is rolled back.
 begin;
+-- The production singleton is restored when the fixtures roll back.
+drop index public.shop_settings_single_row_idx;
 do $$
 declare
   manager uuid := gen_random_uuid(); buyer uuid := gen_random_uuid(); outsider uuid := gen_random_uuid();
@@ -8,8 +10,8 @@ declare
   current_day date := (now() at time zone 'Europe/Kyiv')::date;
 begin
   insert into auth.users(id,raw_user_meta_data) values(manager,'{"name":"Discount manager"}'),(buyer,'{"name":"Discount buyer"}'),(outsider,'{}');
-  insert into public.stores(slug,name,currency)
-    values('discount-check-'||substr(manager::text,1,8),'Discount check','UAH') returning id into shop;
+  insert into public.shop_settings (name,currency)
+    values('Discount check','UAH') returning id into shop;
   insert into public.store_members(store_id,user_id,role) values(shop,manager,'OWNER');
   insert into public.store_customers(store_id,user_id) values(shop,buyer);
   select customer_id into customer from public.crm_customer_keys where store_id=shop and key='user:'||buyer::text;

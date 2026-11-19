@@ -1,5 +1,7 @@
 -- Exercise real RPCs with more than two pages, by staff and as an outsider.
 begin;
+-- The production singleton is restored when the fixtures roll back.
+drop index public.shop_settings_single_row_idx;
 
 do $$
 declare
@@ -14,7 +16,7 @@ declare
   second_page jsonb;
 begin
   insert into auth.users(id) values (staff);
-  insert into public.stores(id, slug, name) values (shop, 'pagination-test-' || shop, 'Pagination test');
+  insert into public.shop_settings (id, name) values (shop, 'Pagination test');
   insert into public.store_members(store_id, user_id, role) values (shop, staff, 'OWNER');
   insert into public.categories(id, store_id, name, slug) values (category, shop, 'Test category', 'page-category');
 

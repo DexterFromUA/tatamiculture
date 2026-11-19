@@ -1,5 +1,7 @@
 -- Run after the migration. Fixtures and order changes are rolled back.
 begin;
+-- The production singleton is restored when the fixtures roll back.
+drop index public.shop_settings_single_row_idx;
 do $$
 declare
   buyer uuid := gen_random_uuid();
@@ -15,8 +17,8 @@ begin
          (other_buyer, '380000110002', now()),
          (unverified, '380000110003', null);
   update public.profiles set phone = '+380000110001' where id = unverified;
-  insert into public.stores (slug, name)
-  values ('verify-claim-' || buyer, 'Claim verification')
+  insert into public.shop_settings (name)
+  values ('Claim verification')
   returning id into shop;
   insert into public.orders
     (store_id, customer_name, customer_email, customer_phone, delivery_city, delivery_address, total_price, currency)

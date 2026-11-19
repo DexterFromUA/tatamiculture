@@ -2,13 +2,13 @@
 -- Для нового проекта Supabase с PostgreSQL 17, Auth и Storage.
 -- Выполните файл целиком в SQL Editor под ролью postgres.
 -- Создаётся пустой магазин tatami. Существующие заказы, пользователи, файлы
--- и ключи интеграций не копируются. Команда назначения владельца — в конце.
--- Учтены миграции репозитория по 20261119110400 включительно.
+-- и ключи интеграций не копируются. Владелец назначается через seed-owner.sql.
+-- Учтены миграции репозитория по 20261119110600 включительно.
 BEGIN;
 
 DO $$
 BEGIN
-  IF to_regclass('public.stores') IS NOT NULL THEN
+  IF to_regclass('public.shop_settings') IS NOT NULL OR to_regclass('public.stores') IS NOT NULL THEN
     RAISE EXCEPTION 'Tatami is already installed. Use a new Supabase project.';
   END IF;
 END;
@@ -290,8 +290,6 @@ begin
           else o.payment_status
         end
     where o.id = any(affected_ids);
-    insert into public.order_status_history (order_id, status, author_id)
-    select o.id, o.status, auth.uid() from public.orders o where o.id = any(affected_ids);
   end if;
 
   return query select o.* from public.orders o where o.id = any(affected_ids);
@@ -439,8 +437,10 @@ begin
   update public.orders set status = 'CANCELLED_BY_USER', payment_status = 'FAILED' where id = p_order_id;
   update public.payments set status = 'FAILED', checkout_url = null,
     checkout_operation = null, checkout_operation_until = null where id = v_payment.id;
-  insert into public.order_status_history (order_id, status, author_id)
-  values (p_order_id, 'CANCELLED_BY_USER', p_user_id);
+  update public.order_events
+  set author_id = p_user_id
+  where order_id = p_order_id and kind = 'status' and new_value = 'CANCELLED_BY_USER'
+    and created_at = transaction_timestamp() and author_id is null;
 end;
 $$;
 
@@ -674,7 +674,6 @@ begin
     );
   end loop;
 
-  insert into public.order_status_history (order_id, status) values (v_attempt.id, 'PAID');
   insert into public.payments (order_id, provider, provider_order_id, provider_payment_id, status, raw_callback)
   values (v_attempt.id, p_provider, p_reference, p_payment_id, 'PAID', p_callback);
   update public.online_checkouts set status = 'PAID', checkout = null, items = null where id = v_attempt.id;
@@ -784,7 +783,7 @@ begin
     case when quote.personal_savings > 0 then p_discount.id end,
     case when quote.personal_savings > 0 then p_discount.percent else 0 end,
     quote.personal_savings
-  from public.stores s where s.id = p_store_id
+  from public.shop_settings s where s.id = p_store_id
   returning * into created_order;
 
   for line in select * from jsonb_populate_recordset(null::public.order_items, quote.items) order by variant_id loop
@@ -800,8 +799,12 @@ begin
     end if;
   end loop;
 
-  insert into public.order_status_history (order_id, status, author_id)
-  values (created_order.id, created_order.status, p_user_id);
+  if p_user_id is not null then
+    update public.order_events
+    set author_id = p_user_id
+    where order_id = created_order.id and kind = 'status' and new_value = created_order.status::text
+      and created_at = transaction_timestamp() and author_id is null;
+  end if;
   return created_order;
 end;
 $$;
@@ -1405,7 +1408,7 @@ begin
   select s.currency, case p_provider when 'LIQPAY' then pm.liqpay else pm.monobank end,
     coalesce(pm.payment_test_mode, case p_provider when 'LIQPAY' then p_test_mode else pm.monobank_test_mode end, false)
   into v_currency, v_enabled, v_test_mode
-  from public.stores s left join public.store_payment_methods pm on pm.store_id = s.id
+  from public.shop_settings s left join public.store_payment_methods pm on pm.store_id = s.id
   where s.id = p_store_id;
 
   if not found or not coalesce(v_enabled, true) then
@@ -1701,8 +1704,6 @@ begin
   set status = 'FAILED', updated_at = now()
   where order_id = v_order.id and status = 'PENDING';
 
-  insert into public.order_status_history (order_id, status, author_id)
-  values (v_order.id, v_order.status, auth.uid());
   return v_order;
 end;
 $$;
@@ -2269,16 +2270,6 @@ CREATE TABLE "public"."order_returns" (
 
 ALTER TABLE "public"."order_returns" OWNER TO "postgres";
 
-CREATE TABLE "public"."order_status_history" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "order_id" "uuid" NOT NULL,
-    "status" "public"."order_status" NOT NULL,
-    "author_id" "uuid",
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
-);
-
-ALTER TABLE "public"."order_status_history" OWNER TO "postgres";
-
 CREATE TABLE "public"."order_ttn_reservations" (
     "order_id" "uuid" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
@@ -2490,18 +2481,16 @@ CREATE TABLE "public"."storefront_contacts" (
 
 ALTER TABLE "public"."storefront_contacts" OWNER TO "postgres";
 
-CREATE TABLE "public"."stores" (
+CREATE TABLE "public"."shop_settings" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "slug" "text" NOT NULL,
     "name" "text" NOT NULL,
     "currency" "text" DEFAULT 'UAH'::"text" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "sms_notifications_enabled" boolean DEFAULT true NOT NULL,
-    CONSTRAINT "stores_currency_check" CHECK (("char_length"("currency") = 3)),
-    CONSTRAINT "stores_slug_check" CHECK (("slug" ~ '^[a-z0-9-]+$'::"text"))
+    CONSTRAINT "shop_settings_currency_check" CHECK (("char_length"("currency") = 3))
 );
 
-ALTER TABLE "public"."stores" OWNER TO "postgres";
+ALTER TABLE "public"."shop_settings" OWNER TO "postgres";
 
 create function public.set_sms_notifications_enabled(p_store_id uuid, p_enabled boolean)
 returns boolean
@@ -2512,7 +2501,7 @@ as $$
 declare
   enabled boolean;
 begin
-  update public.stores s
+  update public.shop_settings s
   set sms_notifications_enabled = p_enabled
   where s.id = p_store_id
     and exists (
@@ -2608,9 +2597,6 @@ ALTER TABLE ONLY "public"."order_merge_members"
 ALTER TABLE ONLY "public"."order_returns"
     ADD CONSTRAINT "order_returns_pkey" PRIMARY KEY ("id");
 
-ALTER TABLE ONLY "public"."order_status_history"
-    ADD CONSTRAINT "order_status_history_pkey" PRIMARY KEY ("id");
-
 ALTER TABLE ONLY "public"."order_ttn_reservations"
     ADD CONSTRAINT "order_ttn_reservations_pkey" PRIMARY KEY ("order_id");
 
@@ -2686,11 +2672,10 @@ ALTER TABLE ONLY "public"."storefront_banners"
 ALTER TABLE ONLY "public"."storefront_contacts"
     ADD CONSTRAINT "storefront_contacts_pkey" PRIMARY KEY ("store_id");
 
-ALTER TABLE ONLY "public"."stores"
-    ADD CONSTRAINT "stores_pkey" PRIMARY KEY ("id");
+ALTER TABLE ONLY "public"."shop_settings"
+    ADD CONSTRAINT "shop_settings_pkey" PRIMARY KEY ("id");
 
-ALTER TABLE ONLY "public"."stores"
-    ADD CONSTRAINT "stores_slug_key" UNIQUE ("slug");
+CREATE UNIQUE INDEX shop_settings_single_row_idx ON public.shop_settings ((true));
 
 ALTER TABLE ONLY "public"."variant_costs"
     ADD CONSTRAINT "variant_costs_pkey" PRIMARY KEY ("variant_id");
@@ -2767,19 +2752,19 @@ ALTER TABLE ONLY "public"."categories"
     ADD CONSTRAINT "categories_parent_same_store" FOREIGN KEY ("parent_id", "store_id") REFERENCES "public"."categories"("id", "store_id") ON DELETE RESTRICT;
 
 ALTER TABLE ONLY "public"."categories"
-    ADD CONSTRAINT "categories_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."stores"("id") ON DELETE CASCADE;
+    ADD CONSTRAINT "categories_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."shop_settings"("id") ON DELETE CASCADE;
 
 ALTER TABLE ONLY "public"."crm_customer_keys"
     ADD CONSTRAINT "crm_customer_keys_customer_id_fkey" FOREIGN KEY ("customer_id") REFERENCES "public"."crm_customers"("id");
 
 ALTER TABLE ONLY "public"."crm_customer_keys"
-    ADD CONSTRAINT "crm_customer_keys_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."stores"("id");
+    ADD CONSTRAINT "crm_customer_keys_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."shop_settings"("id");
 
 ALTER TABLE ONLY "public"."crm_customers"
-    ADD CONSTRAINT "crm_customers_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."stores"("id");
+    ADD CONSTRAINT "crm_customers_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."shop_settings"("id");
 
 ALTER TABLE ONLY "public"."customer_discounts"
-    ADD CONSTRAINT "customer_discounts_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."stores"("id") ON DELETE CASCADE;
+    ADD CONSTRAINT "customer_discounts_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."shop_settings"("id") ON DELETE CASCADE;
 
 ALTER TABLE ONLY "public"."customer_discounts"
     ADD CONSTRAINT "customer_discounts_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."profiles"("id") ON DELETE CASCADE;
@@ -2791,13 +2776,13 @@ ALTER TABLE ONLY "public"."customer_notifications"
     ADD CONSTRAINT "customer_notifications_order_id_fkey" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id") ON DELETE CASCADE;
 
 ALTER TABLE ONLY "public"."customer_notifications"
-    ADD CONSTRAINT "customer_notifications_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."stores"("id");
+    ADD CONSTRAINT "customer_notifications_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."shop_settings"("id");
 
 ALTER TABLE ONLY "public"."customer_notifications"
     ADD CONSTRAINT "customer_notifications_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
 
 ALTER TABLE ONLY "public"."delivery_settings"
-    ADD CONSTRAINT "delivery_settings_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."stores"("id") ON DELETE CASCADE;
+    ADD CONSTRAINT "delivery_settings_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."shop_settings"("id") ON DELETE CASCADE;
 
 ALTER TABLE ONLY "public"."item_returns"
     ADD CONSTRAINT "item_returns_item_id_fkey" FOREIGN KEY ("item_id") REFERENCES "public"."order_items"("id");
@@ -2815,7 +2800,7 @@ ALTER TABLE ONLY "public"."online_checkouts"
     ADD CONSTRAINT "online_checkouts_customer_discount_id_fkey" FOREIGN KEY ("customer_discount_id") REFERENCES "public"."customer_discounts"("id") ON DELETE SET NULL;
 
 ALTER TABLE ONLY "public"."online_checkouts"
-    ADD CONSTRAINT "online_checkouts_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."stores"("id") ON DELETE CASCADE;
+    ADD CONSTRAINT "online_checkouts_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."shop_settings"("id") ON DELETE CASCADE;
 
 ALTER TABLE ONLY "public"."online_checkouts"
     ADD CONSTRAINT "online_checkouts_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."profiles"("id") ON DELETE SET NULL;
@@ -2859,12 +2844,6 @@ ALTER TABLE ONLY "public"."order_returns"
 ALTER TABLE ONLY "public"."order_returns"
     ADD CONSTRAINT "order_returns_order_id_fkey" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id") ON DELETE CASCADE;
 
-ALTER TABLE ONLY "public"."order_status_history"
-    ADD CONSTRAINT "order_status_history_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "public"."profiles"("id") ON DELETE SET NULL;
-
-ALTER TABLE ONLY "public"."order_status_history"
-    ADD CONSTRAINT "order_status_history_order_id_fkey" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id") ON DELETE CASCADE;
-
 ALTER TABLE ONLY "public"."order_ttn_reservations"
     ADD CONSTRAINT "order_ttn_reservations_order_id_fkey" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id");
 
@@ -2875,7 +2854,7 @@ ALTER TABLE ONLY "public"."orders"
     ADD CONSTRAINT "orders_customer_discount_id_fkey" FOREIGN KEY ("customer_discount_id") REFERENCES "public"."customer_discounts"("id") ON DELETE SET NULL;
 
 ALTER TABLE ONLY "public"."orders"
-    ADD CONSTRAINT "orders_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."stores"("id") ON DELETE RESTRICT;
+    ADD CONSTRAINT "orders_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."shop_settings"("id") ON DELETE RESTRICT;
 
 ALTER TABLE ONLY "public"."orders"
     ADD CONSTRAINT "orders_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."profiles"("id") ON DELETE SET NULL;
@@ -2902,7 +2881,7 @@ ALTER TABLE ONLY "public"."products"
     ADD CONSTRAINT "products_category_id_fkey" FOREIGN KEY ("category_id") REFERENCES "public"."categories"("id") ON DELETE SET NULL;
 
 ALTER TABLE ONLY "public"."products"
-    ADD CONSTRAINT "products_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."stores"("id") ON DELETE CASCADE;
+    ADD CONSTRAINT "products_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."shop_settings"("id") ON DELETE CASCADE;
 
 ALTER TABLE ONLY "public"."profiles"
     ADD CONSTRAINT "profiles_id_fkey" FOREIGN KEY ("id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
@@ -2917,28 +2896,28 @@ ALTER TABLE ONLY "public"."stock_adjustment_requests"
     ADD CONSTRAINT "stock_adjustment_requests_variant_id_fkey" FOREIGN KEY ("variant_id") REFERENCES "public"."product_variants"("id");
 
 ALTER TABLE ONLY "public"."stock_movements"
-    ADD CONSTRAINT "stock_movements_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."stores"("id") ON DELETE CASCADE;
+    ADD CONSTRAINT "stock_movements_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."shop_settings"("id") ON DELETE CASCADE;
 
 ALTER TABLE ONLY "public"."store_customers"
-    ADD CONSTRAINT "store_customers_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."stores"("id") ON DELETE CASCADE;
+    ADD CONSTRAINT "store_customers_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."shop_settings"("id") ON DELETE CASCADE;
 
 ALTER TABLE ONLY "public"."store_customers"
     ADD CONSTRAINT "store_customers_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."profiles"("id") ON DELETE CASCADE;
 
 ALTER TABLE ONLY "public"."store_members"
-    ADD CONSTRAINT "store_members_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."stores"("id") ON DELETE CASCADE;
+    ADD CONSTRAINT "store_members_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."shop_settings"("id") ON DELETE CASCADE;
 
 ALTER TABLE ONLY "public"."store_members"
     ADD CONSTRAINT "store_members_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."profiles"("id") ON DELETE CASCADE;
 
 ALTER TABLE ONLY "public"."store_payment_methods"
-    ADD CONSTRAINT "store_payment_methods_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."stores"("id") ON DELETE CASCADE;
+    ADD CONSTRAINT "store_payment_methods_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."shop_settings"("id") ON DELETE CASCADE;
 
 ALTER TABLE ONLY "public"."storefront_banners"
-    ADD CONSTRAINT "storefront_banners_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."stores"("id") ON DELETE CASCADE;
+    ADD CONSTRAINT "storefront_banners_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."shop_settings"("id") ON DELETE CASCADE;
 
 ALTER TABLE ONLY "public"."storefront_contacts"
-    ADD CONSTRAINT "storefront_contacts_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."stores"("id") ON DELETE CASCADE;
+    ADD CONSTRAINT "storefront_contacts_store_id_fkey" FOREIGN KEY ("store_id") REFERENCES "public"."shop_settings"("id") ON DELETE CASCADE;
 
 ALTER TABLE ONLY "public"."variant_costs"
     ADD CONSTRAINT "variant_costs_variant_id_fkey" FOREIGN KEY ("variant_id") REFERENCES "public"."product_variants"("id") ON DELETE CASCADE;
@@ -2993,8 +2972,6 @@ ALTER TABLE "public"."order_merge_members" ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE "public"."order_returns" ENABLE ROW LEVEL SECURITY;
 
-ALTER TABLE "public"."order_status_history" ENABLE ROW LEVEL SECURITY;
-
 ALTER TABLE "public"."order_ttn_reservations" ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE "public"."orders" ENABLE ROW LEVEL SECURITY;
@@ -3021,7 +2998,7 @@ CREATE POLICY "public can read images of active products" ON "public"."product_i
    FROM "public"."products" "p"
   WHERE (("p"."id" = "product_images"."product_id") AND "p"."is_active"))));
 
-CREATE POLICY "public can read stores" ON "public"."stores" FOR SELECT USING (true);
+CREATE POLICY "public can read shop settings" ON "public"."shop_settings" FOR SELECT USING (true);
 
 CREATE POLICY "public can read variants of active products" ON "public"."product_variants" FOR SELECT USING ((EXISTS ( SELECT 1
    FROM "public"."products" "p"
@@ -3056,12 +3033,6 @@ CREATE POLICY "staff access order items" ON "public"."order_items" USING ((EXIST
   WHERE (("o"."id" = "order_items"."order_id") AND "public"."is_store_member"("o"."store_id")))));
 
 CREATE POLICY "staff access orders" ON "public"."orders" USING ("public"."is_store_member"("store_id")) WITH CHECK ("public"."is_store_member"("store_id"));
-
-CREATE POLICY "staff access status history" ON "public"."order_status_history" USING ((EXISTS ( SELECT 1
-   FROM "public"."orders" "o"
-  WHERE (("o"."id" = "order_status_history"."order_id") AND "public"."is_store_member"("o"."store_id"))))) WITH CHECK ((EXISTS ( SELECT 1
-   FROM "public"."orders" "o"
-  WHERE (("o"."id" = "order_status_history"."order_id") AND "public"."is_store_member"("o"."store_id")))));
 
 CREATE POLICY "staff access store payments" ON "public"."payments" USING ((EXISTS ( SELECT 1
    FROM "public"."orders" "o"
@@ -3177,7 +3148,7 @@ ALTER TABLE "public"."storefront_banners" ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE "public"."storefront_contacts" ENABLE ROW LEVEL SECURITY;
 
-ALTER TABLE "public"."stores" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."shop_settings" ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "users read own profile" ON "public"."profiles" FOR SELECT USING (("id" = "auth"."uid"()));
 
@@ -3654,11 +3625,6 @@ GRANT ALL ON TABLE "public"."order_returns" TO "anon";
 GRANT ALL ON TABLE "public"."order_returns" TO "authenticated";
 GRANT ALL ON TABLE "public"."order_returns" TO "service_role";
 
-REVOKE ALL ON TABLE "public"."order_status_history" FROM anon, authenticated, service_role;
-GRANT ALL ON TABLE "public"."order_status_history" TO "anon";
-GRANT ALL ON TABLE "public"."order_status_history" TO "authenticated";
-GRANT ALL ON TABLE "public"."order_status_history" TO "service_role";
-
 REVOKE ALL ON TABLE "public"."order_ttn_reservations" FROM anon, authenticated, service_role;
 GRANT ALL ON TABLE "public"."order_ttn_reservations" TO "anon";
 GRANT ALL ON TABLE "public"."order_ttn_reservations" TO "authenticated";
@@ -3743,10 +3709,10 @@ GRANT ALL ON TABLE "public"."storefront_contacts" TO "anon";
 GRANT ALL ON TABLE "public"."storefront_contacts" TO "authenticated";
 GRANT ALL ON TABLE "public"."storefront_contacts" TO "service_role";
 
-REVOKE ALL ON TABLE "public"."stores" FROM anon, authenticated, service_role;
-GRANT ALL ON TABLE "public"."stores" TO "anon";
-GRANT ALL ON TABLE "public"."stores" TO "authenticated";
-GRANT ALL ON TABLE "public"."stores" TO "service_role";
+REVOKE ALL ON TABLE "public"."shop_settings" FROM anon, authenticated, service_role;
+GRANT SELECT ON TABLE "public"."shop_settings" TO "anon";
+GRANT SELECT ON TABLE "public"."shop_settings" TO "authenticated";
+GRANT ALL ON TABLE "public"."shop_settings" TO "service_role";
 
 REVOKE ALL ON TABLE "public"."variant_costs" FROM anon, authenticated, service_role;
 GRANT ALL ON TABLE "public"."variant_costs" TO "anon";
@@ -3805,9 +3771,8 @@ create policy "staff delete storefront banner images" on storage.objects for del
 );
 
 -- Create the store in a fresh Supabase database.
-insert into public.stores (id, slug, name, currency)
-values ('11111111-1111-4111-8111-111111111111', 'tatami', 'tatami.culture', 'UAH')
-on conflict (slug) do update set name = excluded.name, currency = excluded.currency;
+insert into public.shop_settings (id, name, currency)
+values ('11111111-1111-4111-8111-111111111111', 'tatami.culture', 'UAH');
 
 -- Manual orders use catalog prices and the normal inventory and CRM triggers.
 create function public.create_crm_order(
@@ -3871,7 +3836,7 @@ begin
     'CASH_ON_DELIVERY', false,
     case when quote.total = 0 then 'PAID'::public.order_status else 'PENDING'::public.order_status end,
     case when quote.total = 0 then 'PAID'::public.payment_status else 'PENDING'::public.payment_status end
-  from public.stores s where s.id = p_store_id
+  from public.shop_settings s where s.id = p_store_id
   returning * into created_order;
 
   insert into public.order_items (
@@ -3886,8 +3851,6 @@ begin
   from jsonb_populate_recordset(null::public.order_items, quote.items) as line
   where v.id = line.variant_id and line.stock_deducted;
 
-  insert into public.order_status_history (order_id, status, author_id)
-  values (created_order.id, created_order.status, auth.uid());
   return created_order;
 end;
 $$;
@@ -3961,7 +3924,9 @@ INSERT INTO supabase_migrations.schema_migrations (version, name) VALUES
   ('20261119110100', 'variant_out_of_stock_purchases'),
   ('20261119110200', 'correct_cod_payment_status'),
   ('20261119110300', 'crm_server_pagination'),
-  ('20261119110400', 'storefront_catalog_feed')
+  ('20261119110400', 'storefront_catalog_feed'),
+  ('20261119110500', 'single_shop_settings'),
+  ('20261119110600', 'retire_order_status_history')
 ON CONFLICT (version) DO NOTHING;
 
 create function public.list_crm_customers(p_store_id uuid)
@@ -4408,8 +4373,3 @@ SELECT cron.schedule('tatami-catalog-exchange-rates', '*/15 * * * *',
 
 NOTIFY pgrst, 'reload schema';
 COMMIT;
-
--- Первый владелец CRM. Зарегистрируйтесь в магазине, скопируйте UUID своего
--- пользователя из Authentication → Users и отдельно выполните эту команду:
--- INSERT INTO public.store_members (store_id, user_id, role)
--- SELECT id, '<UUID пользователя>'::uuid, 'OWNER' FROM public.stores WHERE slug = 'tatami';

@@ -1,5 +1,7 @@
 -- Keyset paging, filtered totals, and public access with rollback-only fixtures.
 begin;
+-- The production singleton is restored when the fixtures roll back.
+drop index public.shop_settings_single_row_idx;
 
 do $$
 declare
@@ -12,7 +14,7 @@ declare
   cursor jsonb;
   result jsonb;
 begin
-  insert into public.stores(id, slug, name) values (shop, 'storefront-feed-test-' || shop, 'Feed test');
+  insert into public.shop_settings (id, name) values (shop, 'Feed test');
   insert into public.categories(id, store_id, name, slug) values (category, shop, 'Test category', 'feed-category');
   insert into public.products(store_id, category_id, name, name_uk, is_active, is_new, discount_percent, updated_at)
     select shop, category, 'Fixture ' || n, case when n = 1 then 'Футболка для тесту' end,

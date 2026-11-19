@@ -14,7 +14,7 @@ type StoreContextValue = {
 
 const StoreContext = createContext<StoreContextValue | null>(null)
 
-export function StoreProvider({ slug, children }: { slug: string | undefined; children: ReactNode }) {
+export function StoreProvider({ children }: { children: ReactNode }) {
   const [store, setStore] = useState<Store | null>(null)
   const [catalogRevision, setCatalogRevision] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -22,43 +22,19 @@ export function StoreProvider({ slug, children }: { slug: string | undefined; ch
   const [loadFailed, setLoadFailed] = useState(false)
 
   useEffect(() => {
-    let cancelled = false
-
-    const load = async () => {
-      if (!slug) {
-        setNotFound(true)
-        setLoading(false)
-        return
-      }
-
-      setLoading(true)
-      setNotFound(false)
-      setLoadFailed(false)
-
-      const nextStore = await api.getStoreBySlug(slug)
-      if (cancelled) return
-
-      if (!nextStore) {
-        setStore(null)
-        setNotFound(true)
-        setLoading(false)
-        return
-      }
-
+    const abort = new AbortController()
+    void api.getStore(abort.signal).then(nextStore => {
+      if (abort.signal.aborted) return
       setStore(nextStore)
+      setNotFound(!nextStore)
       setLoading(false)
-    }
-
-    void load().catch(() => {
-      if (cancelled) return
-      setStore(null)
+    }).catch(() => {
+      if (abort.signal.aborted) return
       setLoadFailed(true)
       setLoading(false)
     })
-    return () => {
-      cancelled = true
-    }
-  }, [slug])
+    return () => abort.abort()
+  }, [])
 
   const storeId = store?.id
   const refreshProducts = useCallback(() => setCatalogRevision(revision => revision + 1), [])

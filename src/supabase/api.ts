@@ -15,7 +15,7 @@ const productFields = '*,categories!products_category_id_fkey(*),product_categor
 
 function mapStore(row: Row): Store {
   return {
-    id: text(row.id), slug: text(row.slug), name: text(row.name), currency: text(row.currency),
+    id: text(row.id), name: text(row.name), currency: text(row.currency),
     smsNotificationsEnabled: row.sms_notifications_enabled !== false,
   }
 }
@@ -98,8 +98,8 @@ async function profileFor(user: Row, token: string) {
 }
 
 export const supabaseApi = {
-  async getStoreBySlug(slug: string): Promise<Store | null> {
-    const rows = await supabaseRequest<Row[]>(`/rest/v1/stores?slug=eq.${encodeURIComponent(slug)}&select=*`, { cache: 'no-store' })
+  async getStore(signal?: AbortSignal): Promise<Store | null> {
+    const rows = await supabaseRequest<Row[]>('/rest/v1/shop_settings?select=id,name,currency,sms_notifications_enabled', { signal, cache: 'no-store' })
     return rows[0] ? mapStore(rows[0]) : null
   },
 

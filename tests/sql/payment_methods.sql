@@ -1,5 +1,7 @@
 -- Exercise checkout and RLS with isolated fixtures; no orders or settings persist.
 begin;
+-- The production singleton is restored when the fixtures roll back.
+drop index public.shop_settings_single_row_idx;
 do $$
 declare
   manager uuid := gen_random_uuid();
@@ -11,7 +13,7 @@ declare
   placed public.orders;
 begin
   insert into auth.users(id) values (manager), (outsider);
-  insert into public.stores(slug, name) values ('verify-payment-' || manager, 'Payment verification') returning id into shop;
+  insert into public.shop_settings (name) values ('Payment verification') returning id into shop;
   insert into public.store_members(store_id, user_id, role) values (shop, manager, 'OWNER');
   insert into public.products(store_id, name) values (shop, 'Fixture') returning id into product;
   insert into public.product_variants(product_id, name, price, stock_quantity) values (product, 'M', 10000, 3) returning id into variant;

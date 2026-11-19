@@ -1,12 +1,14 @@
 -- All fixtures and changes are rolled back. Run after the CRM migrations.
 begin;
+-- The production singleton is restored when the fixtures roll back.
+drop index public.shop_settings_single_row_idx;
 do $$
 declare
  manager uuid:=gen_random_uuid(); outsider uuid:=gen_random_uuid(); shop uuid; product uuid; variant uuid; replacement uuid;
  ord uuid; item uuid; ret uuid:=gen_random_uuid(); copy uuid; source_customer uuid; target_customer uuid; guest_order uuid;
 begin
  insert into auth.users(id,raw_user_meta_data) values(manager,'{"name":"CRM verification"}'),(outsider,'{"name":"CRM outsider"}');
- insert into public.stores(slug,name) values('verify-'||substr(manager::text,1,8),'Verification') returning id into shop;
+ insert into public.shop_settings (name) values('Verification') returning id into shop;
  insert into public.store_members(store_id,user_id,role) values(shop,manager,'OWNER');
  perform set_config('request.jwt.claim.sub',manager::text,true);
  insert into public.products(store_id,name) values(shop,'Test product') returning id into product;

@@ -44,7 +44,7 @@ export function OrdersPage() {
     return (
       <section className="page-status">
         <h1>No orders yet</h1>
-        <Link to={`/${store.slug}`}>Start shopping</Link>
+        <Link to="/">Start shopping</Link>
       </section>
     )
   }
@@ -58,7 +58,7 @@ export function OrdersPage() {
         {orders.map((order) => (
           <li key={order.id} className="order-row">
             <div>
-              <Link to={`/${store.slug}/receipt/${order.receiptCode}`}>{order.receiptCode}</Link>
+              <Link to={`/receipt/${order.receiptCode}`}>{order.receiptCode}</Link>
               <p className="muted">
                 {formatDate(order.createdAt)} · {order.status.replaceAll('_', ' ').toLowerCase()}
               </p>

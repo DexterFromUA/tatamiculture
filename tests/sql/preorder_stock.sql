@@ -1,5 +1,7 @@
 -- Check both current and historical inventory snapshots. Roll back all fixtures.
 begin;
+-- The production singleton is restored when the fixtures roll back.
+drop index public.shop_settings_single_row_idx;
 do $$
 declare
   manager uuid := gen_random_uuid();
@@ -12,8 +14,8 @@ declare
   details jsonb := '{"name":"Test","phone":"+380990002222","city":"Test","address":"Test","email":""}';
 begin
   insert into auth.users(id, raw_user_meta_data) values (manager, '{"name":"Inventory test"}');
-  insert into public.stores(slug, name, currency)
-    values ('preorder-stock-' || manager::text, 'Pre-order inventory test', 'UAH') returning id into shop;
+  insert into public.shop_settings (name, currency)
+    values ('Pre-order inventory test', 'UAH') returning id into shop;
   insert into public.store_members(store_id, user_id, role) values (shop, manager, 'OWNER');
   perform set_config('request.jwt.claim.sub', manager::text, true);
   insert into public.products(store_id, name) values (shop, 'Limited pre-order') returning id into product;

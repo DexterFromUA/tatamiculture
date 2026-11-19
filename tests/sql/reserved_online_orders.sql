@@ -1,5 +1,7 @@
 -- Run after the reservation migration. Fixtures are rolled back.
 begin;
+-- The production singleton is restored when the fixtures roll back.
+drop index public.shop_settings_single_row_idx;
 
 do $$
 declare
@@ -15,8 +17,8 @@ declare
 begin
   insert into auth.users (id, raw_user_meta_data) values (v_owner, '{"name":"Buyer"}'), (v_other, '{"name":"Other buyer"}');
   insert into public.profiles (id) values (v_owner), (v_other) on conflict (id) do nothing;
-  insert into public.stores (slug, name)
-  values ('reservation-test-' || gen_random_uuid(), 'Reservation test') returning id into v_store;
+  insert into public.shop_settings (name)
+  values ('Reservation test') returning id into v_store;
   insert into public.products (store_id, name) values (v_store, 'Rashguard') returning id into v_product;
   insert into public.product_variants (product_id, name, price, stock_quantity)
   values (v_product, 'M', 150000, 5) returning id into v_variant;
@@ -27,6 +29,10 @@ begin
   if not v_order.reserved_in_profile or v_order.payment_status <> 'PENDING'
       or (select stock_quantity from public.product_variants where id = v_variant) <> 3 then
     raise exception 'Pending online order did not reserve stock';
+  end if;
+  if (select count(*) from public.order_events where order_id = v_order.id
+      and kind = 'status' and new_value = 'PENDING' and author_id = v_owner) <> 1 then
+    raise exception 'Reservation history should attribute the initial status to the customer';
   end if;
 
   begin
@@ -47,6 +53,10 @@ begin
   if not exists (select 1 from public.orders where id = v_order.id and status = 'CANCELLED_BY_USER')
       or (select stock_quantity from public.product_variants where id = v_variant) <> 5 then
     raise exception 'Cancellation did not restore the original stock';
+  end if;
+  if (select count(*) from public.order_events where order_id = v_order.id
+      and kind = 'status' and new_value = 'CANCELLED_BY_USER' and author_id = v_owner) <> 1 then
+    raise exception 'Reservation history should attribute the cancellation to the customer';
   end if;
   begin
     perform public.cancel_customer_reservation(v_order.id, v_owner, v_operation, v_payment.provider_order_id);

@@ -1,5 +1,7 @@
 -- Verify the zero-stock exception and its inventory effects without persisting fixtures.
 begin;
+-- The production singleton is restored when the fixtures roll back.
+drop index public.shop_settings_single_row_idx;
 
 do $$
 declare
@@ -17,7 +19,7 @@ declare
   duplicate uuid;
 begin
   insert into auth.users(id) values (manager);
-  insert into public.stores(id, slug, name) values (shop, 'stock-test-' || shop, 'Stock test');
+  insert into public.shop_settings (id, name) values (shop, 'Stock test');
   insert into public.store_members(store_id, user_id, role) values (shop, manager, 'OWNER');
   insert into public.store_payment_methods(store_id, cash_on_delivery, liqpay, payment_test_mode)
     values (shop, true, true, false);

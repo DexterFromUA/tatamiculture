@@ -19,7 +19,7 @@ import { ReceiptPage } from './pages/ReceiptPage'
 
 function StoreTree() {
   return (
-    <StoreProvider slug="tatami">
+    <StoreProvider>
       <CartProvider>
         <Outlet />
       </CartProvider>
