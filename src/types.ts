@@ -14,6 +14,7 @@ export type Store = {
   slug: string
   name: string
   currency: string
+  smsNotificationsEnabled: boolean
 }
 
 export type ProductOption = {

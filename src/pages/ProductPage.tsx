@@ -157,7 +157,7 @@ function ProductDetails() {
         ) : (
           <p className="note product-delivery-note">{t('Ships in 1–5 business days')}</p>
         ))}
-        {option.quantity === 0 && <RestockSubscription key={option.id} variantId={option.id} />}
+        {store.smsNotificationsEnabled && option.quantity === 0 && <RestockSubscription key={option.id} variantId={option.id} />}
         <div className="actions">
           <button type="button" className="btn" disabled={option.quantity < 1} onClick={addToCart}>
             {t('Add to cart')}

@@ -3,7 +3,7 @@
 -- Выполните файл целиком в SQL Editor под ролью postgres.
 -- Создаётся пустой магазин tatami. Существующие заказы, пользователи, файлы
 -- и ключи интеграций не копируются. Команда назначения владельца — в конце.
--- Учтены миграции репозитория по 20261118120500 включительно.
+-- Учтены миграции репозитория по 20261119090000 включительно.
 BEGIN;
 
 DO $$
@@ -2486,11 +2486,41 @@ CREATE TABLE "public"."stores" (
     "name" "text" NOT NULL,
     "currency" "text" DEFAULT 'UAH'::"text" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "sms_notifications_enabled" boolean DEFAULT true NOT NULL,
     CONSTRAINT "stores_currency_check" CHECK (("char_length"("currency") = 3)),
     CONSTRAINT "stores_slug_check" CHECK (("slug" ~ '^[a-z0-9-]+$'::"text"))
 );
 
 ALTER TABLE "public"."stores" OWNER TO "postgres";
+
+create function public.set_sms_notifications_enabled(p_store_id uuid, p_enabled boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  enabled boolean;
+begin
+  update public.stores s
+  set sms_notifications_enabled = p_enabled
+  where s.id = p_store_id
+    and exists (
+      select 1 from public.store_members m
+      where m.store_id = s.id and m.user_id = auth.uid() and m.role in ('OWNER', 'MANAGER')
+    )
+  returning s.sms_notifications_enabled into enabled;
+
+  if not found then
+    raise insufficient_privilege using message = 'Manager access required';
+  end if;
+
+  return enabled;
+end;
+$$;
+
+revoke all on function public.set_sms_notifications_enabled(uuid, boolean) from public, anon, authenticated, service_role;
+grant execute on function public.set_sms_notifications_enabled(uuid, boolean) to authenticated;
 
 CREATE TABLE "public"."variant_costs" (
     "variant_id" "uuid" NOT NULL,
@@ -3914,7 +3944,8 @@ INSERT INTO supabase_migrations.schema_migrations (version, name) VALUES
   ('20261118120200', 'track_preorder_stock'),
   ('20261118120300', 'catalog_discounts'),
   ('20261118120400', 'remove_obsolete_store_fields'),
-  ('20261118120500', 'create_crm_order')
+  ('20261118120500', 'create_crm_order'),
+  ('20261119090000', 'sms_notifications_setting')
 ON CONFLICT (version) DO NOTHING;
 
 -- Обновление курсов начинается по расписанию, даже если НБУ недоступен при установке.

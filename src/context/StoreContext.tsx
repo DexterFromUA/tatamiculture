@@ -9,6 +9,7 @@ type StoreContextValue = {
   notFound: boolean
   loadFailed: boolean
   refreshProducts: () => Promise<void>
+  setSmsNotificationsEnabled: (enabled: boolean, token: string) => Promise<void>
 }
 
 const StoreContext = createContext<StoreContextValue | null>(null)
@@ -65,13 +66,20 @@ export function StoreProvider({ slug, children }: { slug: string | undefined; ch
     }
   }, [slug])
 
+  const storeId = store?.id
   const refreshProducts = useCallback(async () => {
-    if (store) setProducts(await api.getProducts(store.id))
-  }, [store])
+    if (storeId) setProducts(await api.getProducts(storeId))
+  }, [storeId])
+
+  const setSmsNotificationsEnabled = useCallback(async (enabled: boolean, token: string) => {
+    if (!storeId) return
+    const saved = await api.setSmsNotificationsEnabled(storeId, enabled, token)
+    setStore(current => current?.id === storeId ? { ...current, smsNotificationsEnabled: saved } : current)
+  }, [storeId])
 
   const value = useMemo(
-    () => ({ store, products, loading, notFound, loadFailed, refreshProducts }),
-    [store, products, loading, notFound, loadFailed, refreshProducts],
+    () => ({ store, products, loading, notFound, loadFailed, refreshProducts, setSmsNotificationsEnabled }),
+    [store, products, loading, notFound, loadFailed, refreshProducts, setSmsNotificationsEnabled],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
