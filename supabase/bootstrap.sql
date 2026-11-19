@@ -3,7 +3,7 @@
 -- Выполните файл целиком в SQL Editor под ролью postgres.
 -- Создаётся пустой магазин tatami. Существующие заказы, пользователи, файлы
 -- и ключи интеграций не копируются. Владелец назначается через seed-owner.sql.
--- Учтены миграции репозитория по 20261119110600 включительно.
+-- Учтены миграции репозитория по 20261119110700 включительно.
 BEGIN;
 
 DO $$
@@ -3926,7 +3926,8 @@ INSERT INTO supabase_migrations.schema_migrations (version, name) VALUES
   ('20261119110300', 'crm_server_pagination'),
   ('20261119110400', 'storefront_catalog_feed'),
   ('20261119110500', 'single_shop_settings'),
-  ('20261119110600', 'retire_order_status_history')
+  ('20261119110600', 'retire_order_status_history'),
+  ('20261119110700', 'retire_stores_view')
 ON CONFLICT (version) DO NOTHING;
 
 create function public.list_crm_customers(p_store_id uuid)
