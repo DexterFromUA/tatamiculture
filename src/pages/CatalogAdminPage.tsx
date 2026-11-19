@@ -3,13 +3,15 @@ import { CatalogCostInput } from '../components/CatalogCostInput'
 import { VariantCostEditor } from '../components/VariantCostEditor'
 import { StockAdjustment } from '../components/StockAdjustment'
 import { ConfirmationDialog } from '../components/ConfirmationDialog'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { useToast } from '../context/ToastContext'
 import { SupabaseError, supabaseConfigured, supabaseRequest, uploadProductImage } from '../lib/supabase'
 import { crmPageSize, fetchAll, hasStoreMembership } from '../lib/crm'
+import { useCrmPage } from '../hooks/useCrmPage'
+import { CrmPagination } from '../components/CrmPagination'
 import { categoryGroups, categoryLabel, categoryPaths } from '../lib/categories'
 import { costInputAmount, parseUnitCost, saveCatalogCosts, type CatalogCost, type CatalogExchangeRate, type CostCurrency } from '../lib/catalogCosts'
 import { formatPrice } from '../lib/format'
@@ -192,13 +194,12 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
   const { store, refreshProducts } = useStore()
   const { token, user } = useAuth()
   const { addToast } = useToast()
+  const storeId = store?.id
   const [member, setMember] = useState<boolean | null>(null)
-  const [stockSchemaReady, setStockSchemaReady] = useState(false)
   const [rates, setRates] = useState<CatalogExchangeRate[]>([])
-  const [products, setProducts] = useState<CatalogProduct[]>([])
   const [categories, setCategories] = useState<CatalogCategory[]>([])
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, number> | null>(null)
   const [draft, setDraft] = useState<Draft | null>(null)
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [productToDelete, setProductToDelete] = useState<CatalogProduct | null>(null)
@@ -215,6 +216,14 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
   const [selected, setSelected] = useState<string[]>([])
   const [bulkAction, setBulkAction] = useState('')
   const [page, setPage] = useState(1)
+  const [catalogRevision, setCatalogRevision] = useState(0)
+  const reloadCatalogue = () => setCatalogRevision(revision => revision + 1)
+  const catalogue = useCrmPage<CatalogProduct>('crm_catalog_page', {
+    p_store_id: storeId, p_search: search.trim(), p_filter: filter,
+    p_category_id: categoryFilter === 'all' ? null : categoryFilter,
+  }, page, member ? token : null, catalogRevision)
+  const products = catalogue.data?.rows ?? []
+  const loading = member === null || catalogue.loading
   const groups = categoryGroups(categories, language)
   const categoryOptions = groups.flatMap(({ parent, children }) => [
     { category: parent, label: categoryLabel(parent, language) },
@@ -224,26 +233,18 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
   const editingProduct = products.find(product => product.id === draft?.id)
   const savedVariants = editingProduct?.product_variants
   const hasDifferentPrices = savedVariants?.some(variant => Number(variant.price) !== Number(savedVariants[0].price))
-  const query = search.trim().toLowerCase()
   const showStock = filter === 'stock' || filter === 'low-stock' || filter === 'out-of-stock'
-  const matchingProducts = products.filter(product =>
-    (categoryFilter === 'all' || assignedCategoryIds(product).includes(categoryFilter))
-    && (!query || [
-      product.name, product.name_uk, product.name_en, ...product.product_variants.map(variant => variant.sku),
-    ].some(value => value?.toLowerCase().includes(query))))
-  const productMatches = matchingProducts.filter(product =>
-    filter === 'published' ? product.is_active : filter === 'hidden' ? !product.is_active : true)
-  const stockMatches = showStock ? matchingProducts.map(product => ({
+  const stockMatches = showStock ? products.map(product => ({
     product,
     variants: product.product_variants.filter(variant =>
       filter === 'stock' || (filter === 'out-of-stock'
         ? variant.stock_quantity === 0
         : variant.stock_quantity < variant.low_stock_threshold)),
   })).filter(({ variants }) => variants.length > 0) : []
-  const matchCount = showStock ? stockMatches.length : productMatches.length
+  const matchCount = catalogue.data?.total ?? 0
   const pages = Math.max(1, Math.ceil(matchCount / crmPageSize))
-  const currentPage = Math.min(page, pages)
-  const pageProducts = productMatches.slice((currentPage - 1) * crmPageSize, currentPage * crmPageSize)
+  const currentPage = catalogue.data?.page ?? 1
+  const pageProducts = products
   const pageProductIds = new Set(pageProducts.map(product => product.id))
   const selectedOutsidePage = selected.filter(id => !pageProductIds.has(id)).length
   const pageSelected = pageProducts.length > 0 && pageProducts.every(product => selected.includes(product.id))
@@ -321,46 +322,35 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
   }
   const openProduct = (product: CatalogProduct, button: HTMLButtonElement) => beginDraft(toDraft(product, language), button)
 
-  const load = useCallback(async () => {
-    if (!store || !token || !user) return
-    setLoading(true)
-    try {
-      if (!(await hasStoreMembership(store.id, user.id, token))) {
-        setMember(false)
-        return
-      }
-      const productQuery = (includeThreshold: boolean) =>
-        fetchAll<CatalogProduct>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=*,product_costs(cost_amount,source_amount,currency),product_categories(category_id),product_images(id,public_url,storage_path,position),product_variants(id,name,sku,price,compare_at_price,discount_percent,stack_customer_discount,stock_quantity,is_preorder,allow_out_of_stock,variant_costs(cost_amount,source_amount,currency)${includeThreshold ? ',low_stock_threshold' : ''})&order=created_at.desc,id.desc&product_variants.order=position.asc,id.asc`, token)
-      const [catalog, nextCategories, nextRates] = await Promise.all([
-        productQuery(true).then(products => ({ products, hasThreshold: true })).catch(async (cause: unknown) => {
-          if (!(cause instanceof Error) || !/column .*low_stock_threshold.*does not exist/i.test(cause.message)) throw cause
-          return { products: await productQuery(false), hasThreshold: false }
-        }),
-        fetchAll<CatalogCategory>(`/rest/v1/categories?store_id=eq.${encodeURIComponent(store.id)}&select=*&order=position.asc,id.asc`, token),
-        supabaseRequest<CatalogExchangeRate[]>('/rest/v1/catalog_exchange_rates?select=currency,uah_rate,rate_date', { token, cache: 'no-store' }).catch(() => []),
+  const userId = user?.id
+  useEffect(() => {
+    if (!storeId || !token || !userId) return
+    const abort = new AbortController()
+    void hasStoreMembership(storeId, userId, token, abort.signal).then(async allowed => {
+      if (abort.signal.aborted) return
+      if (!allowed) { setMember(false); return }
+      const [nextCategories, nextRates] = await Promise.all([
+        fetchAll<CatalogCategory>(`/rest/v1/categories?store_id=eq.${storeId}&select=*&order=position.asc,id.asc`, token, abort.signal),
+        supabaseRequest<CatalogExchangeRate[]>('/rest/v1/catalog_exchange_rates?select=currency,uah_rate,rate_date', {
+          token, signal: abort.signal, cache: 'no-store',
+        }).catch(() => []),
       ])
-      setMember(true)
-      setStockSchemaReady(catalog.hasThreshold)
-      setProducts(catalog.products.map(product => ({
-        ...product,
-        product_variants: product.product_variants.map(variant => ({
-          ...variant,
-          low_stock_threshold: variant.low_stock_threshold ?? defaultLowStockThreshold,
-        })),
-      })))
-      setCategories(nextCategories)
-      setRates(nextRates)
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not load catalogue')
-    } finally {
-      setLoading(false)
-    }
-  }, [store, token, user])
+      if (abort.signal.aborted) return
+      setCategories(nextCategories); setRates(nextRates); setMember(true)
+    }).catch(cause => { if (!abort.signal.aborted) setError(cause instanceof Error ? cause.message : 'Could not load catalogue') })
+    return () => abort.abort()
+  }, [storeId, token, userId])
 
   useEffect(() => {
-    const timer = window.setTimeout(() => { void load() }, 0)
-    return () => window.clearTimeout(timer)
-  }, [load])
+    if (!showCategories || !member || !token || !storeId) return
+    const abort = new AbortController()
+    void supabaseRequest<Array<{ category_id: string; product_count: number }>>('/rest/v1/rpc/crm_catalog_category_counts', {
+      method: 'POST', token, signal: abort.signal, body: JSON.stringify({ p_store_id: storeId }),
+    }).then(rows => {
+      if (!abort.signal.aborted) setCategoryCounts(Object.fromEntries(rows.map(row => [row.category_id, row.product_count])))
+    }).catch(cause => { if (!abort.signal.aborted) setError(cause instanceof Error ? cause.message : 'Could not load catalogue') })
+    return () => abort.abort()
+  }, [showCategories, member, token, storeId, catalogRevision])
 
   const updateVariant = (index: number, field: Exclude<keyof DraftVariant, 'unitCostEdited'>, value: string | number | boolean | null) => {
     setDraft((current) => current ? {
@@ -434,7 +424,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
 
   const categoryDeleteReason = (category: CatalogCategory) => {
     if (categories.some(item => item.parent_id === category.id)) return 'Remove its subcategories first.'
-    if (products.some(product => assignedCategoryIds(product).includes(category.id))) return 'Move products to another category first.'
+    if (categoryCounts?.[category.id]) return 'Move products to another category first.'
     return ''
   }
 
@@ -597,9 +587,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
             ...fields,
             id: variant.key,
             stock_quantity: Number(variant.stock_quantity),
-            ...(stockSchemaReady && {
-              low_stock_threshold: Number(variant.low_stock_threshold),
-            }),
+            low_stock_threshold: Number(variant.low_stock_threshold),
           }))),
         })
         for (const row of inserted ?? []) insertedIds.add(row.id)
@@ -612,7 +600,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
           method: 'PATCH', token,
           body: JSON.stringify({
             ...fields,
-            ...(stockSchemaReady && { low_stock_threshold: Number(variant.low_stock_threshold) }),
+            low_stock_threshold: Number(variant.low_stock_threshold),
           }),
         }),
       ))
@@ -669,7 +657,8 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
         }
         savedStock.current.set(variant.key, quantity)
       }
-      await Promise.all([load(), refreshProducts().catch(() => {})])
+      reloadCatalogue()
+      await refreshProducts().catch(() => {})
       closeSavedEditor()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not save product')
@@ -696,7 +685,8 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
       setSelected([])
       setBulkAction('')
       addToast(t('Bulk changes applied'))
-      await Promise.all([load(), refreshProducts().catch(() => {})])
+      reloadCatalogue()
+      await refreshProducts().catch(() => {})
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('Could not save product'))
     } finally {
@@ -714,7 +704,8 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
         method: 'PATCH', token, body: JSON.stringify({ is_active: isActive }),
       })
       addToast(t(isActive ? 'Published' : 'Hidden'))
-      await Promise.all([load(), refreshProducts().catch(() => {})])
+      reloadCatalogue()
+      await refreshProducts().catch(() => {})
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('Could not save product'))
     } finally {
@@ -730,7 +721,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
       await supabaseRequest('/rest/v1/rpc/duplicate_catalog_product', {
         method: 'POST', token, body: JSON.stringify({ p_product: product.id }),
       })
-      await load()
+      reloadCatalogue()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('Could not save product'))
     } finally {
@@ -757,7 +748,8 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
       setSelected(current => current.filter(id => id !== productId))
       if (draft?.id === productId) closeSavedEditor()
       addToast(t(deleted ? 'Product deleted' : 'Product no longer exists'))
-      await Promise.all([load(), refreshProducts().catch(() => {})])
+      reloadCatalogue()
+      await refreshProducts().catch(() => {})
     } catch (cause) {
       setError(cause instanceof SupabaseError && cause.code === '23503'
         ? t('This product is linked to orders or stock history. Hide it from the storefront instead.')
@@ -770,7 +762,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
 
   if (!store) return null
   if (!supabaseConfigured) return <section className="page-status"><h1>{t('CRM needs Supabase')}</h1></section>
-  if (loading && member === null) return <div className="page-status">{t('Loading catalogue…')}</div>
+  if (member === null) return <div className="page-status">{t(error ?? 'Loading catalogue…')}</div>
   if (member === false) return <section className="page-status"><h1>{t('Manager access required')}</h1></section>
 
   const categoryManager = showCategories ? <section className="category-manager" aria-label={t('Manage categories')}>
@@ -807,7 +799,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
       </div>
     </form>
     {!draft && <ul className="category-manager__list">{categoryOptions.map(({ category }) => {
-      const used = products.filter(product => assignedCategoryIds(product).includes(category.id)).length
+      const used = categoryCounts && (categoryCounts[category.id] ?? 0)
       const reason = categoryDeleteReason(category)
       return <li key={category.id} className={category.parent_id ? 'category-manager__subcategory' : undefined}>
         <div>
@@ -816,7 +808,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
             <span>UK: {category.name_uk || '—'}</span>
             <span>EN: {category.name_en || '—'}</span>
           </span>}
-          <span>{t('Products')}: {used}</span>
+          <span>{t('Products')}: {used ?? '—'}</span>
         </div>
         <button type="button" className="text-btn" disabled={categoryBusy} onClick={() => {
           setEditingCategoryId(category.id)
@@ -824,7 +816,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
           setCategoryParent(category.parent_id ?? '')
           setError(null)
         }}>{t('Edit')}</button>
-        <button type="button" className="text-btn" disabled={categoryBusy || Boolean(reason)} title={reason ? t(reason) : undefined} onClick={() => void deleteCategory(category)}>{t('Delete')}</button>
+        <button type="button" className="text-btn" disabled={categoryBusy || !categoryCounts || Boolean(reason)} title={reason ? t(reason) : undefined} onClick={() => void deleteCategory(category)}>{t('Delete')}</button>
       </li>
     })}</ul>}
   </section> : null
@@ -835,7 +827,8 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
         {!embedded ? <div><p className="muted">{store.name} · {t('management')}</p><h1>{t('Catalogue')}</h1></div> : <div><span className="crm-section-head__label"><span>{store.name}</span> / CRM</span><h2>{t('Catalogue')}</h2></div>}
         {!draft && <div className="catalog-header-actions"><button type="button" className="btn btn--ghost" disabled={categoryBusy} onClick={() => { setShowCategories(current => !current); resetCategoryForm() }}>{t(showCategories ? 'Products' : 'Manage categories')}</button>{!showCategories && <button ref={addProductButton} type="button" className="btn" onClick={event => beginDraft(blankDraft(), event.currentTarget)}>{t('Add product')}</button>}</div>}
       </header>
-      {error ? <p className="error" role="alert">{error}</p> : null}
+      {error && <p className="error" role="alert">{t(error)}</p>}
+      {catalogue.error && !draft && !showCategories && <p className="error" role="alert">{t(catalogue.error)} <button type="button" className="text-btn" onClick={catalogue.retry}>{t('Try again')}</button></p>}
       {!draft && (showCategories ? categoryManager :
       <section className="crm-panel catalog-list-panel">
       <div className="catalog-toolbar">
@@ -857,7 +850,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
             <option value="out-of-stock">{t('Out of stock')}</option>
           </optgroup>
         </select>
-        <div className="crm-pagination"><button className="text-btn" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t('Previous')}</button><span>{currentPage} / {pages}</span><button className="text-btn" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>{t('Next')}</button></div>
+        <CrmPagination page={currentPage} pages={pages} loading={loading} onChange={setPage} />
       </div>
         {!showStock && (pageProducts.length > 0 || selected.length > 0) && <div className="order-bulk" role="group" aria-label={t('Bulk action')}>
           <label className="order-select-all">
@@ -902,12 +895,12 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
               <div className="catalog-admin__item"><strong>{productName(product, language)}</strong><span>{categoryPaths(categories, assignedCategoryIds(product), language).join(' · ') || t('Uncategorized')} · {product.is_active ? t('Published') : t('Hidden')}{product.is_new && ` · ${t('New arrival')}`}</span><span>{product.product_variants.length} {t('variants')}{unavailable ? ` · ${unavailable} ${t('out of stock')}` : ''}</span><ProductTimestamps product={product} /></div>
               <div className="crm-order__actions catalog-admin__actions">
                 <button type="button" className="text-btn" data-edit-product={product.id} onClick={event => openProduct(product, event.currentTarget)}>{t('Edit')}</button>
-                {stockSchemaReady && <button type="button" className="text-btn" disabled={saving} onClick={() => void duplicate(product)}>{t('Duplicate')}</button>}
+                <button type="button" className="text-btn" disabled={saving} onClick={() => void duplicate(product)}>{t('Duplicate')}</button>
                 <button type="button" className="text-btn" disabled={saving || categoryBusy} onClick={() => void toggleProductVisibility(product)}>{t(product.is_active ? 'Hide' : 'Publish')}</button>
                 <button type="button" className="text-btn product-editor__delete" disabled={saving || categoryBusy} onClick={() => requestProductDeletion(product.id)}>{t('Delete')}</button>
               </div>
             </li>
-          }) : stockMatches.slice((currentPage - 1) * crmPageSize, currentPage * crmPageSize).map(({ product, variants }) => {
+          }) : stockMatches.map(({ product, variants }) => {
             const variant = variants.find(item => item.id === stockSelection[product.id]) ?? variants[0]
             return <li key={product.id} className="catalog-stock-row">
               {product.product_images[0] && <img className="catalog-admin__thumb" src={product.product_images[0].public_url} alt="" />}
@@ -929,14 +922,15 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
               <div className="catalog-stock-row__actions" key={variant.id}>
                 <button type="button" className="text-btn" data-edit-product={product.id} onClick={event => openProduct(product, event.currentTarget)}>{t('Edit')}</button>
                 {variant.id && token && <VariantCostEditor productId={product.id} variantId={variant.id}
-                  cost={variant.variant_costs} rates={rates} token={token} onSaved={load} />}
-                {stockSchemaReady && variant.id && token && <StockAdjustment variantId={variant.id} token={token} reload={load} />}
+                  cost={variant.variant_costs} rates={rates} token={token} onSaved={reloadCatalogue} />}
+                {variant.id && token && <StockAdjustment variantId={variant.id} token={token} reload={reloadCatalogue} />}
               </div>
             </li>
           })}
-          {matchCount === 0 && <li className="catalog-admin__no-results">{t('No products match these filters.')}</li>}
+          {loading && !catalogue.data && <li className="catalog-admin__no-results" role="status">{t('Loading catalogue…')}</li>}
+          {catalogue.data && matchCount === 0 && <li className="catalog-admin__no-results">{t('No products match these filters.')}</li>}
         </ul>
-      <div className="crm-pagination"><button className="text-btn" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t('Previous')}</button><span>{currentPage} / {pages}</span><button className="text-btn" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>{t('Next')}</button></div>
+      {products.length > 0 && <CrmPagination page={currentPage} pages={pages} loading={loading} onChange={setPage} />}
       </section>)}
         {draft && <section className="product-editor catalog-product-workspace">
           <div className="product-editor__head product-workspace__header">
@@ -1106,7 +1100,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
                 <label className="variant-field"><span>{t('Size')}</span><input value={variant.name} onChange={event => updateVariant(index, 'name', event.target.value)} /></label>
                 <label className="variant-field"><span>{t('SKU')}</span><input value={variant.sku ?? ''} onChange={event => updateVariant(index, 'sku', event.target.value)} /></label>
                 <label className="variant-field"><span>{t('Stock, units')}</span><input type="number" min="0" disabled={saving} value={variant.stock_quantity} onChange={event => updateVariant(index, 'stock_quantity', event.target.value)} /></label>
-                {stockSchemaReady && <label className="variant-field"><span>{t('Low stock threshold')}</span><input type="number" min="0" value={variant.low_stock_threshold} onChange={event => updateVariant(index, 'low_stock_threshold', event.target.value)} /></label>}
+                <label className="variant-field"><span>{t('Low stock threshold')}</span><input type="number" min="0" value={variant.low_stock_threshold} onChange={event => updateVariant(index, 'low_stock_threshold', event.target.value)} /></label>
               </div>
               <div className="variant-editor__controls">
                 <CatalogCostInput label={t('Unit cost')} amount={variant.unitCost} currency={variant.currency}

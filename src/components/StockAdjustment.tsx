@@ -15,7 +15,7 @@ type Movement = {
 export function StockAdjustment({ variantId, token, reload }: {
   variantId: string
   token: string
-  reload: () => Promise<void>
+  reload: () => void
 }) {
   const { t, i18n } = useTranslation()
   const requestId = useRef(crypto.randomUUID())
@@ -48,7 +48,7 @@ export function StockAdjustment({ variantId, token, reload }: {
         requestId.current = crypto.randomUUID()
         form.reset()
         setMessage(t('Stock updated'))
-        await reload()
+        reload()
         await loadHistory()
       } catch (cause) {
         setMessage(cause instanceof Error ? cause.message : t('Stock update failed'))

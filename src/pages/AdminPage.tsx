@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { CustomerPanel, type CustomerPanelTarget } from '../components/CustomerPanel'
 import { CreateTtnDrawer } from '../components/CreateTtnDrawer'
 import { CreateOrderDrawer } from '../components/CreateOrderDrawer'
+import { CrmPagination } from '../components/CrmPagination'
 import { ImportOrdersDialog } from '../components/ImportOrdersDialog'
 import { LoadingIndicator } from '../components/LoadingIndicator'
 import { MergeOrdersDrawer } from '../components/MergeOrdersDrawer'
 import { ConfirmationDialog, type ConfirmationDialogContent } from '../components/ConfirmationDialog'
 import { NovaPoshtaTrackingLink } from '../components/NovaPoshtaTrackingLink'
 import { AdminDashboard } from '../components/AdminDashboard'
-import { dashboardDay, type DashboardOrder, type DashboardInventory } from '../lib/dashboard'
+import type { DashboardOrder, DashboardInventory } from '../lib/dashboard'
 import { AdminTabs } from '../components/AdminTabs'
 import type { AdminSection } from '../components/AdminTabs'
 import { CatalogAdminPage } from './CatalogAdminPage'
@@ -21,7 +22,8 @@ import { formatDate, formatPrice } from '../lib/format'
 import { SupabaseError, supabaseConfigured, supabaseRequest } from '../lib/supabase'
 import type { OrderStatus } from '../types'
 import { useTranslation } from 'react-i18next'
-import { crmPageSize, fetchAll, hasStoreMembership } from '../lib/crm'
+import { crmPageSize, fetchAll, fetchCrmExportRows, hasStoreMembership } from '../lib/crm'
+import { useCrmPage } from '../hooks/useCrmPage'
 import { downloadOrdersCsv } from '../lib/crmExport'
 import { OrderOperations, type OrderDetailsOrder } from '../components/OrderOperations'
 import { normalizePhone } from '../lib/phone'
@@ -34,6 +36,7 @@ type AdminOrder = OrderDetailsOrder & DashboardOrder & {
   delivery_city_ref: string | null
   delivery_address_ref: string | null
 }
+type OrderListRow = AdminOrder & { member_ids: string[] }
 
 type OrderFilter = 'ALL' | 'NO_TTN' | OrderStatus
 
@@ -47,7 +50,9 @@ export function AdminPage() {
   const { store, refreshProducts } = useStore()
   const { token, user } = useAuth()
   const { addToast } = useToast()
-  const [orders, setOrders] = useState<AdminOrder[]>([])
+  const storeId = store?.id
+  const userId = user?.id
+  const [dashboardOrders, setDashboardOrders] = useState<DashboardOrder[]>([])
   const [mergeMembers, setMergeMembers] = useState<Array<{ order_id: string; root_id: string }>>([])
   const [ordersRevision, setOrdersRevision] = useState(0)
   const [createOrderOpen, setCreateOrderOpen] = useState(false)
@@ -78,38 +83,38 @@ export function AdminPage() {
   const [catalogFilter, setCatalogFilter] = useState<'all' | 'stock'>('all')
   const [page, setPage] = useState(1)
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
-  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([])
+  const [orderSelection, setOrderSelection] = useState<OrderListRow[]>([])
   const [bulkAction, setBulkAction] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
   const { t } = useTranslation()
 
   useEffect(() => {
-    let cancelled = false
-    const load = async () => {
-      if (!store || !token || !user || !supabaseConfigured) return
-      try {
-        if (!(await hasStoreMembership(store.id, user.id, token))) {
-          if (!cancelled) setMember(false)
-          return
-        }
-        const [nextOrders, nextInventory, nextMergeMembers] = await Promise.all([
-          fetchAll<AdminOrder>(`/rest/v1/orders?store_id=eq.${encodeURIComponent(store.id)}&select=id,user_id,crm_customer_id,customer_discount_amount,receipt_code,customer_name,customer_email,customer_phone,note,payment_test_mode,total_price,currency,status,payment_status,created_at,nova_poshta_ttn,nova_poshta_document_ref,nova_poshta_status,nova_poshta_status_code,payment_method,delivery_city_ref,delivery_address_ref&order=created_at.desc,id.desc`, token),
-          fetchAll<InventoryProduct>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=id,name,is_active,created_at,product_variants(*)&order=position.asc,id.asc`, token),
-          fetchAll<{ order_id: string; root_id: string }>(`/rest/v1/order_merge_members?select=order_id,root_id,orders!order_merge_members_order_id_fkey!inner(store_id)&orders.store_id=eq.${encodeURIComponent(store.id)}&order=order_id`, token),
-        ])
-        if (!cancelled) {
-          setMember(true)
-          setOrders(nextOrders)
-          setMergeMembers(nextMergeMembers)
-          setInventory(nextInventory)
-        }
-      } catch (cause) {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : 'Could not load CRM')
-      }
-    }
-    void load()
-    return () => { cancelled = true }
-  }, [store, token, user, ordersRevision])
+    if (!storeId || !token || !userId || !supabaseConfigured) return
+    const abort = new AbortController()
+    void hasStoreMembership(storeId, userId, token, abort.signal).then(allowed => {
+      if (!abort.signal.aborted) setMember(allowed)
+    }).catch(cause => {
+      if (!abort.signal.aborted) setError(cause instanceof Error ? cause.message : 'Could not load CRM')
+    })
+    return () => abort.abort()
+  }, [storeId, token, userId])
+
+  useEffect(() => {
+    if (!storeId || !token || !member || section !== 'overview') return
+    const abort = new AbortController()
+    const fields = 'id,user_id,crm_customer_id,customer_discount_amount,receipt_code,customer_name,customer_email,customer_phone,payment_test_mode,total_price,currency,status,payment_status,created_at,nova_poshta_ttn,nova_poshta_document_ref,payment_method'
+    void Promise.all([
+      fetchAll<DashboardOrder>(`/rest/v1/orders?store_id=eq.${storeId}&select=${fields}&order=created_at.desc,id.desc`, token, abort.signal),
+      fetchAll<InventoryProduct>(`/rest/v1/products?store_id=eq.${storeId}&select=id,name,is_active,created_at,product_variants(*)&order=position.asc,id.asc`, token, abort.signal),
+      fetchAll<{ order_id: string; root_id: string }>(`/rest/v1/order_merge_members?select=order_id,root_id,orders!order_merge_members_order_id_fkey!inner(store_id)&orders.store_id=eq.${storeId}&order=order_id`, token, abort.signal),
+    ]).then(([orders, stock, members]) => {
+      if (abort.signal.aborted) return
+      setDashboardOrders(orders); setInventory(stock); setMergeMembers(members)
+    }).catch(cause => {
+      if (!abort.signal.aborted) setError(cause instanceof Error ? cause.message : 'Could not load CRM')
+    })
+    return () => abort.abort()
+  }, [storeId, token, member, section, ordersRevision])
 
   useEffect(() => {
     if (!store || !token || !user || !supabaseConfigured) return
@@ -124,56 +129,37 @@ export function AdminPage() {
     return () => { abort.abort(); window.removeEventListener('focus', checkAccess); window.clearInterval(timer) }
   }, [store, token, user])
 
-  const liveOrders = useMemo(() => orders.filter(order => !order.payment_test_mode), [orders])
-  const groupIds = (id: string) => {
-    const ids = mergeMembers.filter(member => member.root_id === id).map(member => member.order_id)
-    return ids.length ? ids : [id]
+  const liveOrders = useMemo(() => dashboardOrders.filter(order => !order.payment_test_mode), [dashboardOrders])
+  const orderFilters = {
+    p_store_id: storeId, p_search: search.trim(), p_status: orderFilter,
+    p_from: fromDate || null, p_to: toDate || null,
+    p_order_ids: dashboardOrderIds, p_customer_id: customerOrderFilter?.id ?? null,
   }
-  const groupedOrders = useMemo(() => orders.filter(order => !mergeMembers.some(member => member.order_id === order.id && member.root_id !== order.id)).map(order => {
-    const ids = mergeMembers.filter(member => member.root_id === order.id).map(member => member.order_id)
-    const members = ids.length ? orders.filter(item => ids.includes(item.id)) : [order]
-    return { ...order, total_price: members.reduce((sum, item) => sum + Number(item.total_price), 0) }
-  }), [orders, mergeMembers])
-  const visibleOrders = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    const numberQuery = query.replace(/^#/, '')
-    const phoneQuery = /^[+\d\s().-]+$/.test(query) ? query.replace(/\D/g, '') : ''
-    const rootById = new Map(mergeMembers.map(member => [member.order_id, member.root_id]))
-    const customerOrderRoots = customerOrderFilter && new Set(orders
-      .filter(order => order.crm_customer_id === customerOrderFilter.id)
-      .map(order => rootById.get(order.id) ?? order.id))
-    return groupedOrders.filter((order) => {
-      const phone = (order.customer_phone ?? '').replace(/\D/g, '')
-      const matchesPhone = phoneQuery && (phone.includes(phoneQuery) ||
-        (phoneQuery.length >= 9 && phoneQuery.length <= 12 && phone.length >= 9 && phone.endsWith(phoneQuery.slice(-9))))
-      const matchesQuery = !query || Boolean(matchesPhone) ||
-        Boolean(order.customer_name?.toLowerCase().includes(query)) ||
-        Boolean(numberQuery && orders.filter(item => item.id === order.id || mergeMembers.some(member => member.order_id === item.id && member.root_id === order.id)).some(item => [item.receipt_code, item.nova_poshta_ttn].some(value => value?.toLowerCase().includes(numberQuery))))
-      const date = dashboardDay(order.created_at)
-      const matchesOrderFilter = orderFilter === 'NO_TTN'
-        ? !order.nova_poshta_ttn?.trim()
-        : orderFilter === 'ALL' || order.status === orderFilter
-      const matchesCustomer = customerOrderRoots === null || customerOrderRoots.has(order.id)
-      return matchesCustomer && (dashboardOrderIds === null || dashboardOrderIds.includes(order.id)) && matchesQuery && matchesOrderFilter && (!fromDate || date >= fromDate) && (!toDate || date <= toDate)
-    })
-  }, [groupedOrders, orders, mergeMembers, search, orderFilter, fromDate, toDate, dashboardOrderIds, customerOrderFilter])
-  const pages = Math.max(1, Math.ceil(visibleOrders.length / crmPageSize))
-  const currentPage = Math.min(page, pages)
-  const pageOrders = visibleOrders.slice((currentPage - 1) * crmPageSize, currentPage * crmPageSize)
-  const pageOrderIds = new Set(pageOrders.map(order => order.id))
-  const pageSelected = pageOrders.length > 0 && pageOrders.every(order => selectedOrderIds.includes(order.id))
-  const selectedOutsidePage = selectedOrderIds.filter(id => !pageOrderIds.has(id)).length
-  const selectedOrders = groupedOrders.filter(order => selectedOrderIds.includes(order.id))
-  const ordersToExport = selectedOrders.length > 0 ? selectedOrders : visibleOrders
+  const ordersList = useCrmPage<OrderListRow>('crm_orders_page', orderFilters, page,
+    member && section === 'orders' ? token : null, ordersRevision)
+  const pageOrders = ordersList.data?.rows ?? []
+  const matchingOrderCount = ordersList.data?.total ?? 0
+  const pages = Math.max(1, Math.ceil(matchingOrderCount / crmPageSize))
+  const currentPage = ordersList.data?.page ?? 1
+  const pageById = new Map(pageOrders.map(order => [order.id, order]))
+  const selectedOrders = orderSelection.map(order => pageById.get(order.id) ?? order)
+  const selectedOrderIds = new Set(selectedOrders.map(order => order.id))
+  const pageSelected = pageOrders.length > 0 && pageOrders.every(order => selectedOrderIds.has(order.id))
+  const selectedOutsidePage = selectedOrders.filter(order => !pageById.has(order.id)).length
   const selectedTtnCandidates = selectedOrders.filter(canCreateTtn)
-  const selectedOrder = groupedOrders.find(order => order.id === selectedOrderId)
+  const pageOrder = selectedOrderId ? pageById.get(selectedOrderId) : undefined
+  const orderDetails = useCrmPage<OrderListRow>('crm_orders_page', {
+    p_store_id: storeId, p_order_ids: selectedOrderId ? [selectedOrderId] : null,
+  }, 1, member && selectedOrderId && !pageOrder ? token : null, ordersRevision)
+  const selectedOrder = pageOrder ?? orderDetails.data?.rows[0]
   const exportOrders = async () => {
-    if (!token || !ordersToExport.length || exportingOrders) return
+    if (!token || (!selectedOrders.length && !matchingOrderCount) || exportingOrders) return
     setExportingOrders(true)
     setError(null)
     try {
-      const refs = ordersToExport.flatMap(order => {
-        const ids = [order.id, ...groupIds(order.id).filter(id => id !== order.id)]
+      const orders = selectedOrders.length ? selectedOrders : await fetchCrmExportRows<OrderListRow>('crm_orders_page', orderFilters, token)
+      const refs = orders.flatMap(order => {
+        const ids = [order.id, ...order.member_ids.filter(id => id !== order.id)]
         const primaryReceipt = ids.length > 1 ? order.receipt_code : undefined
         return ids.map(id => ({ id, primaryReceipt }))
       })
@@ -216,18 +202,11 @@ export function AdminPage() {
     })
     if (!updated) return false
     const byId = new Map(updated.map(order => [order.id, order]))
-    setOrders(current => current.map(order => {
+    setOrderSelection(current => current.map(order => {
       const update = byId.get(order.id)
       return update ? { ...order, ...update } : order
     }))
-    if (restoreStock && store) {
-      try {
-        const nextInventory = await fetchAll<InventoryProduct>(`/rest/v1/products?store_id=eq.${encodeURIComponent(store.id)}&select=id,name,is_active,created_at,product_variants(*)&order=position.asc,id.asc`, token)
-        setInventory(nextInventory)
-      } catch (cause) {
-        addToast(cause instanceof Error ? cause.message : t('Could not refresh stock'))
-      }
-    }
+    setOrdersRevision(value => value + 1)
     return true
   }
 
@@ -249,16 +228,17 @@ export function AdminPage() {
     setTrackingId(id); setError(null)
     try {
       const result = await supabaseRequest<{ status: string }>('/functions/v1/nova-poshta-track-ttn', { method: 'POST', token, body: JSON.stringify({ orderId: id }) })
-      setOrders((current) => current.map((order) => order.id === id ? { ...order, nova_poshta_status: result.status } : order))
+      setOrderSelection(current => current.map(order => order.id === id ? { ...order, nova_poshta_status: result.status } : order))
+      setOrdersRevision(value => value + 1)
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not update shipment status') } finally { setTrackingId(null) }
   }
 
-  const saveShipment = (id: string, { ttn, documentRef, existing }: TtnShipment) => {
-    const ids = groupIds(id)
-    if (!existing) setSelectedOrderIds(current => current.filter(selectedId => selectedId !== id))
-    setOrders(current => current.map(order => ids.includes(order.id)
-      ? { ...order, nova_poshta_ttn: ttn, nova_poshta_document_ref: documentRef }
-      : order))
+  const saveShipment = (id: string, { ttn, documentRef, existing }: TtnShipment, refresh = true) => {
+    setOrderSelection(current => current.flatMap(order => {
+      if (order.id !== id) return [order]
+      return existing ? [{ ...order, nova_poshta_ttn: ttn, nova_poshta_document_ref: documentRef }] : []
+    }))
+    if (refresh) setOrdersRevision(value => value + 1)
   }
 
   const createBulkTtns = async () => {
@@ -338,7 +318,8 @@ export function AdminPage() {
             weightGrams,
             declaredValueMinor,
           })
-          saveShipment(order.id, shipment)
+          saveShipment(order.id, shipment, false)
+          refreshOrders = true
           if (shipment.existing) skipped++
           else created++
         } catch (cause) {
@@ -383,7 +364,7 @@ export function AdminPage() {
       const skipped = selectedOrders.filter(order => !eligible.includes(order))
       try {
         if (eligible.length && !await updateOrderStatus(eligible.map(order => order.id), status, restoreStock)) return
-        setSelectedOrderIds(skipped.map(order => order.id))
+        setOrderSelection(skipped)
         setBulkAction('')
         if (skipped.length) {
           const message = t(restoreStock
@@ -414,11 +395,8 @@ export function AdminPage() {
     const failed = results.flatMap((result, index) => result.status === 'rejected'
       ? [{ order: selectedOrders[index], message: result.reason instanceof Error ? result.reason.message : t('Action failed') }]
       : [])
-    setOrders(current => current.map(order => {
-      const root = [...updated.keys()].find(id => groupIds(id).includes(order.id))
-      return root ? { ...order, ...updated.get(root) } : order
-    }))
-    setSelectedOrderIds(failed.map(item => item.order.id))
+    setOrderSelection(selectedOrders.filter(order => failed.some(item => item.order.id === order.id)))
+    if (updated.size) setOrdersRevision(value => value + 1)
     setBulkAction('')
     if (failed.length) {
       setError(failed.map(item => `#${item.order.receipt_code}: ${item.message}`).join(' · '))
@@ -449,6 +427,8 @@ export function AdminPage() {
         }} />
       </header>
       {error ? <div className="crm-error" role="alert"><span>{error}</span><button type="button" className="text-btn" onClick={() => setError(null)}>{t('Close')}</button></div> : null}
+      {orderDetails.loading && !selectedOrder && <p className="muted" role="status">{t('Loading…')}</p>}
+      {orderDetails.error && <div className="crm-error" role="alert"><span>{t(orderDetails.error)}</span><button type="button" className="text-btn" onClick={() => setSelectedOrderId(null)}>{t('Close')}</button></div>}
       {section !== 'catalogue' && <div className="crm-section-head">
         <div><span className="crm-section-head__label"><span>{store.name}</span> / CRM</span><h2>{section === 'overview' ? t('Overview') : section === 'orders' ? t('Orders') : section === 'customers' ? t('Customers') : t('Settings')}</h2></div>
         {section === 'orders' && token && <div className="crm-order-actions">
@@ -458,7 +438,7 @@ export function AdminPage() {
             onClick={() => setCreateOrderOpen(true)}>{t('Create order')}</button>
         </div>}
       </div>}
-      {token && <div hidden={section !== 'overview'}><AdminDashboard
+      {token && <div hidden={section !== 'overview'}><AdminDashboard active={section === 'overview'}
         storeId={store.id} currency={store.currency} token={token} orders={liveOrders} inventory={inventory}
         mergeMembers={mergeMembers} revision={ordersRevision} onRefresh={() => setOrdersRevision(value => value + 1)}
         onOpenOrders={ids => {
@@ -476,7 +456,7 @@ export function AdminPage() {
           <div className="order-filters">
             <label className="search-field">
               <span className="sr-only">{t('Search orders by name, order number, TTN or phone')}</span>
-              <input type="search" placeholder={t('Search orders by name, order number, TTN or phone')} value={search} onChange={(event) => setSearch(event.target.value)} />
+              <input type="search" placeholder={t('Search orders by name, order number, TTN or phone')} value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} />
             </label>
             <select value={orderFilter} onChange={(event) => { setOrderFilter(event.target.value as OrderFilter); setPage(1) }}>
               <option value="ALL">{t('All statuses')}</option>
@@ -493,29 +473,29 @@ export function AdminPage() {
             </div>
           </div>
           {(dashboardOrderIds !== null || customerOrderFilter !== null) && <div className="dashboard-order-filter" role="status">
-            <span>{customerOrderFilter ? t('Orders for {{name}}', { name: customerOrderFilter.name }) : t('Dashboard selection')} · {visibleOrders.length}</span>
+            <span>{customerOrderFilter ? t('Orders for {{name}}', { name: customerOrderFilter.name }) : t('Dashboard selection')} · {matchingOrderCount}</span>
             <button type="button" className="text-btn" onClick={() => { setDashboardOrderIds(null); setCustomerOrderFilter(null); setPage(1) }}>{t('Show all orders')}</button>
           </div>}
           <div className="orders-list-toolbar">
-            <button className="text-btn" title={t(selectedOrders.length ? 'Export selected orders' : 'Export CSV')} disabled={!ordersToExport.length || exportingOrders} onClick={() => void exportOrders()}>
-              {exportingOrders ? t('Preparing CSV…') : `${t('Export CSV')} (${ordersToExport.length})`}
+            <button className="text-btn" title={t(selectedOrders.length ? 'Export selected orders' : 'Export CSV')} disabled={(!selectedOrders.length && !matchingOrderCount) || exportingOrders} onClick={() => void exportOrders()}>
+              {exportingOrders ? t('Preparing CSV…') : `${t('Export CSV')} (${selectedOrders.length || matchingOrderCount})`}
             </button>
-            <div className="crm-pagination"><button className="text-btn" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t('Previous')}</button><span>{currentPage} / {pages}</span><button className="text-btn" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>{t('Next')}</button></div>
+            <CrmPagination page={currentPage} pages={pages} loading={ordersList.loading} onChange={setPage} />
           </div>
-          {(pageOrders.length > 0 || selectedOrderIds.length > 0) && <div className="order-bulk order-bulk--orders" role="group" aria-label={t('Bulk action')}>
+          {(pageOrders.length > 0 || selectedOrderIds.size > 0) && <div className="order-bulk order-bulk--orders" role="group" aria-label={t('Bulk action')}>
             <label className="order-select-all">
               <input type="checkbox" checked={pageSelected} disabled={bulkBusy || !pageOrders.length}
-                ref={input => { if (input) input.indeterminate = !pageSelected && selectedOrderIds.length > selectedOutsidePage }}
+                ref={input => { if (input) input.indeterminate = !pageSelected && selectedOrderIds.size > selectedOutsidePage }}
                 onChange={event => {
                   const checked = event.target.checked
-                  setSelectedOrderIds(current => checked ? [...new Set([...current, ...pageOrderIds])] : current.filter(id => !pageOrderIds.has(id)))
+                  setOrderSelection(current => [...current.filter(order => !pageById.has(order.id)), ...(checked ? pageOrders : [])])
                   setBulkAction('')
                 }} />
               {t('Select all on this page')}
             </label>
-            <div className="order-bulk__actions" aria-hidden={!selectedOrderIds.length} inert={!selectedOrderIds.length}>
+            <div className="order-bulk__actions" aria-hidden={!selectedOrderIds.size} inert={!selectedOrderIds.size}>
               <div className="catalog-bulk__selection" aria-live="polite">
-                <span className="catalog-bulk__count">{selectedOrderIds.length}</span>
+                <span className="catalog-bulk__count">{selectedOrderIds.size}</span>
                 <div className="catalog-bulk__selection-label">
                   <span>{t('Selected orders')}</span>
                   {selectedOutsidePage > 0 && <small>{t('Outside this page: {{count}}', { count: selectedOutsidePage })}</small>}
@@ -533,29 +513,31 @@ export function AdminPage() {
                   {selectedOrders.length > 1 && <option value="merge">{t('Merge orders')}</option>}
                 </select>
                 <button type="button" className="btn" disabled={bulkBusy || Boolean(updatingId) || Boolean(trackingId) || !bulkAction} onClick={() => void applyBulkAction()}>{t(bulkBusy ? 'Updating…' : 'Apply')}</button>
-                <button type="button" className="catalog-bulk__clear" disabled={bulkBusy} onClick={() => { setSelectedOrderIds([]); setBulkAction('') }}>{t('Clear selection')}</button>
+                <button type="button" className="catalog-bulk__clear" disabled={bulkBusy} onClick={() => { setOrderSelection([]); setBulkAction('') }}>{t('Clear selection')}</button>
               </div>
             </div>
           </div>}
-          {orders.length === 0 ? <p className="muted">{t('No orders yet.')}</p> : visibleOrders.length === 0 ? <p className="muted">{t('No orders match these filters.')}</p> : <ul className="admin-list">{pageOrders.map((order) => {
+          {ordersList.loading && !ordersList.data ? <p className="muted" role="status">{t('Loading…')}</p>
+            : ordersList.error ? <p className="error" role="alert">{t(ordersList.error)} <button type="button" className="text-btn" onClick={ordersList.retry}>{t('Try again')}</button></p>
+            : !pageOrders.length ? <p className="muted">{t('No orders match these filters.')}</p> : <ul className="admin-list" aria-busy={ordersList.loading}>{pageOrders.map((order) => {
             const receiptPath = `/receipt/${encodeURIComponent(order.receipt_code)}`
             const note = order.note?.trim()
             return (
-              <li key={order.id} className={`crm-order${selectedOrderIds.includes(order.id) ? ' crm-order--selected' : ''}`} onClick={event => {
+              <li key={order.id} className={`crm-order${selectedOrderIds.has(order.id) ? ' crm-order--selected' : ''}`} onClick={event => {
                 if (event.target instanceof Element && event.target.closest('a, button, input, select, textarea, label')) return
                 setSelectedOrderId(order.id)
               }}>
                 <label className="order-select">
-                  <input type="checkbox" checked={selectedOrderIds.includes(order.id)} disabled={bulkBusy}
+                  <input type="checkbox" checked={selectedOrderIds.has(order.id)} disabled={bulkBusy}
                     onChange={event => {
                       const checked = event.target.checked
-                      setSelectedOrderIds(current => checked ? [...current, order.id] : current.filter(id => id !== order.id))
+                      setOrderSelection(current => checked ? [...current, order] : current.filter(selected => selected.id !== order.id))
                       setBulkAction('')
                     }} />
                   <span className="sr-only">{t('Select order')} #{order.receipt_code}</span>
                 </label>
                 <div className="crm-order__identity">
-                  <span className="crm-order__reference"><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => setSelectedOrderId(order.id)}>#{order.receipt_code}</button><span className="crm-order__date"><time dateTime={order.created_at}>{formatDate(order.created_at)} · {new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(new Date(order.created_at))}</time>{order.payment_test_mode && ` · ${t('Test order')}`}{groupIds(order.id).length > 1 && ` · ${t('Merged orders: {{count}}', { count: groupIds(order.id).length })}`}</span></span>
+                  <span className="crm-order__reference"><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => setSelectedOrderId(order.id)}>#{order.receipt_code}</button><span className="crm-order__date"><time dateTime={order.created_at}>{formatDate(order.created_at)} · {new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(new Date(order.created_at))}</time>{order.payment_test_mode && ` · ${t('Test order')}`}{order.member_ids.length > 1 && ` · ${t('Merged orders: {{count}}', { count: order.member_ids.length })}`}</span></span>
                   {note && <p className="crm-order__note"><strong>{t('Note')}</strong> {note}</p>}
                   {order.customer_email && <span className="crm-order__email">{order.customer_email}</span>}
                 </div>
@@ -580,11 +562,7 @@ export function AdminPage() {
               </li>
             )
           })}</ul>}
-          {pageOrders.length > 0 && <div className="crm-pagination">
-            <button className="text-btn" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{t('Previous')}</button>
-            <span>{currentPage} / {pages}</span>
-            <button className="text-btn" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>{t('Next')}</button>
-          </div>}
+          {pageOrders.length > 0 && <CrmPagination page={currentPage} pages={pages} loading={ordersList.loading} onChange={setPage} />}
         </section>
       </div>
       </> : null}
@@ -602,23 +580,23 @@ export function AdminPage() {
           void refreshProducts().catch(() => {})
         }} />}
       {selectedCustomer && token && <CustomerPanel key={`${selectedCustomer.kind}:${selectedCustomer.id}`}
-        target={selectedCustomer} storeId={store.id} token={token} mergeMembers={mergeMembers}
+        target={selectedCustomer} storeId={store.id} token={token}
         onSaved={() => setCustomerRevision(value => value + 1)} onClose={() => setSelectedCustomer(null)}
         onViewOrders={(id, name) => {
           setCustomerOrderFilter({ id, name }); setDashboardOrderIds(null)
           setSearch(''); setOrderFilter('ALL'); setFromDate(''); setToDate(''); setPage(1)
-          setSelectedOrderIds([]); setBulkAction(''); setOrdersRevision(value => value + 1); setSection('orders')
+          setOrderSelection([]); setBulkAction(''); setOrdersRevision(value => value + 1); setSection('orders')
         }} />}
       {confirmation && <ConfirmationDialog {...confirmation.content} onClose={confirmed => {
         setConfirmation(null)
         confirmation.resolve(confirmed)
       }} />}
-      {selectedOrder && token && <OrderOperations key={selectedOrder.id} order={selectedOrder} orderIds={groupIds(selectedOrder.id)} token={token} onClose={() => { setSelectedOrderId(null); setOrdersRevision(value => value + 1) }} />}
+      {selectedOrder && token && <OrderOperations key={selectedOrder.id} order={selectedOrder} orderIds={selectedOrder.member_ids} token={token} onClose={() => { setSelectedOrderId(null); setOrdersRevision(value => value + 1) }} />}
       {mergeOpen && token && <MergeOrdersDrawer orders={selectedOrders} busy={bulkBusy} error={mergeError} onClose={() => setMergeOpen(false)} onMerge={targetId => {
         setBulkBusy(true)
         setMergeError(null)
         void supabaseRequest('/rest/v1/rpc/merge_orders', { method: 'POST', token, body: JSON.stringify({ p_order_ids: selectedOrders.map(order => order.id), p_target_id: targetId }) })
-          .then(() => { setMergeOpen(false); setSelectedOrderIds([]); setOrdersRevision(value => value + 1); addToast(t('Orders merged')) })
+          .then(() => { setMergeOpen(false); setOrderSelection([]); setOrdersRevision(value => value + 1); addToast(t('Orders merged')) })
           .catch(cause => setMergeError(cause instanceof Error ? cause.message : t('Action failed')))
           .finally(() => setBulkBusy(false))
       }} />}

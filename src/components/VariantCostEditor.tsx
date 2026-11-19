@@ -9,7 +9,7 @@ export function VariantCostEditor({ productId, variantId, cost, rates, token, on
   cost: CatalogCost | null
   rates: CatalogExchangeRate[]
   token: string
-  onSaved: () => Promise<void>
+  onSaved: () => void
 }) {
   const { t } = useTranslation()
   const [amount, setAmount] = useState(costInputAmount(cost))
@@ -29,7 +29,7 @@ export function VariantCostEditor({ productId, variantId, cost, rates, token, on
     try {
       await saveCatalogCosts(token, productId, null, [{ variant_id: variantId, cost_amount: minor, currency }])
       setMessage(t('Saved'))
-      await onSaved()
+      onSaved()
     } catch (cause) {
       setMessage(cause instanceof Error ? t(cause.message) : t('Action failed'))
     } finally {

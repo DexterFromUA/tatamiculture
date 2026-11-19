@@ -1,16 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { CrmPagination } from '../components/CrmPagination'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
-import { crmPageSize, customerPhone, fetchAll } from '../lib/crm'
+import { useCrmPage } from '../hooks/useCrmPage'
+import { crmPageSize, fetchAll, fetchCrmExportRows } from '../lib/crm'
 import { downloadCustomersCsv, type CustomerExportOrder } from '../lib/crmExport'
 import { formatPrice } from '../lib/format'
 import type { CrmCustomer } from '../components/CrmCustomerCard'
 
 type CustomerListRow = CrmCustomer & {
-  phone_confirmed: boolean
-  is_administrator: boolean
-  has_active_discount: boolean
+  order_count: number
+  totals: Record<string, number>
 }
 
 const customerFilters = {
@@ -27,66 +28,43 @@ export function CustomersPage({ onOpenCustomer, revision }: { onOpenCustomer: (i
   const { store } = useStore()
   const { token } = useAuth()
   const { t } = useTranslation()
-  const [customers, setCustomers] = useState<CustomerListRow[]>([])
-  const [orders, setOrders] = useState<CustomerExportOrder[]>([])
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [exportError, setExportError] = useState('')
+  const [exporting, setExporting] = useState(false)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<CustomerFilter>('all')
   const [page, setPage] = useState(1)
-  useEffect(() => {
-    if (!store || !token) return
-    const abort = new AbortController()
-    Promise.all([
-      fetchAll<CustomerListRow>(`/rest/v1/rpc/list_crm_customers?p_store_id=${store.id}&order=created_at.desc,id`, token, abort.signal),
-      fetchAll<CustomerExportOrder>(`/rest/v1/orders?store_id=eq.${store.id}&select=id,crm_customer_id,user_id,receipt_code,total_price,currency,status,payment_status,payment_method,payment_test_mode,monobank_test_mode,created_at&order=created_at.desc,id`, token, abort.signal),
-    ]).then(([people, purchases]) => {
-      if (abort.signal.aborted) return
-      setCustomers(people); setOrders(purchases); setError('')
-    })
-      .catch(cause => { if (!abort.signal.aborted) setError(cause.message) })
-      .finally(() => { if (!abort.signal.aborted) setLoading(false) })
-    return () => abort.abort()
-  }, [store, token, revision])
-  const phoneCounts = new Map<string, number>()
-  for (const customer of customers) {
-    const phone = customerPhone(customer.phone)
-    if (phone.length >= 9) phoneCounts.set(phone, (phoneCounts.get(phone) ?? 0) + 1)
-  }
-  const searchQuery = search.trim().toLowerCase()
-  const orderQuery = searchQuery.replace(/^#\s*/, '')
-  const orderMatches = new Set<string>()
-  if (orderQuery) {
-    for (const order of orders) {
-      if (order.crm_customer_id && order.receipt_code?.toLowerCase().includes(orderQuery)) {
-        orderMatches.add(order.crm_customer_id)
-      }
-    }
-  }
-  const rows = customers.filter(customer => {
-    const matchesFilter = {
-      all: true,
-      'confirmed-phone': customer.phone_confirmed,
-      'unconfirmed-phone': !customer.phone_confirmed,
-      administrators: customer.is_administrator,
-      discount: customer.has_active_discount,
-      duplicates: (phoneCounts.get(customerPhone(customer.phone)) ?? 0) > 1,
-    }
-    if (!matchesFilter[filter]) return false
-    const customerText = `${customer.name} ${customer.phone} ${customer.email} ${customer.tags.join(' ')}`.toLowerCase()
-    return customerText.includes(searchQuery) || customer.notes.toLowerCase().includes(searchQuery) || orderMatches.has(customer.id)
-  }).map(customer => {
-    const own = orders.filter(order => order.crm_customer_id === customer.id && !order.status.startsWith('CANCELLED'))
-    const totals = new Map<string, number>()
-    for (const order of own) totals.set(order.currency, (totals.get(order.currency) ?? 0) + Number(order.total_price))
-    return { ...customer, count: own.length, total: [...totals].map(([currency, amount]) => formatPrice(amount / 100, currency)).join(' · ') }
-  })
-  const pages = Math.max(1, Math.ceil(rows.length / crmPageSize))
-  const current = Math.min(page, pages)
+  const filters = { p_store_id: store?.id, p_search: search.trim(), p_filter: filter }
+  const { data, error, loading, retry } = useCrmPage<CustomerListRow>('crm_customers_page', filters, page, token, revision)
+  const rows = data?.rows ?? []
+  const pages = Math.max(1, Math.ceil((data?.total ?? 0) / crmPageSize))
+  const current = data?.page ?? 1
   const searchLabel = t('Search by name, phone, order or note')
+
+  const exportCustomers = async () => {
+    if (!store || !token || exporting) return
+    setExporting(true)
+    setExportError('')
+    try {
+      const customers = await fetchCrmExportRows<CrmCustomer>('crm_customers_page', filters, token)
+      const orders: CustomerExportOrder[] = []
+      for (let offset = 0; offset < customers.length; offset += 50) {
+        const ids = customers.slice(offset, offset + 50).map(customer => customer.id).join(',')
+        const fields = 'id,crm_customer_id,user_id,receipt_code,total_price,currency,status,payment_status,payment_method,payment_test_mode,monobank_test_mode,created_at'
+        const batch = await fetchAll<CustomerExportOrder>(`/rest/v1/orders?store_id=eq.${store.id}&crm_customer_id=in.(${ids})&select=${fields}&order=created_at.desc,id`, token)
+        orders.push(...batch)
+      }
+      downloadCustomersCsv(customers, orders, store.currency, t)
+    } catch (cause) {
+      setExportError(cause instanceof Error ? cause.message : 'Could not export customers')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return <section className="customers-page">
-    {error && <p className="error">{error}</p>}
-    {loading ? <p>{t('Loading…')}</p> : <section className="crm-panel">
+    {error && <p className="error" role="alert">{t(error)} <button type="button" className="text-btn" onClick={retry}>{t('Try again')}</button></p>}
+    {exportError && <p className="error" role="alert">{t(exportError)}</p>}
+    <section className="crm-panel">
       <div className="customers-toolbar">
         <label className="search-field"><span className="sr-only">{searchLabel}</span><input type="search" placeholder={searchLabel} value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} /></label>
         <select aria-label={t('Customer filter')} value={filter} onChange={event => { setFilter(event.target.value as CustomerFilter); setPage(1) }}>
@@ -94,19 +72,21 @@ export function CustomersPage({ onOpenCustomer, revision }: { onOpenCustomer: (i
         </select>
       </div>
       <div className="orders-list-toolbar">
-        <button className="text-btn" disabled={!store || !rows.length} onClick={() => {
-          if (store) downloadCustomersCsv(rows, orders, store.currency, t)
-        }}>{t('Export CSV')}</button>
-        <div className="crm-pagination"><button className="text-btn" disabled={current === 1} onClick={() => setPage(current - 1)}>{t('Previous')}</button><span>{current} / {pages}</span><button className="text-btn" disabled={current === pages} onClick={() => setPage(current + 1)}>{t('Next')}</button></div>
+        <button className="text-btn" disabled={!store || !data?.total || exporting} onClick={() => void exportCustomers()}>
+          {t(exporting ? 'Preparing export…' : 'Export CSV')}
+        </button>
+        <CrmPagination page={current} pages={pages} loading={loading} onChange={setPage} />
       </div>
-      <ul className="customers-list">{rows.slice((current - 1) * crmPageSize, current * crmPageSize).map(customer => <li key={customer.id}>
+      {loading && !data && <p className="muted" role="status">{t('Loading…')}</p>}
+      <ul className="customers-list" aria-busy={loading}>{rows.map(customer => <li key={customer.id}>
         <button type="button" className="customer-list-card" aria-haspopup="dialog" onClick={() => onOpenCustomer(customer.id)}>
           <span className="customer-list-card__identity"><span className="customer-list-card__name"><strong>{customer.name}</strong>{(customer.phone || customer.email) && <small>{customer.phone || customer.email}</small>}</span>{customer.tags.length > 0 && <small>{customer.tags.join(' · ')}</small>}</span>
-          <span>{customer.count} {t('orders')}</span><strong>{customer.total || '—'}</strong>
+          <span>{customer.order_count} {t('orders')}</span><strong>{Object.entries(customer.totals)
+            .map(([currency, amount]) => formatPrice(amount / 100, currency)).join(' · ') || '—'}</strong>
         </button>
       </li>)}</ul>
-      {!rows.length && <p>{t('No customers match this search.')}</p>}
-      <div className="crm-pagination"><button className="text-btn" disabled={current === 1} onClick={() => setPage(current - 1)}>{t('Previous')}</button><span>{current} / {pages}</span><button className="text-btn" disabled={current === pages} onClick={() => setPage(current + 1)}>{t('Next')}</button></div>
-    </section>}
+      {data && !rows.length && <p>{t('No customers match this search.')}</p>}
+      {rows.length > 0 && <CrmPagination page={current} pages={pages} loading={loading} onChange={setPage} />}
+    </section>
   </section>
 }

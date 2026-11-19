@@ -16,6 +16,7 @@ type DashboardData = {
   demand: { variant_id: string }[]; returns: { id: string; order_id: string; status: string }[]
 }
 type Props = {
+  active: boolean
   storeId: string; currency: string; token: string; orders: DashboardOrder[]; inventory: DashboardInventory[]
   mergeMembers: { order_id: string; root_id: string }[]; revision: number
   onOpenOrders: (ids: string[]) => void; onOpenOrder: (id: string) => void
@@ -34,7 +35,7 @@ function Change({ current, previous, money = false, currency }: { current: numbe
   </small>
 }
 
-export function AdminDashboard({ storeId, currency: storeCurrency, token, orders, inventory, mergeMembers, revision,
+export function AdminDashboard({ active, storeId, currency: storeCurrency, token, orders, inventory, mergeMembers, revision,
   onOpenOrders, onOpenOrder, onOpenCatalog, onOpenCustomers, onRefresh }: Props) {
   const { t, i18n } = useTranslation()
   const [today, setToday] = useState(() => dashboardDay(Date.now()))
@@ -76,6 +77,7 @@ export function AdminDashboard({ storeId, currency: storeCurrency, token, orders
   }, [preset])
 
   useEffect(() => {
+    if (!active) return
     const abort = new AbortController()
     setData({})
     setErrors({})
@@ -95,10 +97,10 @@ export function AdminDashboard({ storeId, currency: storeCurrency, token, orders
       })
     }
     return () => abort.abort()
-  }, [storeId, token, revision])
+  }, [active, storeId, token, revision])
 
   useEffect(() => {
-    if (!range) return
+    if (!active || !range) return
     const abort = new AbortController()
     setPayments(null)
     setPaymentError('')
@@ -108,7 +110,7 @@ export function AdminDashboard({ storeId, currency: storeCurrency, token, orders
     }).then(result => { if (!abort.signal.aborted) setPayments(result) })
       .catch(cause => { if (!abort.signal.aborted) setPaymentError(cause.message) })
     return () => abort.abort()
-  }, [storeId, token, from, to, currency, revision, Boolean(range)])
+  }, [active, storeId, token, from, to, currency, revision, Boolean(range)])
 
   const financeReady = Boolean(data.costs && data.refunds)
   const periodIds = new Set(current.filter(order => !isCancelled(order)).map(order => order.id))

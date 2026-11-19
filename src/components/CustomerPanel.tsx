@@ -21,11 +21,10 @@ export type CustomerOrder = {
 
 export type CustomerPanelTarget = { kind: 'order' | 'customer'; id: string }
 
-export function CustomerPanel({ target, storeId, token, mergeMembers, onSaved, onClose, onViewOrders }: {
+export function CustomerPanel({ target, storeId, token, onSaved, onClose, onViewOrders }: {
   target: CustomerPanelTarget
   storeId: string
   token: string
-  mergeMembers: Array<{ order_id: string; root_id: string }>
   onSaved: () => void
   onClose: () => void
   onViewOrders: (customerId: string, name: string) => void
@@ -35,6 +34,7 @@ export function CustomerPanel({ target, storeId, token, mergeMembers, onSaved, o
   const { ref: dialogRef, close: closeDrawer, onCancel, onClick } = useDrawer({ openOnMount: true, onClose })
   const [customers, setCustomers] = useState<CrmCustomer[]>([])
   const [orders, setOrders] = useState<CustomerCardOrder[]>([])
+  const [mergeMembers, setMergeMembers] = useState<Array<{ order_id: string; root_id: string }>>([])
   const [loading, setLoading] = useState(true)
   const [revision, setRevision] = useState(0)
   const [error, setError] = useState('')
@@ -43,10 +43,12 @@ export function CustomerPanel({ target, storeId, token, mergeMembers, onSaved, o
     Promise.all([
       fetchAll<CrmCustomer>(`/rest/v1/crm_customers?store_id=eq.${storeId}&select=*&order=created_at.desc,id`, token, abort.signal),
       fetchAll<CustomerCardOrder>(`/rest/v1/orders?store_id=eq.${storeId}&select=id,crm_customer_id,user_id,receipt_code,total_price,currency,status,created_at,delivery_city,delivery_address&order=created_at.desc,id.desc`, token, abort.signal),
-    ]).then(([people, purchases]) => {
+      fetchAll<{ order_id: string; root_id: string }>(`/rest/v1/order_merge_members?select=order_id,root_id,orders!order_merge_members_order_id_fkey!inner(store_id)&orders.store_id=eq.${storeId}&order=order_id`, token, abort.signal),
+    ]).then(([people, purchases, members]) => {
       if (abort.signal.aborted) return
       setCustomers(people)
       setOrders(purchases)
+      setMergeMembers(members)
       setError('')
     }).catch(cause => { if (!abort.signal.aborted) setError(cause.message) })
       .finally(() => { if (!abort.signal.aborted) setLoading(false) })
