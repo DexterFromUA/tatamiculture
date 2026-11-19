@@ -103,7 +103,7 @@ export function BannerSettings() {
           </span>
           <span className="product-photo-upload__action" aria-hidden="true">{t('Choose files')}</span>
         </label>
-        <p id={imageHintId} className="banner-settings__image-hint muted">{t('If no banner images are added, photos of new products will be shown.')}</p>
+        <p id={imageHintId} className="banner-settings__image-hint muted">{t('Without banner images, the banner shows new arrivals and products on sale.')}</p>
         {(keptImages.length > 0 || files.length > 0) && <ol className="banner-settings__slides">
           {keptImages.map(image => <li key={image.url}>
             <img src={image.url} alt="" />

@@ -237,7 +237,8 @@ textarea {
   padding: 5px 10px;
   font-weight: 700;
 }
-.badge.badge--new { margin-left: 0; color: #fff; background: #bd2731; border-color: #bd2731; }
+.badge.badge--new { margin-left: 0; }
+.badge:is(.badge--new, .badge--sale) { color: #fff; background: #bd2731; border-color: #bd2731; }
 
 @media (prefers-reduced-motion: reduce) { .product-card__image img { transition: none; } }
 
@@ -294,7 +295,8 @@ textarea {
 .collection-tools label { min-width: 0; }
 .collection-tools :is(input, select) { min-height: 42px; max-width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 0; background-color: var(--card); color: var(--ink); font: inherit; font-size: .8rem; }
 .collection-tools select { padding-right: 42px; }
-.collection-filters { display: flex; gap: 8px; overflow-x: auto; padding: 0 0 20px; margin-bottom: 8px; }
+.collection-filters { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 0 0 20px; margin-bottom: 8px; }
+.collection-filters::-webkit-scrollbar { display: none; }
 .collection-filters button { white-space: nowrap; padding: 9px 16px; border: 1px solid #cccccc; border-radius: 100px; background: transparent; color: inherit; font-size: .8rem; cursor: pointer; }
 .collection-filters button.active { background: #303030; border-color: #303030; color: white; }
 .collection-filters:has(+ .collection-filters--subcategories) { padding-bottom: 6px; }
@@ -307,8 +309,7 @@ textarea {
 .storefront .product-card__meta p:last-child { font-size: .9rem; white-space: nowrap; }
 @media (prefers-color-scheme: dark) { .storefront { --shop-ink: #f1f1f1; --shop-muted: #b3b3b3; } .storefront-hero { color: #1c1c1c; } .collection-filters button { border-color: #666666; } .collection-filters button.active { background: #dddddd; border-color: #dddddd; color: #202020; } }
 @media (max-width: 700px) {
-  .collection-filters { margin-inline: -16px; padding-inline: 16px; scrollbar-width: none; }
-  .collection-filters::-webkit-scrollbar { display: none; }
+  .collection-filters { margin-inline: -16px; padding-inline: 16px; }
   .storefront-hero { grid-template-columns: minmax(0, 1fr); height: auto; margin-bottom: 32px; }
   .storefront-hero:has(.storefront-hero__image) { grid-template-rows: 1fr 1fr; }
   .storefront-hero__image { min-height: clamp(150px, 48vw, 270px); }

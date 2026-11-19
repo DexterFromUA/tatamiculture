@@ -48,8 +48,10 @@ export function CatalogPage() {
   const showBanner = !loadingBanner && banner?.enabled !== false
   const configuredImages = bannerImages(banner)
   const images = configuredImages.length ? configuredImages : products
-    .filter(product => product.isActive && product.isNew && product.imgUrls[0])
-    .sort((a, b) => (Date.parse(b.createdAt || '') || 0) - (Date.parse(a.createdAt || '') || 0) || a.id.localeCompare(b.id))
+    .filter(product => product.isActive && product.imgUrls[0] && (product.isNew || product.productOptions.some(option => option.isDiscount)))
+    .sort((a, b) => Number(b.isNew) - Number(a.isNew)
+      || (Date.parse(b.createdAt || '') || 0) - (Date.parse(a.createdAt || '') || 0)
+      || a.id.localeCompare(b.id))
     .map(product => ({ url: product.imgUrls[0], path: '', productId: product.id, productName: productName(product, language) }))
   const firstImage = showBanner ? (images[0]?.url ?? siteIcon) : undefined
   const waitingForImage = Boolean(firstImage && imageResult?.url !== firstImage)

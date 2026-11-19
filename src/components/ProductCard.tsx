@@ -11,12 +11,18 @@ export function ProductCard({ product, store, scrollToTop = false }: { product: 
   const min = Math.min(...prices)
   const max = Math.max(...prices)
   const priceLabel = min === max ? formatPrice(min, store.currency) : t('From {{price}}', { price: formatPrice(min, store.currency) })
-  const onSale = product.productOptions.some((option) => option.isDiscount)
+  const discountedOptions = product.productOptions.filter(option => option.isDiscount)
+  const maxDiscount = Math.max(0, ...discountedOptions.map(option => option.discountPercent))
+  const onSale = discountedOptions.length > 0
+  const varyingDiscounts = product.productOptions.some(option => !option.isDiscount || option.discountPercent !== maxDiscount)
+  const discountLabel = maxDiscount > 0
+    ? t(varyingDiscounts ? 'Up to −{{percent}}%' : 'Sale −{{percent}}%', { percent: maxDiscount.toLocaleString(i18n.resolvedLanguage) })
+    : t('Sale')
   const image = product.imgUrls[0]
   const badges = (product.isNew || onSale) && (
     <div className="product-card__badges">
       {product.isNew && <span className="badge badge--new">{t('New arrival')}</span>}
-      {onSale && <span className="badge">{t('Sale')}</span>}
+      {onSale && <span className="badge badge--sale">{discountLabel}</span>}
     </div>
   )
 

@@ -129,7 +129,7 @@ function ProductDetails() {
           {option.isDiscount ? (
             <>
               <s>{formatPrice(option.price, store.currency)}</s> {formatPrice(price, store.currency)}
-              <span className="badge">−{option.discountPercent}%</span>
+              <span className="badge badge--sale">−{option.discountPercent.toLocaleString(i18n.resolvedLanguage)}%</span>
             </>
           ) : (
             formatPrice(price, store.currency)
