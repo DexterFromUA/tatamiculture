@@ -3,14 +3,18 @@ import { useLocation } from 'react-router-dom'
 import { useCustomerDiscount } from '../hooks/useCustomerDiscount'
 import { api } from '../lib/api'
 import { readJson, removeKey, writeJson } from '../lib/storage'
-import type { CartItem, Order } from '../types'
+import type { CartItem, Order, Product } from '../types'
 import { useStore } from './StoreContext'
 
 type CartContextValue = {
   customerDiscount: ReturnType<typeof useCustomerDiscount>
   items: CartItem[]
+  products: Product[]
+  loadingProducts: boolean
+  productsError: boolean
+  quantityFor: (productId: string, optionId: string) => number
   count: number
-  addItem: (productId: string, optionId: string, quantity?: number) => void
+  addItem: (product: Product, optionId: string, quantity?: number) => void
   setQuantity: (productId: string, optionId: string, quantity: number) => void
   removeItem: (productId: string, optionId: string) => void
   clear: () => void
@@ -21,6 +25,7 @@ type CartContextValue = {
 type CheckoutMarker = true | number | { settledAt: number }
 
 const CartContext = createContext<CartContextValue | null>(null)
+const emptyProducts: Product[] = []
 
 function cartKey(storeId: string) {
   return `shop.store.cart.${storeId}`
@@ -50,27 +55,44 @@ function pendingCheckouts(storeId: string) {
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const { store, products } = useStore()
+  const { store, catalogRevision, refreshProducts } = useStore()
   const customerDiscount = useCustomerDiscount()
   const { pathname } = useLocation()
   const storeId = store?.id
   const [storedItems, setItems] = useState<CartItem[]>([])
   const [ready, setReady] = useState(false)
+  const productIds = [...new Set(storedItems.map(item => item.productId))].sort().join(',')
+  const productQuery = `${storeId}:${catalogRevision}:${productIds}`
+  const [productResult, setProductResult] = useState<{ storeId: string; query: string; products: Product[]; error?: boolean }>()
+  const products = storeId && productResult?.storeId === storeId ? productResult.products : emptyProducts
+  const loadingProducts = !ready || Boolean(productIds && productResult?.query !== productQuery)
+  const productsError = Boolean(productIds && productResult?.query === productQuery && productResult.error)
 
   useEffect(() => {
-    if (!store) {
+    if (!storeId) {
       setItems([])
       setReady(false)
       return
     }
-    setItems(readJson<CartItem[]>(cartKey(store.id), []))
+    setItems(readJson<CartItem[]>(cartKey(storeId), []))
     setReady(true)
-  }, [store])
+  }, [storeId])
 
   useEffect(() => {
-    if (!store || !ready) return
-    writeJson(cartKey(store.id), storedItems)
-  }, [storedItems, store, ready])
+    if (!storeId || !ready) return
+    writeJson(cartKey(storeId), storedItems)
+  }, [storedItems, storeId, ready])
+
+  useEffect(() => {
+    if (!storeId || !ready || !productIds) return
+    const abort = new AbortController()
+    void api.getProductsByIds(storeId, productIds.split(','), abort.signal).then(products => {
+      if (!abort.signal.aborted) setProductResult({ storeId, query: productQuery, products })
+    }).catch(() => {
+      if (!abort.signal.aborted) setProductResult({ storeId, query: productQuery, products: [], error: true })
+    })
+    return () => abort.abort()
+  }, [storeId, ready, productIds, productQuery])
 
   useEffect(() => {
     if (!storeId || !ready) return
@@ -81,7 +103,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('storage', syncCart)
   }, [storeId, ready])
 
-  const addItem = (productId: string, optionId: string, quantity = 1) => {
+  const addItem = (product: Product, optionId: string, quantity = 1) => {
+    const productId = product.id
+    setProductResult(current => {
+      const cached = current?.storeId === product.storeId ? current : undefined
+      return {
+        storeId: product.storeId, query: cached?.query ?? '',
+        products: [...(cached?.products ?? []).filter(item => item.id !== productId), product],
+      }
+    })
     setItems((current) => {
       const existing = current.find((item) => item.productId === productId && item.optionId === optionId)
       if (!existing) return [...current, { productId, optionId, quantity }]
@@ -144,7 +174,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     writeJson(cartKey(storeId), next)
     writeJson(key, { settledAt: Date.now() })
     setItems(next)
-  }, [ready, storeId])
+    refreshProducts()
+  }, [ready, storeId, refreshProducts])
 
   useEffect(() => {
     if (!storeId || !ready || pathname.startsWith('/receipt/')) return
@@ -194,7 +225,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [storeId, ready, pathname, completeOnlineCheckout])
 
-  const value = useMemo(
+  const value = useMemo<CartContextValue>(
     () => {
       const items = storedItems.filter(item => {
         const product = products.find(product => product.id === item.productId)
@@ -202,6 +233,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
       })
       return {
         items,
+        products,
+        loadingProducts,
+        productsError,
+        quantityFor: (productId, optionId) => storedItems.find(item => item.productId === productId && item.optionId === optionId)?.quantity ?? 0,
         customerDiscount,
         count: items.reduce((sum, item) => sum + item.quantity, 0),
         addItem,
@@ -212,7 +247,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         completeOnlineCheckout,
       }
     },
-    [storedItems, products, rememberOnlineCheckout, completeOnlineCheckout, customerDiscount],
+    [storedItems, products, loadingProducts, productsError, rememberOnlineCheckout, completeOnlineCheckout, customerDiscount],
   )
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>

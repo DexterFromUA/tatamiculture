@@ -8,32 +8,27 @@ import type { CatalogNavigation } from '../components/StoreLayout'
 import { supabaseConfigured, supabaseRequest } from '../lib/supabase'
 import { bannerImages, type Banner } from '../lib/banner'
 import { BannerCarousel } from '../components/BannerCarousel'
-import { categoriesForProduct, categoryGroups, categoryLabel } from '../lib/categories'
-import { optionPrice } from '../lib/format'
+import { categoryGroups, categoryLabel } from '../lib/categories'
 import { productName } from '../lib/productText'
-import type { Product } from '../types'
+import { discountedCategory, newArrivalsCategory } from '../lib/storefrontCatalog'
 
 const bannerTimeout = 5000
 const siteIcon = '/tatami-mark-transparent.png'
-const newArrivalsCategory = '__new_arrivals__'
-const discountedCategory = '__discounted__'
-
-function productUpdateTime(product: Product) {
-  const updatedAt = Date.parse(product.updatedAt ?? '')
-  return Number.isNaN(updatedAt) ? Date.parse(product.createdAt ?? '') || 0 : updatedAt
-}
 
 export function CatalogPage() {
-  const { store, products } = useStore()
+  const { store } = useStore()
   const storeId = store?.id
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage === 'en' ? 'en' : 'uk'
-  const { filters, setFilters, rememberProduct, restoreScroll } = useOutletContext<CatalogNavigation>()
+  const { filters, setFilters, rememberProduct, restoreScroll, catalog } = useOutletContext<CatalogNavigation>()
   const { category, subcategory, search, size, sort } = filters
   const [banner, setBanner] = useState<Banner | null | undefined>(undefined)
   const [imageResult, setImageResult] = useState<{ url: string; loaded: boolean }>()
   const heroImage = useRef<HTMLImageElement>(null)
   const productGrid = useRef<HTMLDivElement>(null)
+  const nextPage = useRef<HTMLDivElement>(null)
+  const hasMore = Boolean(catalog.page?.next_cursor)
+  const catalogReady = Boolean(catalog.page)
   useEffect(() => {
     if (!storeId || !supabaseConfigured) return
     const abort = new AbortController()
@@ -53,20 +48,28 @@ export function CatalogPage() {
   const loadingBanner = supabaseConfigured && banner === undefined
   const showBanner = !loadingBanner && banner?.enabled !== false
   const configuredImages = bannerImages(banner)
-  const images = configuredImages.length ? configuredImages : products
-    .filter(product => product.isActive && product.imgUrls[0] && (product.isNew || product.productOptions.some(option => option.isDiscount)))
-    .sort((a, b) => Number(b.isNew) - Number(a.isNew)
-      || (Date.parse(b.createdAt || '') || 0) - (Date.parse(a.createdAt || '') || 0)
-      || a.id.localeCompare(b.id))
-    .map(product => ({ url: product.imgUrls[0], path: '', productId: product.id, productName: productName(product, language) }))
-  const firstImage = showBanner ? (images[0]?.url ?? siteIcon) : undefined
+  const images = configuredImages.length ? configuredImages : (catalog.metadata?.bannerProducts ?? [])
+    .map(product => ({ url: product.url, path: '', productId: product.id, productName: productName(product, language) }))
+  const waitingForFallback = showBanner && !configuredImages.length && catalog.loadingMetadata
+  const firstImage = showBanner && !waitingForFallback ? (images[0]?.url ?? siteIcon) : undefined
   const waitingForImage = Boolean(firstImage && imageResult?.url !== firstImage)
   const imageUnavailable = imageResult?.url === firstImage && imageResult?.loaded === false
-  const loading = loadingBanner || waitingForImage
+  const loading = loadingBanner || waitingForFallback || waitingForImage
 
   useLayoutEffect(() => {
-    if (!loading && productGrid.current) restoreScroll(productGrid.current)
-  }, [loading, restoreScroll])
+    if (!loading && catalogReady && productGrid.current) restoreScroll(productGrid.current)
+  }, [loading, catalogReady, restoreScroll])
+
+  const { loadMore } = catalog
+  useEffect(() => {
+    const sentinel = nextPage.current
+    if (loading || !hasMore || catalog.loadingMore || catalog.error === 'more' || !sentinel || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) loadMore()
+    }, { rootMargin: '0px 0px 420px 0px' })
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [loading, hasMore, catalog.loadingMore, catalog.error, loadMore])
 
   useEffect(() => {
     // Decode the image already mounted in the hidden hero so reveal reuses it.
@@ -91,35 +94,16 @@ export function CatalogPage() {
   const kicker = banner?.[`kicker_${language}`]?.trim()
   const customTitle = banner?.[`title_${language}`]?.trim()
   const description = banner?.[`description_${language}`]?.trim()
-  const categories = [...new Map(products.flatMap(product =>
-    categoriesForProduct(product).map(item => [item.id, item] as const))).values()]
-  const groups = categoryGroups(categories, language)
-  const hasNewArrivals = products.some(product => product.isActive && product.isNew)
+  const groups = categoryGroups(catalog.metadata?.categories ?? [], language)
+  const hasNewArrivals = catalog.metadata?.hasNewArrivals ?? false
   const showingNewArrivals = category === newArrivalsCategory && hasNewArrivals
-  const hasDiscountedProducts = products.some(product => product.isActive && product.productOptions.some(option => option.isDiscount))
+  const hasDiscountedProducts = catalog.metadata?.hasDiscountedProducts ?? false
   const showingDiscountedProducts = category === discountedCategory && hasDiscountedProducts
   const activeGroup = groups.find(({ parent }) => parent.id === category)
   const activeSubcategory = activeGroup?.children.find(child => child.id === subcategory)
-  const filterId = activeSubcategory?.id ?? activeGroup?.parent.id
-  const sizes = [...new Set(products.flatMap(product => product.productOptions.map(option => option.name.trim()).filter(Boolean)))]
-    .sort((a, b) => a.localeCompare(b, language, { numeric: true }))
-  const query = search.trim().toLocaleLowerCase(language)
-  const visibleProducts = products.filter(product =>
-    (!showingNewArrivals || (product.isActive && product.isNew))
-    && (!showingDiscountedProducts || product.isActive)
-    && (!filterId || categoriesForProduct(product).some(item => item.id === filterId))
-    && (!query || [product.name, product.name_uk, product.name_en].some(name => name?.toLocaleLowerCase(language).includes(query)))
-    && ((!size && !showingDiscountedProducts) || product.productOptions.some(option =>
-      (!size || option.name.trim() === size) && (!showingDiscountedProducts || option.isDiscount))),
-  ).sort((a, b) => {
-    if (sort === 'price-low' || sort === 'price-high') {
-      const price = (options: typeof a.productOptions) => options.length ? Math.min(...options.map(optionPrice)) : Infinity
-      const difference = price(a.productOptions) - price(b.productOptions)
-      if (Number.isFinite(difference) && difference !== 0) return sort === 'price-low' ? difference : -difference
-      if (price(a.productOptions) !== price(b.productOptions)) return price(a.productOptions) === Infinity ? 1 : -1
-    }
-    return productUpdateTime(b) - productUpdateTime(a) || a.id.localeCompare(b.id)
-  })
+  const sizes = [...(catalog.metadata?.sizes ?? [])].sort((a, b) => a.localeCompare(b, language, { numeric: true }))
+  const visibleProducts = catalog.page?.rows ?? []
+  const total = catalog.page?.total
   const activeCategory = activeSubcategory ?? activeGroup?.parent
   const showingAllProducts = !activeGroup && !showingNewArrivals && !showingDiscountedProducts
   const collectionName = activeCategory ? categoryLabel(activeCategory, language)
@@ -153,8 +137,8 @@ export function CatalogPage() {
               <div>
                 <span className="storefront-kicker">{t('The collection')}</span>
                 {showBanner
-                  ? <h2>{collectionName} <sup>{visibleProducts.length}</sup></h2>
-                  : <h1>{collectionName} <sup>{visibleProducts.length}</sup></h1>}
+                  ? <h2>{collectionName} {total !== undefined && <sup>{total}</sup>}</h2>
+                  : <h1>{collectionName} {total !== undefined && <sup>{total}</sup>}</h1>}
               </div>
               <div className="collection-tools">
                 <label><input type="search" aria-label={t('Search products')} placeholder={t('Search products')} value={search} onChange={event => setFilters({ ...filters, search: event.target.value })} /></label>
@@ -178,14 +162,24 @@ export function CatalogPage() {
                 ))}
               </div>
             )}
-            <div ref={productGrid} className="grid storefront-grid" onClickCapture={event => {
+            {catalog.error && catalog.error !== 'more' && <p className="error" role="alert">
+              {t('Could not load the catalogue.')} <button type="button" className="text-btn" onClick={catalog.retry}>{t('Try again')}</button>
+            </p>}
+            <div ref={productGrid} className="grid storefront-grid" aria-busy={catalog.loading} onClickCapture={event => {
               if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
               const card = event.target instanceof Element ? event.target.closest('a.product-card') : null
               if (card instanceof HTMLAnchorElement) rememberProduct(card)
             }}>
               {visibleProducts.map(product => <ProductCard key={product.id} product={product} store={store} />)}
             </div>
-            {visibleProducts.length === 0 && <p className="muted">{t('No products match these filters.')}</p>}
+            {catalog.loading && <p className="muted" role="status">{t('Loading…')}</p>}
+            {catalogReady && visibleProducts.length === 0 && <p className="muted">{t('No products match these filters.')}</p>}
+            {hasMore && <div ref={nextPage} className="catalog-load-more">
+              {catalog.error === 'more' && <p className="error" role="alert">{t('Could not load more products.')}</p>}
+              <button type="button" className="btn btn--ghost" disabled={catalog.loadingMore} onClick={loadMore}>
+                {t(catalog.loadingMore ? 'Loading…' : catalog.error === 'more' ? 'Try again' : 'Load more products')}
+              </button>
+            </div>}
           </>
         )}
       </section>

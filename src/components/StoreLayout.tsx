@@ -8,24 +8,19 @@ import { hasStoreMembership } from '../lib/crm'
 import { supabaseConfigured } from '../lib/supabase'
 import { contactsChanged, getStorefrontContacts, type StorefrontContacts } from '../lib/storefrontContacts'
 import { LoadingIndicator } from './LoadingIndicator'
-
-type CatalogFilters = {
-  category: string
-  subcategory: string
-  search: string
-  size: string
-  sort: string
-}
+import { useStorefrontCatalog } from '../hooks/useStorefrontCatalog'
+import type { CatalogFilters } from '../lib/storefrontCatalog'
 
 export type CatalogNavigation = {
   filters: CatalogFilters
   setFilters: Dispatch<SetStateAction<CatalogFilters>>
   rememberProduct: (card: HTMLAnchorElement) => void
   restoreScroll: (grid: HTMLDivElement) => void
+  catalog: ReturnType<typeof useStorefrontCatalog>
 }
 
 export function StoreLayout() {
-  const { store, loading, notFound, loadFailed } = useStore()
+  const { store, catalogRevision, loading, notFound, loadFailed } = useStore()
   const { count } = useCart()
   const { isAuthenticated, token, user } = useAuth()
   const { t, i18n } = useTranslation()
@@ -39,6 +34,7 @@ export function StoreLayout() {
   })
   const [scrollState, setScrollState] = useState({ headerVisible: true, showTopButton: false })
   const storeId = store?.id
+  const catalog = useStorefrontCatalog(storeId, filters, catalogRevision, isHome)
   const userId = user?.id
   const [crmAccess, setCrmAccess] = useState<{ storeId: string; userId: string; token: string } | null>(null)
   const [contacts, setContacts] = useState<StorefrontContacts | null>(null)
@@ -177,7 +173,7 @@ export function StoreLayout() {
         </nav>
       </header>
       <main className="main">
-        <Outlet context={{ filters, setFilters, rememberProduct, restoreScroll } satisfies CatalogNavigation} />
+        <Outlet context={{ filters, setFilters, rememberProduct, restoreScroll, catalog } satisfies CatalogNavigation} />
       </main>
       {isHome && scrollState.showTopButton && <button type="button" className="back-to-top" aria-label={t('Back to top')} title={t('Back to top')} onClick={() => window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })}>↑</button>}
       <footer className="footer">

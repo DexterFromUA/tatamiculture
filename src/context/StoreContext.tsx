@@ -1,14 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api } from '../lib/api'
-import type { Product, Store } from '../types'
+import type { Store } from '../types'
 
 type StoreContextValue = {
   store: Store | null
-  products: Product[]
+  catalogRevision: number
   loading: boolean
   notFound: boolean
   loadFailed: boolean
-  refreshProducts: () => Promise<void>
+  refreshProducts: () => void
   setSmsNotificationsEnabled: (enabled: boolean, token: string) => Promise<void>
 }
 
@@ -16,7 +16,7 @@ const StoreContext = createContext<StoreContextValue | null>(null)
 
 export function StoreProvider({ slug, children }: { slug: string | undefined; children: ReactNode }) {
   const [store, setStore] = useState<Store | null>(null)
-  const [products, setProducts] = useState<Product[]>([])
+  const [catalogRevision, setCatalogRevision] = useState(0)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -40,24 +40,18 @@ export function StoreProvider({ slug, children }: { slug: string | undefined; ch
 
       if (!nextStore) {
         setStore(null)
-        setProducts([])
         setNotFound(true)
         setLoading(false)
         return
       }
 
-      const nextProducts = await api.getProducts(nextStore.id)
-      if (cancelled) return
-
       setStore(nextStore)
-      setProducts(nextProducts)
       setLoading(false)
     }
 
     void load().catch(() => {
       if (cancelled) return
       setStore(null)
-      setProducts([])
       setLoadFailed(true)
       setLoading(false)
     })
@@ -67,9 +61,7 @@ export function StoreProvider({ slug, children }: { slug: string | undefined; ch
   }, [slug])
 
   const storeId = store?.id
-  const refreshProducts = useCallback(async () => {
-    if (storeId) setProducts(await api.getProducts(storeId))
-  }, [storeId])
+  const refreshProducts = useCallback(() => setCatalogRevision(revision => revision + 1), [])
 
   const setSmsNotificationsEnabled = useCallback(async (enabled: boolean, token: string) => {
     if (!storeId) return
@@ -78,8 +70,8 @@ export function StoreProvider({ slug, children }: { slug: string | undefined; ch
   }, [storeId])
 
   const value = useMemo(
-    () => ({ store, products, loading, notFound, loadFailed, refreshProducts, setSmsNotificationsEnabled }),
-    [store, products, loading, notFound, loadFailed, refreshProducts, setSmsNotificationsEnabled],
+    () => ({ store, catalogRevision, loading, notFound, loadFailed, refreshProducts, setSmsNotificationsEnabled }),
+    [store, catalogRevision, loading, notFound, loadFailed, refreshProducts, setSmsNotificationsEnabled],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

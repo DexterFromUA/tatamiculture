@@ -58,7 +58,7 @@ export function AccountPage() {
       const result = await manageReservedOrder(order.id, type, token)
       if (result.pageUrl) window.location.assign(result.pageUrl)
       if (result.cancelled) {
-        void refreshProducts().catch(() => {})
+        refreshProducts()
         setOrders(current => current.map(entry => entry.id === order.id
           ? { ...entry, status: 'CANCELLED_BY_USER', paymentStatus: 'FAILED' }
           : entry))

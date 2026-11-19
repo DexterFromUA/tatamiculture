@@ -10,10 +10,11 @@ import { formatPrice, optionPrice } from '../lib/format'
 import { productCategoryLabel } from '../lib/categories'
 import { productName } from '../lib/productText'
 import { useTranslation } from 'react-i18next'
+import { LoadingIndicator } from '../components/LoadingIndicator'
 
 export function CartPage() {
-  const { store, products } = useStore()
-  const { items, setQuantity, removeItem, customerDiscount } = useCart()
+  const { store, refreshProducts } = useStore()
+  const { items, products, loadingProducts, productsError, setQuantity, removeItem, customerDiscount } = useCart()
   const { addToast } = useToast()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -69,6 +70,11 @@ export function CartPage() {
   }, [paymentCode, storeId, addToast, navigate, t])
 
   if (!store) return null
+  if (loadingProducts && !items.length) return <LoadingIndicator label={t('Loading…')} />
+  if (productsError) return <section className="page-status">
+    <p role="alert">{t('Could not load the products in your cart.')}</p>
+    <button type="button" className="btn" onClick={refreshProducts}>{t('Try again')}</button>
+  </section>
 
   const rows = items
     .map((item) => {
@@ -146,7 +152,7 @@ export function CartPage() {
         {customerDiscount.loading && <p role="status">{t('Checking your discount…')}</p>}
         {customerDiscount.error && <p className="error" role="alert">{t(customerDiscount.error)} <button type="button" className="text-btn" onClick={customerDiscount.retry}>{t('Try again')}</button></p>}
         <div className="summary"><span>{t('Total')}</span><strong>{formatPrice(total, store.currency)}</strong></div>
-        {paymentCode || unavailableItems ? <button type="button" className="btn" disabled>{t('Checkout')}</button> : <Link to="/checkout" className="btn">
+        {paymentCode || loadingProducts || unavailableItems ? <button type="button" className="btn" disabled>{t('Checkout')}</button> : <Link to="/checkout" className="btn">
           {t('Checkout')} <span aria-hidden="true">↗</span>
         </Link>}
       </aside></div>

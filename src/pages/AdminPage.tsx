@@ -577,7 +577,7 @@ export function AdminPage() {
         onImported={() => {
           setOrdersRevision(value => value + 1)
           setCustomerRevision(value => value + 1)
-          void refreshProducts().catch(() => {})
+          refreshProducts()
         }} />}
       {selectedCustomer && token && <CustomerPanel key={`${selectedCustomer.kind}:${selectedCustomer.id}`}
         target={selectedCustomer} storeId={store.id} token={token}

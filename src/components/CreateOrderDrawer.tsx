@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useStore } from '../context/StoreContext'
+import { api } from '../lib/api'
 import { createCrmOrder } from '../lib/crmOrder'
 import { purchaseQuantityLimit } from '../lib/catalogAvailability'
 import { formatPrice, optionPrice } from '../lib/format'
@@ -10,7 +11,7 @@ import { productName } from '../lib/productText'
 import { SupabaseError } from '../lib/supabase'
 import type { DispatchLocation } from '../lib/ttn'
 import { useDrawer } from '../lib/useDrawer'
-import type { Store } from '../types'
+import type { Product, Store } from '../types'
 import { TtnDispatchFields } from './TtnDispatchFields'
 
 const emptyLocation: DispatchLocation = { cityRef: '', cityName: '', warehouseRef: '', warehouseName: '' }
@@ -22,7 +23,8 @@ export function CreateOrderDrawer({ store, token, onClose, onCreated }: {
   onCreated: (id: string) => void
 }) {
   const { t, i18n } = useTranslation()
-  const { products, refreshProducts } = useStore()
+  const { catalogRevision, refreshProducts } = useStore()
+  const [products, setProducts] = useState<Product[]>([])
   const titleId = useId()
   const { ref, close, onCancel, onClick } = useDrawer({ openOnMount: true, onClose })
   const [requestId] = useState(() => crypto.randomUUID())
@@ -38,7 +40,15 @@ export function CreateOrderDrawer({ store, token, onClose, onCreated }: {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => { void refreshProducts().catch(() => {}) }, [refreshProducts])
+  useEffect(() => {
+    const abort = new AbortController()
+    void api.getProducts(store.id, token, abort.signal).then(rows => {
+      if (!abort.signal.aborted) setProducts(rows)
+    }).catch(() => {
+      if (!abort.signal.aborted) setError('Could not load catalogue')
+    })
+    return () => abort.abort()
+  }, [catalogRevision, store.id, token])
 
   const publishedProducts = products.filter(product => product.isActive)
   const language = i18n.resolvedLanguage
@@ -94,10 +104,11 @@ export function CreateOrderDrawer({ store, token, onClose, onCreated }: {
         requestId, customer: { ...customer, phone }, delivery, note, total,
         items: items.map(item => ({ variantId: item.variantId, quantity: Number(item.quantity) })),
       })
+      refreshProducts()
       close(() => onCreated(order.id))
     } catch (cause) {
       setError(cause instanceof Error && cause.name !== 'TimeoutError' ? cause.message : 'Could not save this order. Try again.')
-      if (cause instanceof SupabaseError && cause.code === 'PT409') void refreshProducts().catch(() => {})
+      if (cause instanceof SupabaseError && cause.code === 'PT409') refreshProducts()
       setSaving(false)
     }
   }

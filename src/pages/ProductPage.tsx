@@ -1,6 +1,6 @@
 import { RestockSubscription } from '../components/RestockSubscription'
 import { ProductCard } from '../components/ProductCard'
-import { useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useCart } from '../context/CartContext'
 import { useStore } from '../context/StoreContext'
@@ -9,6 +9,9 @@ import { formatPrice, optionPrice } from '../lib/format'
 import { purchaseQuantityLimit } from '../lib/catalogAvailability'
 import { categoriesForProduct, categoryPaths, productCategoryLabel } from '../lib/categories'
 import { productDescription, productInformation, productName } from '../lib/productText'
+import { api } from '../lib/api'
+import { LoadingIndicator } from '../components/LoadingIndicator'
+import type { Product } from '../types'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
@@ -20,15 +23,33 @@ export function ProductPage() {
 
 function ProductDetails() {
   const { productId } = useParams()
-  const { store, products } = useStore()
-  const { addItem, items } = useCart()
+  const { store, catalogRevision, refreshProducts } = useStore()
+  const storeId = store?.id
+  const { addItem, quantityFor } = useCart()
   const { addToast } = useToast()
-  const product = products.find((item) => item.id === productId)
-  const [optionId, setOptionId] = useState(product?.productOptions[0]?.id ?? '')
+  const [result, setResult] = useState<{ product: Product | null; error?: boolean }>()
+  const [related, setRelated] = useState<Product[]>([])
+  const product = result?.product
+  const [optionId, setOptionId] = useState('')
   const [imageIndex, setImageIndex] = useState(0)
   const sizeGuideDialog = useRef<HTMLDialogElement>(null)
   const sizeGuideTitleId = useId()
   const { t, i18n } = useTranslation()
+
+  useEffect(() => {
+    if (!storeId || !productId) return
+    const abort = new AbortController()
+    void api.getProduct(storeId, productId, abort.signal).then(loadedProduct => {
+      if (abort.signal.aborted) return
+      setResult({ product: loadedProduct })
+      if (loadedProduct) return api.getRelatedProducts(storeId, productId, abort.signal).then(products => {
+        if (!abort.signal.aborted) setRelated(products)
+      }).catch(() => {})
+    }).catch(() => {
+      if (!abort.signal.aborted) setResult({ product: null, error: true })
+    })
+    return () => abort.abort()
+  }, [storeId, productId, catalogRevision])
 
   const option = useMemo(
     () => product?.productOptions.find((item) => item.id === optionId) ?? product?.productOptions[0],
@@ -36,6 +57,11 @@ function ProductDetails() {
   )
 
   if (!store) return null
+  if (productId && !result) return <LoadingIndicator label={t('Loading…')} />
+  if (result?.error) return <section className="page-status">
+    <p role="alert">{t('Could not load this product.')}</p>
+    <button type="button" className="btn" onClick={refreshProducts}>{t('Try again')}</button>
+  </section>
 
   if (!product || !option) {
     return (
@@ -47,7 +73,7 @@ function ProductDetails() {
   }
 
   const price = optionPrice(option)
-  const inCart = items.find(item => item.productId === product.id && item.optionId === option.id)?.quantity ?? 0
+  const inCart = quantityFor(product.id, option.id)
   const purchaseLimit = purchaseQuantityLimit(option)
   const canAdd = inCart < purchaseLimit
   const name = productName(product, i18n.resolvedLanguage)
@@ -55,15 +81,6 @@ function ProductDetails() {
   const information = productInformation(product, i18n.resolvedLanguage)
   const categories = categoriesForProduct(product)
   const categoryIds = categories.map(category => category.id)
-  const selectedCategories = new Set(categoryIds)
-  const related = products.flatMap(item => {
-    if (item.id === product.id || !item.isActive || item.productOptions.length === 0) return []
-    const matches = categoriesForProduct(item).filter(category => selectedCategories.has(category.id))
-    if (matches.length === 0) return []
-    return [{ item, subcategories: matches.filter(category => category.parent_id).length, categories: matches.length }]
-  }).sort((a, b) => b.subcategories - a.subcategories || b.categories - a.categories
-    || (Date.parse(b.item.createdAt || '') || 0) - (Date.parse(a.item.createdAt || '') || 0))
-    .slice(0, 4)
   const images = product.imgUrls
   const activeImage = images[imageIndex] ?? images[0]
   const changeImage = (direction: -1 | 1) => {
@@ -72,7 +89,7 @@ function ProductDetails() {
 
   const addToCart = () => {
     if (!canAdd) return
-    addItem(product.id, option.id, 1)
+    addItem(product, option.id, 1)
     addToast(t('Added to cart'))
   }
 
@@ -177,7 +194,7 @@ function ProductDetails() {
     </article>
     {related.length > 0 && <section className="related-products">
       <h2>{t('Related products')}</h2>
-      <div className="related-products__grid">{related.map(({ item }) => <ProductCard key={item.id} product={item} store={store} scrollToTop />)}</div>
+      <div className="related-products__grid">{related.map(item => <ProductCard key={item.id} product={item} store={store} scrollToTop />)}</div>
     </section>}
     </>
   )

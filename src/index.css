@@ -302,6 +302,7 @@ textarea {
 .collection-filters:has(+ .collection-filters--subcategories) { padding-bottom: 6px; }
 .collection-filters--subcategories button { padding: 7px 12px; }
 .storefront-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 36px 16px; }
+.catalog-load-more { display: grid; justify-items: center; gap: 8px; margin-top: 24px; }
 .storefront .product-card__image { border: 0; background: #ebebeb; }
 .storefront .product-card__meta { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 4px 0; }
 .storefront .product-card__meta .muted { grid-column: 1 / -1; color: var(--shop-muted); }

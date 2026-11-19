@@ -24,8 +24,8 @@ export function CheckoutPage() {
 }
 
 function CheckoutForm() {
-  const { store, products, refreshProducts } = useStore()
-  const { items, clear, rememberOnlineCheckout, customerDiscount } = useCart()
+  const { store, refreshProducts } = useStore()
+  const { items, products, loadingProducts, productsError, clear, rememberOnlineCheckout, customerDiscount } = useCart()
   const { user, token } = useAuth()
   const { addToast } = useToast()
   const navigate = useNavigate()
@@ -125,6 +125,11 @@ function CheckoutForm() {
   }, [cityRef])
 
   if (!store) return null
+  if (loadingProducts && !items.length) return <LoadingIndicator label={t('Loading…')} />
+  if (productsError) return <section className="page-status">
+    <p role="alert">{t('Could not load the products in your cart.')}</p>
+    <button type="button" className="btn" onClick={refreshProducts}>{t('Try again')}</button>
+  </section>
 
   const subtotal = items.reduce((sum, item) => {
     const product = products.find((entry) => entry.id === item.productId)
@@ -159,7 +164,7 @@ function CheckoutForm() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault()
-    if ((!provider && total > 0) || submitting || unavailableItems || customerDiscount.loading || customerDiscount.error) return
+    if ((!provider && total > 0) || submitting || loadingProducts || unavailableItems || customerDiscount.loading || customerDiscount.error) return
     setError(null)
     setSubmitting(true)
     try {
@@ -180,7 +185,7 @@ function CheckoutForm() {
           }
         } catch (err) {
           const message = err instanceof Error ? err.message : 'Could not open payment'
-          if (message === unavailableQuantity || message === 'Cart prices changed. Review your cart and try again.') void refreshProducts().catch(() => {})
+          if (message === unavailableQuantity || message === 'Cart prices changed. Review your cart and try again.') refreshProducts()
           addToast(t(message))
           navigate('/cart', { replace: true })
         }
@@ -188,12 +193,13 @@ function CheckoutForm() {
       }
       const order = await api.createOrder({ store, items, checkout, token })
       clear()
+      refreshProducts()
       addToast(t('Order placed'))
       navigate(`/receipt/${order.receiptCode}`)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Checkout failed'
       customerDiscount.retry()
-      if (message === unavailableQuantity || message === 'Cart prices changed. Review your cart and try again.') void refreshProducts().catch(() => {})
+      if (message === unavailableQuantity || message === 'Cart prices changed. Review your cart and try again.') refreshProducts()
       setError(message)
       if (message === paymentUnavailable || message === paymentSettingsChanged) {
         setPreferredProvider(null)
@@ -304,7 +310,7 @@ function CheckoutForm() {
             : !provider ? <p className="muted" role="status">{t('No payment methods are currently available. Please try again later.')}</p> : null}
         </fieldset>}
         {unavailableItems && error !== unavailableQuantity && <p className="error" role="alert">{t(unavailableQuantity)}</p>}
-        <button type="submit" form="checkout-form" className="btn checkout-submit" disabled={submitting || unavailableItems || (!provider && total > 0) || customerDiscount.loading || Boolean(customerDiscount.error)}>
+        <button type="submit" form="checkout-form" className="btn checkout-submit" disabled={submitting || loadingProducts || unavailableItems || (!provider && total > 0) || customerDiscount.loading || Boolean(customerDiscount.error)}>
           {submitting ? t('Placing order…') : total === 0 || !provider || provider === 'CASH_ON_DELIVERY' ? t('Place order') : `${t('Pay')} ${formatPrice(total, store.currency)}`}
         </button>
       </aside></div>

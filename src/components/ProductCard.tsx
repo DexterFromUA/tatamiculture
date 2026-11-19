@@ -31,7 +31,7 @@ export function ProductCard({ product, store, scrollToTop = false }: { product: 
       if (scrollToTop && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) window.scrollTo(0, 0)
     }}>
       {image && <div className="product-card__image">
-        <img src={image} alt="" />
+        <img src={image} alt="" loading="lazy" decoding="async" />
         {badges}
       </div>}
       {!image && badges}

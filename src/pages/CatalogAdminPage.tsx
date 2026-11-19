@@ -394,7 +394,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
       if (editingCategoryId) {
         await supabaseRequest(`/rest/v1/categories?id=eq.${encodeURIComponent(editingCategoryId)}&store_id=eq.${encodeURIComponent(store.id)}`, { method: 'PATCH', token, body: JSON.stringify(names) })
         setCategories(current => current.map(category => category.id === editingCategoryId ? { ...category, ...names } : category))
-        await refreshProducts().catch(() => {})
+        refreshProducts()
       } else {
         const created = await supabaseRequest<CatalogCategory[]>('/rest/v1/categories', {
           method: 'POST', token, headers: { Prefer: 'return=representation' },
@@ -658,7 +658,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
         savedStock.current.set(variant.key, quantity)
       }
       reloadCatalogue()
-      await refreshProducts().catch(() => {})
+      refreshProducts()
       closeSavedEditor()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not save product')
@@ -686,7 +686,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
       setBulkAction('')
       addToast(t('Bulk changes applied'))
       reloadCatalogue()
-      await refreshProducts().catch(() => {})
+      refreshProducts()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('Could not save product'))
     } finally {
@@ -705,7 +705,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
       })
       addToast(t(isActive ? 'Published' : 'Hidden'))
       reloadCatalogue()
-      await refreshProducts().catch(() => {})
+      refreshProducts()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('Could not save product'))
     } finally {
@@ -749,7 +749,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
       if (draft?.id === productId) closeSavedEditor()
       addToast(t(deleted ? 'Product deleted' : 'Product no longer exists'))
       reloadCatalogue()
-      await refreshProducts().catch(() => {})
+      refreshProducts()
     } catch (cause) {
       setError(cause instanceof SupabaseError && cause.code === '23503'
         ? t('This product is linked to orders or stock history. Hide it from the storefront instead.')

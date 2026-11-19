@@ -3,12 +3,14 @@ import { catalogOffer } from '../lib/catalogPricing'
 import { fetchAll } from '../lib/crm'
 import { getSizeGuideImageUrls } from '../lib/productText'
 import { supabaseRequest } from '../lib/supabase'
+import { discountedCategory, newArrivalsCategory, type CatalogCursor, type CatalogFilters, type CatalogMetadata, type CatalogPage } from '../lib/storefrontCatalog'
 import type { AuthSession, CartItem, CatalogCategory, CheckoutInput, Order, OrderItem, Product, ProductOption, Store, User } from '../types'
 
 type Row = Record<string, unknown>
 
 const money = (amount: unknown) => Number(amount ?? 0) / 100
 const text = (value: unknown) => String(value ?? '')
+const productIdPattern = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i
 const productFields = '*,categories!products_category_id_fkey(*),product_categories(categories(*)),product_variants(*),product_images(*)'
 
 function mapStore(row: Row): Store {
@@ -108,16 +110,53 @@ export const supabaseApi = {
     })
   },
 
-  async getProducts(storeId: string, token?: string): Promise<Product[]> {
+  async getProducts(storeId: string, token: string, signal = AbortSignal.timeout(20000)): Promise<Product[]> {
     const path = `/rest/v1/products?store_id=eq.${encodeURIComponent(storeId)}&is_active=eq.true&select=${productFields}`
-    const rows = token ? await fetchAll<Row>(`${path}&order=id`, token, AbortSignal.timeout(20000))
-      : await supabaseRequest<Row[]>(path)
+    const rows = await fetchAll<Row>(`${path}&order=id`, token, signal)
     return rows.map(mapProduct)
   },
 
-  async getProduct(storeId: string, productId: string): Promise<Product | null> {
-    const rows = await supabaseRequest<Row[]>(`/rest/v1/products?id=eq.${encodeURIComponent(productId)}&store_id=eq.${encodeURIComponent(storeId)}&is_active=eq.true&select=${productFields}`)
+  async getProduct(storeId: string, productId: string, signal?: AbortSignal): Promise<Product | null> {
+    if (!productIdPattern.test(productId)) return null
+    const rows = await supabaseRequest<Row[]>(`/rest/v1/products?id=eq.${productId}&store_id=eq.${encodeURIComponent(storeId)}&is_active=eq.true&select=${productFields}`, { signal, cache: 'no-store' })
     return rows[0] ? mapProduct(rows[0]) : null
+  },
+
+  async getProductsByIds(storeId: string, productIds: string[], signal?: AbortSignal): Promise<Product[]> {
+    const ids = productIds.filter(id => productIdPattern.test(id))
+    const products: Product[] = []
+    for (let offset = 0; offset < ids.length; offset += 50) {
+      const batch = ids.slice(offset, offset + 50).join(',')
+      const rows = await supabaseRequest<Row[]>(`/rest/v1/products?id=in.(${batch})&store_id=eq.${encodeURIComponent(storeId)}&is_active=eq.true&select=${productFields}`, { signal, cache: 'no-store' })
+      products.push(...rows.map(mapProduct))
+    }
+    return products
+  },
+
+  async getCatalogPage(storeId: string, filters: CatalogFilters, cursor: CatalogCursor | null, signal: AbortSignal): Promise<CatalogPage> {
+    const { category, subcategory, search, size, sort } = filters
+    const collection = category === newArrivalsCategory ? 'new' : category === discountedCategory ? 'sale' : 'all'
+    const result = await supabaseRequest<Omit<CatalogPage, 'rows'> & { rows: Row[] }>('/rest/v1/rpc/storefront_catalog_page', {
+      method: 'POST', signal, body: JSON.stringify({
+        p_store_id: storeId, p_search: search, p_size: size, p_sort: sort,
+        p_collection: collection, p_category_id: collection === 'all' ? (subcategory || category || null) : null,
+        p_after_price: cursor?.price, p_after_updated_at: cursor?.updatedAt, p_after_id: cursor?.id,
+      }),
+    })
+    return { ...result, rows: result.rows.map(mapProduct) }
+  },
+
+  getCatalogMetadata(storeId: string, signal: AbortSignal) {
+    return supabaseRequest<CatalogMetadata>('/rest/v1/rpc/storefront_catalog_metadata', {
+      method: 'POST', signal, body: JSON.stringify({ p_store_id: storeId }),
+    })
+  },
+
+  async getRelatedProducts(storeId: string, productId: string, signal: AbortSignal) {
+    const rows = await supabaseRequest<Row[]>('/rest/v1/rpc/storefront_related_products', {
+      method: 'POST', signal, body: JSON.stringify({ p_store_id: storeId, p_product_id: productId }),
+    })
+    return rows.map(mapProduct)
   },
 
   async requestPhoneCode(phone: string, registration?: { name: string; storeId: string }) {
