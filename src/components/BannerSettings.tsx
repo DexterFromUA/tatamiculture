@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
@@ -21,6 +21,7 @@ export function BannerSettings() {
   const { store } = useStore()
   const { token } = useAuth()
   const { t } = useTranslation()
+  const imageHintId = useId()
   const [banner, setBanner] = useState<Banner | null>(null)
   const [files, setFiles] = useState<File[]>([])
   const [removedUrls, setRemovedUrls] = useState<string[]>([])
@@ -78,24 +79,31 @@ export function BannerSettings() {
     {error && <p className="error" role="alert">{t(error)}</p>}
     {banner && <>
       <label className="check banner-settings__visibility">
-        <input type="checkbox" checked={banner.enabled} disabled={busy} onChange={event => {
+        <input className="crm-checkbox" type="checkbox" checked={banner.enabled} disabled={busy} onChange={event => {
           setBanner({ ...banner, enabled: event.target.checked })
           setSaved(false)
         }} />
         {t('Show banner on homepage')}
       </label>
       <div className="banner-settings__image">
-        <label className="field">
-          <span>{t('Banner images')}</span>
-          <small>{t('If no banner images are added, photos of new products will be shown.')}</small>
-          <input type="file" multiple accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={event => {
-            const picked = Array.from(event.target.files ?? [])
-            setFiles(current => [...current, ...picked])
-            setSaved(false)
-            event.target.value = ''
-          }} />
-          <small>{t('JPG, PNG or WebP · up to 5 MB per file')}</small>
+        <label className="product-photo-upload">
+          <input className="sr-only" type="file" multiple accept="image/jpeg,image/png,image/webp" disabled={busy}
+            aria-describedby={imageHintId} onChange={event => {
+              const picked = Array.from(event.target.files ?? [])
+              if (picked.length) {
+                setFiles(current => [...current, ...picked])
+                setSaved(false)
+              }
+              event.target.value = ''
+            }} />
+          <span className="product-photo-upload__icon" aria-hidden="true">＋</span>
+          <span className="product-photo-upload__copy">
+            <strong>{t('Banner images')}</strong>
+            <small>{t('JPG, PNG or WebP · up to 5 MB per file')}</small>
+          </span>
+          <span className="product-photo-upload__action" aria-hidden="true">{t('Choose files')}</span>
         </label>
+        <p id={imageHintId} className="banner-settings__image-hint muted">{t('If no banner images are added, photos of new products will be shown.')}</p>
         {(keptImages.length > 0 || files.length > 0) && <ol className="banner-settings__slides">
           {keptImages.map(image => <li key={image.url}>
             <img src={image.url} alt="" />
