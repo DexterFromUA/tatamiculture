@@ -3,7 +3,7 @@
 -- Выполните файл целиком в SQL Editor под ролью postgres.
 -- Создаётся пустой магазин tatami. Существующие заказы, пользователи, файлы
 -- и ключи интеграций не копируются. Владелец назначается через seed-owner.sql.
--- Учтены миграции репозитория по 20261119110700 включительно.
+-- Учтены миграции репозитория по 20261119110800 включительно.
 BEGIN;
 
 DO $$
@@ -446,26 +446,6 @@ $$;
 
 ALTER FUNCTION "public"."cancel_customer_reservation"("p_order_id" "uuid", "p_user_id" "uuid", "p_operation" "uuid", "p_provider_order_id" "text") OWNER TO "postgres";
 
-CREATE FUNCTION "public"."cancel_merged_unpaid_order"("p_order_id" "uuid") RETURNS "public"."orders"
-    LANGUAGE "sql" SECURITY DEFINER
-    SET "search_path" TO ''
-    AS $$
-  select o from public.apply_admin_order_update(array[p_order_id], 'CANCELLED_BY_STORE', false, true, true) o
-  where o.id = p_order_id;
-$$;
-
-ALTER FUNCTION "public"."cancel_merged_unpaid_order"("p_order_id" "uuid") OWNER TO "postgres";
-
-CREATE FUNCTION "public"."cancel_unpaid_order"("p_order_id" "uuid") RETURNS "public"."orders"
-    LANGUAGE "sql" SECURITY DEFINER
-    SET "search_path" TO ''
-    AS $$
-  select o from public.apply_admin_order_update(array[p_order_id], 'CANCELLED_BY_STORE', false, false, true) o
-  where o.id = p_order_id;
-$$;
-
-ALTER FUNCTION "public"."cancel_unpaid_order"("p_order_id" "uuid") OWNER TO "postgres";
-
 CREATE FUNCTION "public"."capture_order_events"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -512,26 +492,6 @@ CREATE FUNCTION "public"."catalog_cost_in_uah"("p_amount" integer, "p_currency" 
 $$;
 
 ALTER FUNCTION "public"."catalog_cost_in_uah"("p_amount" integer, "p_currency" "text") OWNER TO "postgres";
-
-CREATE FUNCTION "public"."change_merged_order_status"("p_order_id" "uuid", "p_status" "public"."order_status") RETURNS "public"."orders"
-    LANGUAGE "sql" SECURITY DEFINER
-    SET "search_path" TO ''
-    AS $$
-  select o from public.apply_admin_order_update(array[p_order_id], p_status, false, true, false) o
-  where o.id = p_order_id;
-$$;
-
-ALTER FUNCTION "public"."change_merged_order_status"("p_order_id" "uuid", "p_status" "public"."order_status") OWNER TO "postgres";
-
-CREATE FUNCTION "public"."change_order_status"("p_order_id" "uuid", "p_status" "public"."order_status") RETURNS "public"."orders"
-    LANGUAGE "sql" SECURITY DEFINER
-    SET "search_path" TO ''
-    AS $$
-  select o from public.apply_admin_order_update(array[p_order_id], p_status, false, false, false) o
-  where o.id = p_order_id;
-$$;
-
-ALTER FUNCTION "public"."change_order_status"("p_order_id" "uuid", "p_status" "public"."order_status") OWNER TO "postgres";
 
 CREATE FUNCTION "public"."check_category_parent"() RETURNS "trigger"
     LANGUAGE "plpgsql"
@@ -834,17 +794,6 @@ end;
 $$;
 
 ALTER FUNCTION "public"."create_reserved_online_order"("p_provider" "text", "p_user_id" "uuid", "p_store_id" "uuid", "p_items" "jsonb", "p_customer_name" "text", "p_customer_email" "text", "p_customer_phone" "text", "p_delivery_city" "text", "p_delivery_address" "text", "p_note" "text", "p_delivery_city_ref" "text", "p_delivery_address_ref" "text", "p_delivery_service_type" "text", "p_monobank_test_mode" boolean) OWNER TO "postgres";
-
-CREATE FUNCTION "public"."create_store_order"("p_store_id" "uuid", "p_items" "jsonb", "p_customer_name" "text", "p_customer_email" "text", "p_customer_phone" "text", "p_delivery_city" "text", "p_delivery_address" "text", "p_note" "text" DEFAULT ''::"text", "p_delivery_city_ref" "text" DEFAULT NULL::"text", "p_delivery_address_ref" "text" DEFAULT NULL::"text", "p_delivery_service_type" "text" DEFAULT NULL::"text") RETURNS "public"."orders"
-    LANGUAGE "sql" SECURITY DEFINER
-    SET "search_path" TO ''
-    AS $$
-  select public.create_discounted_store_order(p_store_id, p_items, p_customer_name, p_customer_email,
-    p_customer_phone, p_delivery_city, p_delivery_address, p_note,
-    p_delivery_city_ref, p_delivery_address_ref, p_delivery_service_type);
-$$;
-
-ALTER FUNCTION "public"."create_store_order"("p_store_id" "uuid", "p_items" "jsonb", "p_customer_name" "text", "p_customer_email" "text", "p_customer_phone" "text", "p_delivery_city" "text", "p_delivery_address" "text", "p_note" "text", "p_delivery_city_ref" "text", "p_delivery_address_ref" "text", "p_delivery_service_type" "text") OWNER TO "postgres";
 
 CREATE FUNCTION "public"."crm_customer_accounts"("p_store_id" "uuid", "p_customer_id" "uuid") RETURNS TABLE("user_id" "uuid", "email" "text", "email_confirmed" boolean, "can_delete" boolean)
     LANGUAGE "plpgsql" STABLE SECURITY DEFINER
@@ -1349,22 +1298,6 @@ end; $$;
 
 ALTER FUNCTION "public"."notify_restock"() OWNER TO "postgres";
 
-CREATE FUNCTION "public"."nova_poshta_order_weight_grams"("p_order_id" "uuid") RETURNS bigint
-    LANGUAGE "sql" STABLE
-    SET "search_path" TO ''
-    AS $$
-  select case when count(*) = count(item.weight)
-    then sum(item.weight::bigint * item.quantity)::bigint end
-  from (
-    select coalesce(oi.weight_grams, p.weight_grams) as weight, oi.quantity
-    from public.order_items oi
-    left join public.products p on p.id = oi.product_id
-    where oi.order_id = p_order_id
-  ) item;
-$$;
-
-ALTER FUNCTION "public"."nova_poshta_order_weight_grams"("p_order_id" "uuid") OWNER TO "postgres";
-
 CREATE TABLE "public"."online_checkouts" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "receipt_code" "text" DEFAULT "replace"(("gen_random_uuid"())::"text", '-'::"text", ''::"text") NOT NULL,
@@ -1546,23 +1479,6 @@ CREATE FUNCTION "public"."receipt_events"("p_code" "text") RETURNS TABLE("id" "u
 $$;
 
 ALTER FUNCTION "public"."receipt_events"("p_code" "text") OWNER TO "postgres";
-
-CREATE FUNCTION "public"."record_order_return"("p_order_id" "uuid", "p_amount" integer, "p_reason" "text") RETURNS "void"
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO 'public'
-    AS $$
-declare target public.orders; returned bigint;
-begin
- select * into target from public.orders where id=p_order_id for update;
- if not found or not public.is_store_member(target.store_id) then raise exception 'Access denied'; end if;
- if target.status <> 'DELIVERED' then raise exception 'Only delivered orders can be returned'; end if;
- select coalesce(sum(amount),0) into returned from public.order_returns where order_id=p_order_id;
- if p_amount is null or p_amount<=0 or returned+p_amount>target.total_price then raise exception 'Invalid return amount'; end if;
- insert into public.order_returns(order_id,amount,reason,author_id) values(p_order_id,p_amount,trim(p_reason),auth.uid());
- insert into public.order_events(order_id,kind,new_value,author_id) values(p_order_id,'return',p_amount::text,auth.uid());
-end; $$;
-
-ALTER FUNCTION "public"."record_order_return"("p_order_id" "uuid", "p_amount" integer, "p_reason" "text") OWNER TO "postgres";
 
 CREATE FUNCTION "public"."refresh_catalog_exchange_rates"() RETURNS "void"
     LANGUAGE "plpgsql"
@@ -1903,23 +1819,6 @@ end;
 $$;
 
 ALTER FUNCTION "public"."set_customer_discount"("p_store_id" "uuid", "p_customer_id" "uuid", "p_user_id" "uuid", "p_percent" numeric, "p_mode" "text", "p_order_limit" integer, "p_starts_on" "date", "p_ends_on" "date") OWNER TO "postgres";
-
-CREATE FUNCTION "public"."set_order_cost"("p_order_id" "uuid", "p_amount" integer) RETURNS "void"
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO 'public'
-    AS $$
-declare previous_cost integer;
-begin
- perform 1 from public.orders where id=p_order_id and public.is_store_member(store_id) for update;
- if not found then raise exception 'Access denied'; end if;
- select cost_amount into previous_cost from public.order_financials where order_id=p_order_id;
- insert into public.order_financials(order_id,cost_amount) values(p_order_id,p_amount) on conflict(order_id) do update set cost_amount=excluded.cost_amount,updated_at=now();
- if previous_cost is distinct from p_amount then
-   insert into public.order_events(order_id,kind,old_value,new_value,author_id) values(p_order_id,'cost',previous_cost::text,p_amount::text,auth.uid());
- end if;
-end; $$;
-
-ALTER FUNCTION "public"."set_order_cost"("p_order_id" "uuid", "p_amount" integer) OWNER TO "postgres";
 
 CREATE FUNCTION "public"."snapshot_item_cost"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
@@ -3219,17 +3118,6 @@ REVOKE ALL ON FUNCTION "public"."cancel_customer_reservation"("p_order_id" "uuid
 REVOKE ALL ON FUNCTION "public"."cancel_customer_reservation"("p_order_id" "uuid", "p_user_id" "uuid", "p_operation" "uuid", "p_provider_order_id" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."cancel_customer_reservation"("p_order_id" "uuid", "p_user_id" "uuid", "p_operation" "uuid", "p_provider_order_id" "text") TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."cancel_merged_unpaid_order"("p_order_id" "uuid") FROM anon, authenticated, service_role;
-REVOKE ALL ON FUNCTION "public"."cancel_merged_unpaid_order"("p_order_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."cancel_merged_unpaid_order"("p_order_id" "uuid") TO "anon";
-GRANT ALL ON FUNCTION "public"."cancel_merged_unpaid_order"("p_order_id" "uuid") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."cancel_merged_unpaid_order"("p_order_id" "uuid") TO "service_role";
-
-REVOKE ALL ON FUNCTION "public"."cancel_unpaid_order"("p_order_id" "uuid") FROM anon, authenticated, service_role;
-REVOKE ALL ON FUNCTION "public"."cancel_unpaid_order"("p_order_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."cancel_unpaid_order"("p_order_id" "uuid") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."cancel_unpaid_order"("p_order_id" "uuid") TO "service_role";
-
 REVOKE ALL ON FUNCTION "public"."capture_order_events"() FROM anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION "public"."capture_order_events"() TO PUBLIC;
 GRANT ALL ON FUNCTION "public"."capture_order_events"() TO "anon";
@@ -3246,18 +3134,6 @@ REVOKE ALL ON FUNCTION "public"."catalog_cost_in_uah"("p_amount" integer, "p_cur
 REVOKE ALL ON FUNCTION "public"."catalog_cost_in_uah"("p_amount" integer, "p_currency" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."catalog_cost_in_uah"("p_amount" integer, "p_currency" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."catalog_cost_in_uah"("p_amount" integer, "p_currency" "text") TO "service_role";
-
-REVOKE ALL ON FUNCTION "public"."change_merged_order_status"("p_order_id" "uuid", "p_status" "public"."order_status") FROM anon, authenticated, service_role;
-REVOKE ALL ON FUNCTION "public"."change_merged_order_status"("p_order_id" "uuid", "p_status" "public"."order_status") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."change_merged_order_status"("p_order_id" "uuid", "p_status" "public"."order_status") TO "anon";
-GRANT ALL ON FUNCTION "public"."change_merged_order_status"("p_order_id" "uuid", "p_status" "public"."order_status") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."change_merged_order_status"("p_order_id" "uuid", "p_status" "public"."order_status") TO "service_role";
-
-REVOKE ALL ON FUNCTION "public"."change_order_status"("p_order_id" "uuid", "p_status" "public"."order_status") FROM anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION "public"."change_order_status"("p_order_id" "uuid", "p_status" "public"."order_status") TO PUBLIC;
-GRANT ALL ON FUNCTION "public"."change_order_status"("p_order_id" "uuid", "p_status" "public"."order_status") TO "anon";
-GRANT ALL ON FUNCTION "public"."change_order_status"("p_order_id" "uuid", "p_status" "public"."order_status") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."change_order_status"("p_order_id" "uuid", "p_status" "public"."order_status") TO "service_role";
 
 REVOKE ALL ON FUNCTION "public"."check_category_parent"() FROM anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION "public"."check_category_parent"() TO PUBLIC;
@@ -3295,12 +3171,6 @@ GRANT ALL ON FUNCTION "public"."create_priced_catalog_order"("p_provider" "text"
 REVOKE ALL ON FUNCTION "public"."create_reserved_online_order"("p_provider" "text", "p_user_id" "uuid", "p_store_id" "uuid", "p_items" "jsonb", "p_customer_name" "text", "p_customer_email" "text", "p_customer_phone" "text", "p_delivery_city" "text", "p_delivery_address" "text", "p_note" "text", "p_delivery_city_ref" "text", "p_delivery_address_ref" "text", "p_delivery_service_type" "text", "p_monobank_test_mode" boolean) FROM anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION "public"."create_reserved_online_order"("p_provider" "text", "p_user_id" "uuid", "p_store_id" "uuid", "p_items" "jsonb", "p_customer_name" "text", "p_customer_email" "text", "p_customer_phone" "text", "p_delivery_city" "text", "p_delivery_address" "text", "p_note" "text", "p_delivery_city_ref" "text", "p_delivery_address_ref" "text", "p_delivery_service_type" "text", "p_monobank_test_mode" boolean) FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."create_reserved_online_order"("p_provider" "text", "p_user_id" "uuid", "p_store_id" "uuid", "p_items" "jsonb", "p_customer_name" "text", "p_customer_email" "text", "p_customer_phone" "text", "p_delivery_city" "text", "p_delivery_address" "text", "p_note" "text", "p_delivery_city_ref" "text", "p_delivery_address_ref" "text", "p_delivery_service_type" "text", "p_monobank_test_mode" boolean) TO "service_role";
-
-REVOKE ALL ON FUNCTION "public"."create_store_order"("p_store_id" "uuid", "p_items" "jsonb", "p_customer_name" "text", "p_customer_email" "text", "p_customer_phone" "text", "p_delivery_city" "text", "p_delivery_address" "text", "p_note" "text", "p_delivery_city_ref" "text", "p_delivery_address_ref" "text", "p_delivery_service_type" "text") FROM anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION "public"."create_store_order"("p_store_id" "uuid", "p_items" "jsonb", "p_customer_name" "text", "p_customer_email" "text", "p_customer_phone" "text", "p_delivery_city" "text", "p_delivery_address" "text", "p_note" "text", "p_delivery_city_ref" "text", "p_delivery_address_ref" "text", "p_delivery_service_type" "text") TO PUBLIC;
-GRANT ALL ON FUNCTION "public"."create_store_order"("p_store_id" "uuid", "p_items" "jsonb", "p_customer_name" "text", "p_customer_email" "text", "p_customer_phone" "text", "p_delivery_city" "text", "p_delivery_address" "text", "p_note" "text", "p_delivery_city_ref" "text", "p_delivery_address_ref" "text", "p_delivery_service_type" "text") TO "anon";
-GRANT ALL ON FUNCTION "public"."create_store_order"("p_store_id" "uuid", "p_items" "jsonb", "p_customer_name" "text", "p_customer_email" "text", "p_customer_phone" "text", "p_delivery_city" "text", "p_delivery_address" "text", "p_note" "text", "p_delivery_city_ref" "text", "p_delivery_address_ref" "text", "p_delivery_service_type" "text") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."create_store_order"("p_store_id" "uuid", "p_items" "jsonb", "p_customer_name" "text", "p_customer_email" "text", "p_customer_phone" "text", "p_delivery_city" "text", "p_delivery_address" "text", "p_note" "text", "p_delivery_city_ref" "text", "p_delivery_address_ref" "text", "p_delivery_service_type" "text") TO "service_role";
 
 REVOKE ALL ON FUNCTION "public"."crm_customer_accounts"("p_store_id" "uuid", "p_customer_id" "uuid") FROM anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION "public"."crm_customer_accounts"("p_store_id" "uuid", "p_customer_id" "uuid") FROM PUBLIC;
@@ -3427,10 +3297,6 @@ GRANT ALL ON FUNCTION "public"."notify_restock"() TO "anon";
 GRANT ALL ON FUNCTION "public"."notify_restock"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."notify_restock"() TO "service_role";
 
-REVOKE ALL ON FUNCTION "public"."nova_poshta_order_weight_grams"("p_order_id" "uuid") FROM anon, authenticated, service_role;
-REVOKE ALL ON FUNCTION "public"."nova_poshta_order_weight_grams"("p_order_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."nova_poshta_order_weight_grams"("p_order_id" "uuid") TO "service_role";
-
 REVOKE ALL ON TABLE "public"."online_checkouts" FROM anon, authenticated, service_role;
 GRANT ALL ON TABLE "public"."online_checkouts" TO "service_role";
 
@@ -3447,12 +3313,6 @@ GRANT EXECUTE ON FUNCTION "public"."receipt_events"("p_code" "text") TO PUBLIC;
 GRANT ALL ON FUNCTION "public"."receipt_events"("p_code" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."receipt_events"("p_code" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."receipt_events"("p_code" "text") TO "service_role";
-
-REVOKE ALL ON FUNCTION "public"."record_order_return"("p_order_id" "uuid", "p_amount" integer, "p_reason" "text") FROM anon, authenticated, service_role;
-REVOKE ALL ON FUNCTION "public"."record_order_return"("p_order_id" "uuid", "p_amount" integer, "p_reason" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."record_order_return"("p_order_id" "uuid", "p_amount" integer, "p_reason" "text") TO "anon";
-GRANT ALL ON FUNCTION "public"."record_order_return"("p_order_id" "uuid", "p_amount" integer, "p_reason" "text") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."record_order_return"("p_order_id" "uuid", "p_amount" integer, "p_reason" "text") TO "service_role";
 
 REVOKE ALL ON FUNCTION "public"."refresh_catalog_exchange_rates"() FROM anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION "public"."refresh_catalog_exchange_rates"() FROM PUBLIC;
@@ -3505,12 +3365,6 @@ REVOKE ALL ON FUNCTION "public"."set_customer_discount"("p_store_id" "uuid", "p_
 REVOKE ALL ON FUNCTION "public"."set_customer_discount"("p_store_id" "uuid", "p_customer_id" "uuid", "p_user_id" "uuid", "p_percent" numeric, "p_mode" "text", "p_order_limit" integer, "p_starts_on" "date", "p_ends_on" "date") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."set_customer_discount"("p_store_id" "uuid", "p_customer_id" "uuid", "p_user_id" "uuid", "p_percent" numeric, "p_mode" "text", "p_order_limit" integer, "p_starts_on" "date", "p_ends_on" "date") TO "service_role";
 GRANT ALL ON FUNCTION "public"."set_customer_discount"("p_store_id" "uuid", "p_customer_id" "uuid", "p_user_id" "uuid", "p_percent" numeric, "p_mode" "text", "p_order_limit" integer, "p_starts_on" "date", "p_ends_on" "date") TO "authenticated";
-
-REVOKE ALL ON FUNCTION "public"."set_order_cost"("p_order_id" "uuid", "p_amount" integer) FROM anon, authenticated, service_role;
-REVOKE ALL ON FUNCTION "public"."set_order_cost"("p_order_id" "uuid", "p_amount" integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."set_order_cost"("p_order_id" "uuid", "p_amount" integer) TO "anon";
-GRANT ALL ON FUNCTION "public"."set_order_cost"("p_order_id" "uuid", "p_amount" integer) TO "authenticated";
-GRANT ALL ON FUNCTION "public"."set_order_cost"("p_order_id" "uuid", "p_amount" integer) TO "service_role";
 
 REVOKE ALL ON FUNCTION "public"."snapshot_item_cost"() FROM anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION "public"."snapshot_item_cost"() TO PUBLIC;
@@ -3927,7 +3781,8 @@ INSERT INTO supabase_migrations.schema_migrations (version, name) VALUES
   ('20261119110400', 'storefront_catalog_feed'),
   ('20261119110500', 'single_shop_settings'),
   ('20261119110600', 'retire_order_status_history'),
-  ('20261119110700', 'retire_stores_view')
+  ('20261119110700', 'retire_stores_view'),
+  ('20261119110800', 'remove_obsolete_rpcs')
 ON CONFLICT (version) DO NOTHING;
 
 create function public.list_crm_customers(p_store_id uuid)

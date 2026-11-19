@@ -23,13 +23,13 @@ begin
     values (product, 'M', 10000, 2, 2, true) returning id into variant;
   cart := jsonb_build_array(jsonb_build_object('variantId', variant, 'quantity', 2));
 
-  cod := public.create_store_order(shop, cart, 'Test', '', '+380990002222', 'Test', 'Test');
+  cod := public.create_discounted_store_order(shop, cart, 'Test', '', '+380990002222', 'Test', 'Test');
   if (select stock_quantity from public.product_variants where id = variant) <> 0
     or not exists (select 1 from public.order_items where order_id = cod.id and is_preorder and stock_deducted) then
     raise exception 'COD did not deduct the pre-order inventory';
   end if;
   begin
-    perform public.create_store_order(shop, cart, 'Test', '', '+380990002222', 'Test', 'Test');
+    perform public.create_discounted_store_order(shop, cart, 'Test', '', '+380990002222', 'Test', 'Test');
     raise exception 'COD accepted a sold-out pre-order';
   exception when sqlstate 'PT409' then null;
   end;
@@ -39,16 +39,16 @@ begin
   exception when sqlstate 'PT409' then null;
   end;
 
-  perform public.cancel_unpaid_order(cod.id);
+  perform public.update_admin_orders(array[cod.id], 'CANCELLED_BY_STORE', false, true);
   if (select stock_quantity from public.product_variants where id = variant) <> 2 then
     raise exception 'Cancellation did not restore the deducted inventory';
   end if;
 
   -- Simulate an order made when pre-orders still used unlimited stock.
-  cod := public.create_store_order(shop, cart, 'Test', '', '+380990002222', 'Test', 'Test');
+  cod := public.create_discounted_store_order(shop, cart, 'Test', '', '+380990002222', 'Test', 'Test');
   update public.order_items set stock_deducted = null where order_id = cod.id;
   update public.product_variants set stock_quantity = 2 where id = variant;
-  perform public.cancel_unpaid_order(cod.id);
+  perform public.update_admin_orders(array[cod.id], 'CANCELLED_BY_STORE', false, true);
   if (select stock_quantity from public.product_variants where id = variant) <> 2 then
     raise exception 'Cancellation restored inventory that was never deducted';
   end if;

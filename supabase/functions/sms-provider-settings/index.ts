@@ -29,12 +29,10 @@ Deno.serve(async request => {
     const { data: auth, error: authError } = await client.auth.getUser()
     if (authError || !auth.user) return json({ error: 'Sign in required' }, 401)
 
-    const { data: memberships, error: memberError } = await client.from('store_members')
-      .select('role, stores!inner(slug)').eq('user_id', auth.user.id).eq('stores.slug', 'tatami')
+    const { data: membership, error: memberError } = await client.from('store_members')
+      .select('role').eq('user_id', auth.user.id).in('role', ['OWNER', 'MANAGER']).maybeSingle()
     if (memberError) throw memberError
-    if (!memberships.some(member => member.role === 'OWNER' || member.role === 'MANAGER')) {
-      return json({ error: 'Manager access required' }, 403)
-    }
+    if (!membership) return json({ error: 'Manager access required' }, 403)
 
     const token = configuredSecret('SMS_AUTH_MANAGEMENT_TOKEN')
     const secret = configuredSecret('SMS_AUTH_HOOK_SECRET')

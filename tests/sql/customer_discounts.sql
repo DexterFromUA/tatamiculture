@@ -65,11 +65,11 @@ begin
   if (public.active_customer_discount(shop,buyer)).id is not null then raise exception 'Expired period active'; end if;
   perform public.set_customer_discount(shop,customer,buyer,100,'unlimited');
   perform set_config('request.jwt.claim.sub',buyer::text,true);
-  o := public.create_store_order(shop,cart,'Test','','+380990001111','Test','Test');
+  o := public.create_discounted_store_order(shop,cart,'Test','','+380990001111','Test','Test');
   if o.total_price <> 0 or o.customer_discount_percent <> 100 or o.payment_status <> 'PAID' then raise exception 'Free order failed'; end if;
   if (select sum(line_total) from public.order_items where order_id=o.id) <> 0 then raise exception 'Free lines mismatch'; end if;
   perform set_config('request.jwt.claim.sub','',true);
-  o := public.create_store_order(shop,cart,'Guest','','+380990001111','Test','Test');
+  o := public.create_discounted_store_order(shop,cart,'Guest','','+380990001111','Test','Test');
   if o.total_price <> 20010 or o.customer_discount_percent <> 0 then raise exception 'Guest received personal discount'; end if;
 
   perform set_config('request.jwt.claim.sub',outsider::text,true);

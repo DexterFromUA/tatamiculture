@@ -41,13 +41,13 @@ begin
   if stats.total_minor<>30000 or stats.cod_minor<>30000 or stats.weight_grams<>1500 then raise exception 'Wrong shipping totals'; end if;
   if (select status from public.orders where id=second_order)<>'IN_PROGRESS' then raise exception 'Original status was changed'; end if;
   if (select crm_customer_id from public.orders where id=second_order) is distinct from (select crm_customer_id from public.orders where id=first_order) then raise exception 'Customer was not selected'; end if;
-  perform public.change_merged_order_status(first_order,'IN_PROGRESS');
+  perform public.update_admin_orders(array[first_order],'IN_PROGRESS');
   if (select count(*) from public.orders where id in(first_order,second_order) and status='IN_PROGRESS')<>2 then raise exception 'Status did not propagate'; end if;
   if exists(select 1 from public.orders where id in(first_order,second_order) and payment_status<>'PENDING') then raise exception 'A non-paid status changed payment'; end if;
-  perform public.change_merged_order_status(first_order,'PAID');
+  perform public.update_admin_orders(array[first_order],'PAID');
   if (select count(*) from public.orders where id in(first_order,second_order) and status='PAID' and payment_status='PAID')<>2 then raise exception 'Manual paid status did not confirm all payments'; end if;
   begin
-    perform public.change_merged_order_status(first_order,'PENDING');
+    perform public.update_admin_orders(array[first_order],'PENDING');
     raise exception 'Paid group status changed without confirmation';
   exception when sqlstate 'PT409' then null;
   end;
@@ -56,7 +56,7 @@ begin
   perform public.update_admin_orders(array[first_order],'PENDING',true);
   if (select count(*) from public.orders where id in(first_order,second_order) and status='PENDING' and payment_status='PENDING')<>2 then raise exception 'Manual pending status did not reset all payments'; end if;
   begin
-    perform public.cancel_merged_unpaid_order(first_order);
+    perform public.update_admin_orders(array[first_order],'CANCELLED_BY_STORE',false,true);
     raise exception 'A historical payment was ignored during stock restoration';
   exception when sqlstate 'PT409' then null;
   end;
@@ -71,7 +71,7 @@ begin
   end;
   if exists(select 1 from public.orders where id in(first_order,second_order,paid_order) and status<>'PENDING') then raise exception 'Unconfirmed bulk status was partially applied'; end if;
   begin
-    perform public.change_order_status(paid_order,'IN_PROGRESS');
+    perform public.update_admin_orders(array[paid_order],'IN_PROGRESS');
     raise exception 'Provider payment was ignored';
   exception when sqlstate 'PT409' then null;
   end;
