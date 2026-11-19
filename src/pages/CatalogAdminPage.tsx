@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { useToast } from '../context/ToastContext'
 import { SupabaseError, supabaseConfigured, supabaseRequest, uploadProductImage } from '../lib/supabase'
-import { fetchAll, hasStoreMembership } from '../lib/crm'
+import { crmPageSize, fetchAll, hasStoreMembership } from '../lib/crm'
 import { categoryGroups, categoryLabel, categoryPaths } from '../lib/categories'
 import { costInputAmount, parseUnitCost, saveCatalogCosts, type CatalogCost, type CatalogExchangeRate, type CostCurrency } from '../lib/catalogCosts'
 import { formatPrice } from '../lib/format'
@@ -241,9 +241,9 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
         : variant.stock_quantity < variant.low_stock_threshold)),
   })).filter(({ variants }) => variants.length > 0) : []
   const matchCount = showStock ? stockMatches.length : productMatches.length
-  const pages = Math.max(1, Math.ceil(matchCount / 20))
+  const pages = Math.max(1, Math.ceil(matchCount / crmPageSize))
   const currentPage = Math.min(page, pages)
-  const pageProducts = productMatches.slice((currentPage - 1) * 20, currentPage * 20)
+  const pageProducts = productMatches.slice((currentPage - 1) * crmPageSize, currentPage * crmPageSize)
   const pageProductIds = new Set(pageProducts.map(product => product.id))
   const selectedOutsidePage = selected.filter(id => !pageProductIds.has(id)).length
   const pageSelected = pageProducts.length > 0 && pageProducts.every(product => selected.includes(product.id))
@@ -907,7 +907,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
                 <button type="button" className="text-btn product-editor__delete" disabled={saving || categoryBusy} onClick={() => requestProductDeletion(product.id)}>{t('Delete')}</button>
               </div>
             </li>
-          }) : stockMatches.slice((currentPage - 1) * 20, currentPage * 20).map(({ product, variants }) => {
+          }) : stockMatches.slice((currentPage - 1) * crmPageSize, currentPage * crmPageSize).map(({ product, variants }) => {
             const variant = variants.find(item => item.id === stockSelection[product.id]) ?? variants[0]
             return <li key={product.id} className="catalog-stock-row">
               {product.product_images[0] && <img className="catalog-admin__thumb" src={product.product_images[0].public_url} alt="" />}

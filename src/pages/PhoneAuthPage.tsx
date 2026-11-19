@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useId, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
@@ -10,6 +10,8 @@ import type { AuthSession } from '../types'
 
 export function PhoneAuthPage({ register = false }: { register?: boolean }) {
   const { t } = useTranslation()
+  const nameLabelId = useId()
+  const nameHintId = useId()
   const { store } = useStore()
   const { isAuthenticated, initializing, requestPhoneCode, verifyPhoneCode, completePhoneSignIn } = useAuth()
   const location = useLocation()
@@ -130,8 +132,10 @@ export function PhoneAuthPage({ register = false }: { register?: boolean }) {
               </label>
             </> : <>
               {register && <label className="field">
-                <span>{t('Name')}</span>
-                <input autoComplete="name" maxLength={100} value={name} onChange={event => setName(event.target.value)} required disabled={busy} />
+                <span id={nameLabelId}>{t('First and last name')}</span>
+                <input autoComplete="name" maxLength={100} value={name} onChange={event => setName(event.target.value)}
+                  aria-labelledby={nameLabelId} aria-describedby={nameHintId} required disabled={busy} />
+                <small id={nameHintId} className="muted">{t('Nova Poshta needs the recipient’s first and last name for delivery.')}</small>
               </label>}
               <label className="field">
                 <span>{t('Phone')}</span>

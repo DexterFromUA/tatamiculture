@@ -21,7 +21,7 @@ import { formatDate, formatPrice } from '../lib/format'
 import { SupabaseError, supabaseConfigured, supabaseRequest } from '../lib/supabase'
 import type { OrderStatus } from '../types'
 import { useTranslation } from 'react-i18next'
-import { fetchAll, hasStoreMembership } from '../lib/crm'
+import { crmPageSize, fetchAll, hasStoreMembership } from '../lib/crm'
 import { downloadOrdersCsv } from '../lib/crmExport'
 import { OrderOperations, type OrderDetailsOrder } from '../components/OrderOperations'
 import { normalizePhone } from '../lib/phone'
@@ -157,9 +157,9 @@ export function AdminPage() {
       return matchesCustomer && (dashboardOrderIds === null || dashboardOrderIds.includes(order.id)) && matchesQuery && matchesOrderFilter && (!fromDate || date >= fromDate) && (!toDate || date <= toDate)
     })
   }, [groupedOrders, orders, mergeMembers, search, orderFilter, fromDate, toDate, dashboardOrderIds, customerOrderFilter])
-  const pages = Math.max(1, Math.ceil(visibleOrders.length / 20))
+  const pages = Math.max(1, Math.ceil(visibleOrders.length / crmPageSize))
   const currentPage = Math.min(page, pages)
-  const pageOrders = visibleOrders.slice((currentPage - 1) * 20, currentPage * 20)
+  const pageOrders = visibleOrders.slice((currentPage - 1) * crmPageSize, currentPage * crmPageSize)
   const pageOrderIds = new Set(pageOrders.map(order => order.id))
   const pageSelected = pageOrders.length > 0 && pageOrders.every(order => selectedOrderIds.includes(order.id))
   const selectedOutsidePage = selectedOrderIds.filter(id => !pageOrderIds.has(id)).length

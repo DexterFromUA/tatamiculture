@@ -509,6 +509,8 @@ const uk = {
   'Nothing to check out': 'Немає чого оформлювати', 'Choose a city and Nova Poshta branch': 'Оберіть місто й відділення Нової пошти',
   'Nova Poshta branch or parcel locker': 'Відділення або поштомат Нової пошти', 'Placing order…': 'Оформлення замовлення…', Pay: 'Сплатити',
   'tatami.culture account': 'Акаунт tatami.culture', 'Create account': 'Створити акаунт', 'Already have an account?': 'Вже маєте акаунт?',
+  'First and last name': 'Ім’я та прізвище',
+  'Nova Poshta needs the recipient’s first and last name for delivery.': 'Ім’я та прізвище одержувача потрібні для доставки Новою поштою.',
   'Hi, {{name}}.': 'Вітаємо, {{name}}.', athlete: 'спортсмене', 'Your details and orders, kept together.': 'Ваші дані та замовлення в одному місці.',
   'tatami.culture customer': 'Клієнт tatami.culture', 'Your purchases': 'Ваші покупки', 'Order history': 'Історія замовлень',
   'Loading orders…': 'Завантаження замовлень…', 'No orders yet.': 'Замовлень ще немає.',

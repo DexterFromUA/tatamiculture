@@ -1,5 +1,7 @@
 import { supabaseRequest } from './supabase'
 
+export const crmPageSize = 50
+
 export function orderPaymentStatusKey(order: { status: string; payment_method: string; payment_status: string }) {
   if (order.payment_method === 'CASH_ON_DELIVERY' && order.payment_status === 'PENDING' && order.status.startsWith('CANCELLED')) {
     return 'payment_UNPAID'

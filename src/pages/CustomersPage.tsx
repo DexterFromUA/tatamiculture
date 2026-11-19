@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
-import { fetchAll, customerPhone } from '../lib/crm'
+import { crmPageSize, customerPhone, fetchAll } from '../lib/crm'
 import { downloadCustomersCsv, type CustomerExportOrder } from '../lib/crmExport'
 import { formatPrice } from '../lib/format'
 import type { CrmCustomer } from '../components/CrmCustomerCard'
@@ -81,7 +81,7 @@ export function CustomersPage({ onOpenCustomer, revision }: { onOpenCustomer: (i
     for (const order of own) totals.set(order.currency, (totals.get(order.currency) ?? 0) + Number(order.total_price))
     return { ...customer, count: own.length, total: [...totals].map(([currency, amount]) => formatPrice(amount / 100, currency)).join(' · ') }
   })
-  const pages = Math.max(1, Math.ceil(rows.length / 20))
+  const pages = Math.max(1, Math.ceil(rows.length / crmPageSize))
   const current = Math.min(page, pages)
   const searchLabel = t('Search by name, phone, order or note')
   return <section className="customers-page">
@@ -99,7 +99,7 @@ export function CustomersPage({ onOpenCustomer, revision }: { onOpenCustomer: (i
         }}>{t('Export CSV')}</button>
         <div className="crm-pagination"><button className="text-btn" disabled={current === 1} onClick={() => setPage(current - 1)}>{t('Previous')}</button><span>{current} / {pages}</span><button className="text-btn" disabled={current === pages} onClick={() => setPage(current + 1)}>{t('Next')}</button></div>
       </div>
-      <ul className="customers-list">{rows.slice((current - 1) * 20, current * 20).map(customer => <li key={customer.id}>
+      <ul className="customers-list">{rows.slice((current - 1) * crmPageSize, current * crmPageSize).map(customer => <li key={customer.id}>
         <button type="button" className="customer-list-card" aria-haspopup="dialog" onClick={() => onOpenCustomer(customer.id)}>
           <span className="customer-list-card__identity"><span className="customer-list-card__name"><strong>{customer.name}</strong>{(customer.phone || customer.email) && <small>{customer.phone || customer.email}</small>}</span>{customer.tags.length > 0 && <small>{customer.tags.join(' · ')}</small>}</span>
           <span>{customer.count} {t('orders')}</span><strong>{customer.total || '—'}</strong>
