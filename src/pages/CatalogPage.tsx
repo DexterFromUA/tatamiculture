@@ -11,11 +11,17 @@ import { BannerCarousel } from '../components/BannerCarousel'
 import { categoriesForProduct, categoryGroups, categoryLabel } from '../lib/categories'
 import { optionPrice } from '../lib/format'
 import { productName } from '../lib/productText'
+import type { Product } from '../types'
 
 const bannerTimeout = 5000
 const siteIcon = '/tatami-mark-transparent.png'
 const newArrivalsCategory = '__new_arrivals__'
 const discountedCategory = '__discounted__'
+
+function productUpdateTime(product: Product) {
+  const updatedAt = Date.parse(product.updatedAt ?? '')
+  return Number.isNaN(updatedAt) ? Date.parse(product.createdAt ?? '') || 0 : updatedAt
+}
 
 export function CatalogPage() {
   const { store, products } = useStore()
@@ -106,13 +112,13 @@ export function CatalogPage() {
     && ((!size && !showingDiscountedProducts) || product.productOptions.some(option =>
       (!size || option.name.trim() === size) && (!showingDiscountedProducts || option.isDiscount))),
   ).sort((a, b) => {
-    if (sort !== 'newest') {
+    if (sort === 'price-low' || sort === 'price-high') {
       const price = (options: typeof a.productOptions) => options.length ? Math.min(...options.map(optionPrice)) : Infinity
       const difference = price(a.productOptions) - price(b.productOptions)
       if (Number.isFinite(difference) && difference !== 0) return sort === 'price-low' ? difference : -difference
       if (price(a.productOptions) !== price(b.productOptions)) return price(a.productOptions) === Infinity ? 1 : -1
     }
-    return (Date.parse(b.createdAt || '') || 0) - (Date.parse(a.createdAt || '') || 0)
+    return productUpdateTime(b) - productUpdateTime(a) || a.id.localeCompare(b.id)
   })
   const activeCategory = activeSubcategory ?? activeGroup?.parent
   const showingAllProducts = !activeGroup && !showingNewArrivals && !showingDiscountedProducts
@@ -153,7 +159,7 @@ export function CatalogPage() {
               <div className="collection-tools">
                 <label><input type="search" aria-label={t('Search products')} placeholder={t('Search products')} value={search} onChange={event => setFilters({ ...filters, search: event.target.value })} /></label>
                 <label><span className="sr-only">{t('Filter by size')}</span><select value={size} onChange={event => setFilters({ ...filters, size: event.target.value })}><option value="">{t('All sizes')}</option>{sizes.map(item => <option key={item} value={item}>{item}</option>)}</select></label>
-                <label><span className="sr-only">{t('Sort products')}</span><select value={sort} onChange={event => setFilters({ ...filters, sort: event.target.value })}><option value="newest">{t('Newest first')}</option><option value="price-low">{t('Price: low to high')}</option><option value="price-high">{t('Price: high to low')}</option></select></label>
+                <label><span className="sr-only">{t('Sort products')}</span><select value={sort} onChange={event => setFilters({ ...filters, sort: event.target.value })}><option value="recently-updated">{t('Newest first')}</option><option value="price-low">{t('Price: low to high')}</option><option value="price-high">{t('Price: high to low')}</option></select></label>
               </div>
             </div>
             <div className="collection-filters" role="group" aria-label={t('Categories')}>

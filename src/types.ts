@@ -52,6 +52,7 @@ export type ProductText = {
 
 export type Product = ProductText & {
   createdAt?: string
+  updatedAt?: string
   sizeGuide?: string
   sizeGuideImageUrls?: string[]
   composition?: string

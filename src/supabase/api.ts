@@ -24,7 +24,8 @@ function mapProduct(row: Row): Product {
   const images = (row.product_images as Row[] | undefined) ?? []
   const variants = (row.product_variants as Row[] | undefined) ?? []
   return {
-    id: text(row.id), storeId: text(row.store_id), name: text(row.name), description: text(row.description), createdAt: text(row.created_at),
+    id: text(row.id), storeId: text(row.store_id), name: text(row.name), description: text(row.description),
+    createdAt: text(row.created_at), updatedAt: text(row.updated_at),
     name_uk: text(row.name_uk), name_en: text(row.name_en),
     description_uk: text(row.description_uk), description_en: text(row.description_en),
     sizeGuide: text(row.size_guide), composition: text(row.composition), careInstructions: text(row.care_instructions),
