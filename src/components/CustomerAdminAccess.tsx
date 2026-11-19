@@ -11,7 +11,9 @@ type AccountAccess = {
   is_self: boolean
 }
 
-export function CustomerAdminAccess({ storeId, customerId, token }: { storeId: string; customerId: string; token: string }) {
+export function CustomerAdminAccess({ storeId, customerId, token, onSaved }: {
+  storeId: string; customerId: string; token: string; onSaved: () => void
+}) {
   const { t } = useTranslation()
   const [accounts, setAccounts] = useState<AccountAccess[]>([])
   const [loading, setLoading] = useState(true)
@@ -50,6 +52,7 @@ export function CustomerAdminAccess({ storeId, customerId, token }: { storeId: s
       setSaved(confirmation.grant ? 'Administrator access granted' : 'Administrator access removed')
       setConfirmation(null)
       setRevision(value => value + 1)
+      onSaved()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Action failed')
     } finally {

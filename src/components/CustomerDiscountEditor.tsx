@@ -8,8 +8,8 @@ type Discount = {
   order_limit: number | null; starts_on: string | null; ends_on: string | null
 }
 
-export function CustomerDiscountEditor({ storeId, customerId, token }: {
-  storeId: string; customerId: string; token: string
+export function CustomerDiscountEditor({ storeId, customerId, token, onSaved }: {
+  storeId: string; customerId: string; token: string; onSaved: () => void
 }) {
   const { t } = useTranslation()
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -82,6 +82,7 @@ export function CustomerDiscountEditor({ storeId, customerId, token }: {
       })
       setSaved(true)
       setRevision(value => value + 1)
+      onSaved()
     } catch (cause) { setError(cause instanceof Error ? cause.message : t('Action failed')) }
     finally { setBusy(false) }
   }

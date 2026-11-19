@@ -107,8 +107,8 @@ export function CrmCustomerCard({ customer, customers, orders, mergeMembers, sto
         {t('View all customer orders')} <span aria-hidden="true">↗</span>
       </button>}
     </section>
-    <CustomerDiscountEditor key={customer.id} storeId={storeId} customerId={customer.id} token={token} />
-    <CustomerAdminAccess key={customer.id} storeId={storeId} customerId={customer.id} token={token} />
+    <CustomerDiscountEditor key={customer.id} storeId={storeId} customerId={customer.id} token={token} onSaved={onSaved} />
+    <CustomerAdminAccess key={customer.id} storeId={storeId} customerId={customer.id} token={token} onSaved={onSaved} />
     <details className="customer-profile__card customer-profile__merge"><summary>{t('Merge customers')} {duplicates.length > 0 && <span>{duplicates.length} {t('matching phone')}</span>}</summary>
       <p>{t('Orders, notes and tags will move to the selected customer. Account access stays separate.')}</p>
       <label className="field">{t('Keep customer')}<select value={targetId} onChange={event => setTargetId(event.target.value)}>
