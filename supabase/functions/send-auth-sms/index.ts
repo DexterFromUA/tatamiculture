@@ -1,5 +1,5 @@
 import { Webhook } from 'npm:standardwebhooks@1.0.0'
-import { configuredSecret, kyivstarSignInCredentials, sendKyivstar } from '../_shared/sms-auth.ts'
+import { configuredSecret, kyivstarSignInCredentials, sendKyivstar, sendSmsClub, smsClubCredentials, smsClubHookQuery } from '../_shared/sms-auth.ts'
 
 Deno.serve(async request => {
   if (request.method !== 'POST') return new Response(null, { status: 405 })
@@ -21,11 +21,19 @@ Deno.serve(async request => {
     return new Response(null, { status: 400 })
   }
 
-  const credentials = kyivstarSignInCredentials()
-  if (!credentials) return new Response(null, { status: 503 })
-
+  const query = new URL(request.url).search
+  if (query && query !== smsClubHookQuery) return new Response(null, { status: 400 })
+  const message = `Код tatami.culture: ${otp}`
   try {
-    await sendKyivstar(credentials, digits, `Код tatami.culture: ${otp}`)
+    if (query === smsClubHookQuery) {
+      const credentials = smsClubCredentials()
+      if (!credentials) return new Response(null, { status: 503 })
+      await sendSmsClub(credentials, digits, message)
+    } else {
+      const credentials = kyivstarSignInCredentials()
+      if (!credentials) return new Response(null, { status: 503 })
+      await sendKyivstar(credentials, digits, message)
+    }
     return Response.json({})
   } catch (error) {
     console.error('Auth SMS could not be sent', error instanceof Error ? error.message : 'Unknown provider error')

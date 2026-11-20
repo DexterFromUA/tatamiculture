@@ -4,10 +4,11 @@ import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { supabaseRequest } from '../lib/supabase'
 
-type SmsProvider = 'kyivstar' | 'twilio'
+type SmsProvider = 'kyivstar' | 'twilio' | 'smsclub'
 type SmsSettings = {
   provider: SmsProvider | null
   kyivstarConfigured: boolean
+  smsClubConfigured: boolean
   managementConfigured: boolean
 }
 
@@ -41,7 +42,8 @@ export function SmsProviderSettings() {
 
   async function switchProvider(provider: SmsProvider) {
     if (!token || !settings?.managementConfigured || settings.provider === provider || saving
-      || (provider === 'kyivstar' && !settings.kyivstarConfigured)) return
+      || (provider === 'kyivstar' && !settings.kyivstarConfigured)
+      || (provider === 'smsclub' && !settings.smsClubConfigured)) return
     setSaving(true)
     setError('')
     try {
@@ -79,18 +81,19 @@ export function SmsProviderSettings() {
       ? <button type="button" className="text-btn" onClick={() => { setError(''); setAttempt(value => value + 1) }}>{t('Try again')}</button>
       : <p className="muted" role="status">{t('Loading…')}</p>)}
     {settings && <div className="sms-provider-settings__provider" aria-busy={saving}>
-      <div className="sms-provider-settings__switch">
-        <strong>Twilio</strong>
-        <label className="mode-switch">
-          <input type="checkbox" role="switch" aria-label={t('Use Kyivstar for SMS')} checked={settings.provider === 'kyivstar'}
-            disabled={!token || saving || !settings.managementConfigured || (settings.provider !== 'kyivstar' && !settings.kyivstarConfigured)}
-            onChange={event => void switchProvider(event.target.checked ? 'kyivstar' : 'twilio')} />
-          <span aria-hidden="true" />
-        </label>
-        <strong>{t('Kyivstar')}</strong>
-      </div>
+      <label className="field">
+        <span>{t('SMS provider')}</span>
+        <select value={settings.provider ?? ''} disabled={!token || saving || !settings.managementConfigured}
+          onChange={event => void switchProvider(event.target.value as SmsProvider)}>
+          {!settings.provider && <option value="" disabled>{t('Provider unavailable')}</option>}
+          <option value="twilio">Twilio</option>
+          <option value="kyivstar" disabled={!settings.kyivstarConfigured}>{t('Kyivstar')}</option>
+          <option value="smsclub" disabled={!settings.smsClubConfigured}>SMSClub (smsclub.com.ua)</option>
+        </select>
+      </label>
       {saving && <p className="muted" role="status">{t('Saving…')}</p>}
       {!settings.kyivstarConfigured && <p className="muted">{t('Add the Kyivstar credentials in Supabase to activate it.')}</p>}
+      {!settings.smsClubConfigured && <p className="muted">{t('Add the smsclub.com.ua API key and sender in Infisical to activate it.')}</p>}
       {!settings.managementConfigured && <p className="muted">{t('Add the Supabase Management API token to switch providers here.')}</p>}
     </div>}
     <div className="sms-provider-settings__notifications">

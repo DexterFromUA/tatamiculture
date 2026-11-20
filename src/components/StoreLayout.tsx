@@ -20,7 +20,7 @@ export type CatalogNavigation = {
 }
 
 export function StoreLayout() {
-  const { store, catalogRevision, loading, notFound, loadFailed } = useStore()
+  const { store, catalogRevision, loading, notFound, loadFailed, retryStore } = useStore()
   const { count } = useCart()
   const { isAuthenticated, token, user } = useAuth()
   const { t, i18n } = useTranslation()
@@ -134,7 +134,10 @@ export function StoreLayout() {
   }
 
   if (loadFailed) {
-    return <main className="page-status"><h1>{t('Store temporarily unavailable')}</h1></main>
+    return <main className="page-status">
+      <h1>{t('Store temporarily unavailable')}</h1>
+      <button type="button" className="btn" onClick={retryStore}>{t('Try again')}</button>
+    </main>
   }
 
   if (notFound || !store) {

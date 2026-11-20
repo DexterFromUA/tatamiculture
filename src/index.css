@@ -1441,14 +1441,13 @@ textarea {
 .banner-settings__actions .success { margin: 0; }
 @media (max-width: 850px) { .settings-workspace { grid-template-columns: 1fr; } .settings-nav { grid-template-columns: repeat(4, minmax(0, 1fr)); } .settings-nav button { border-bottom: 0; } .settings-nav button:not(:last-child) { border-right: 1px solid var(--crm-border); } }
 .sms-provider-settings__provider { padding-top: 16px; }
-.sms-provider-settings__switch { display: flex; align-items: center; gap: 12px; }
+.sms-provider-settings__provider .field { max-width: 360px; margin: 0; }
 .sms-provider-settings .mode-switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 3px; }
 .sms-provider-settings .mode-switch input:disabled + span { opacity: .55; cursor: default; }
 .sms-provider-settings__notifications { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--crm-border); }
 .sms-provider-settings__notification-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .sms-provider-settings__notification-row h3 { margin: 0 0 6px; font-size: 1rem; }
 .sms-provider-settings__notification-row p { margin: 0; font-size: .85rem; }
-.sms-provider-settings .field { max-width: 360px; margin-top: 16px; }
 .payment-settings { padding: clamp(22px, 3vw, 32px); }
 .payment-settings__list { display: grid; }
 .payment-settings__row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; cursor: pointer; }

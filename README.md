@@ -80,11 +80,12 @@ In CRM → Settings, choose the sender and parcel defaults. In CRM → Orders, a
 
 ## Вход через SMS
 
-Twilio настраивается в Supabase Authentication → Phone. Supabase Auth выдаёт и проверяет коды для обоих провайдеров.
+Провайдер кодов входа и регистрации выбирается в **CRM → Настройки → SMS**.
 
-1. В Supabase Edge Function Secrets укажи `KYIVSTAR_CLIENT_ID` и `KYIVSTAR_CLIENT_SECRET` из [кабинета API Киевстара](https://api-market.kyivstar.ua/). Пока `KYIVSTAR_SMS_FROM` не содержит согласованного альфа-имени, коды входа через Киевстар отправляются из песочницы от `messagedesk` на подтверждённые в кабинете номера. После добавления альфа-имени используется боевой API.
-2. В `SMS_AUTH_MANAGEMENT_TOKEN` укажи [scoped access token](https://supabase.com/dashboard/account/tokens) только для проекта Tatami с правами **Auth Config** и **Project Settings** на чтение и запись. `SMS_AUTH_HOOK_SECRET` содержит отдельный секрет подписи хука в формате `v1,whsec_<base64>`.
-3. В CRM → Настройки → Вход через SMS переключись на Киевстар. CRM включает подписанный **Send SMS Hook** для Киевстара и выключает его при выборе встроенного Twilio.
-4. Проверь вход с обычного номера для обоих провайдеров. Номера из списка тестовых OTP в Supabase обходят отправку SMS.
+- **Twilio** настраивается в Supabase Authentication → Phone.
+- **Киевстар** использует `KYIVSTAR_CLIENT_ID`, `KYIVSTAR_CLIENT_SECRET` из [кабинета API](https://api-market.kyivstar.ua/) и согласованное имя `KYIVSTAR_SMS_FROM`. До согласования имени коды отправляются через песочницу на подтверждённые в кабинете номера.
+- **SMSClub (smsclub.com.ua)** использует ключ HTTP API из настроек кабинета `SMSCLUB_API_TOKEN` и согласованное альфа-имя `SMSCLUB_SMS_FROM`. [Документация SMSClub](https://smsclub.com.ua/uk/bulksms/techdocs)
 
-Для проверки доставки до согласования альфа-имени добавь и подтверди номер в разделе **Пісочниця** в кабинете Киевстара. В CRM → Настройки → Вход через SMS → Пісочниця Київстар отправь тестовое сообщение на этот номер. Этот запрос использует песочницу и имя `messagedesk`.
+Секреты Киевстара и SMSClub синхронизируются из Infisical (`prod`, `/supabase`) в Supabase Edge Function Secrets. `SMS_AUTH_MANAGEMENT_TOKEN` содержит [токен проекта Tatami](https://supabase.com/dashboard/account/tokens) с доступом к конфигурации Auth, а `SMS_AUTH_HOOK_SECRET` — секрет подписи в формате `v1,whsec_<base64>`. CRM включает **Send SMS Hook** для Киевстара и SMSClub. При выборе Twilio Supabase использует встроенную интеграцию.
+
+Номера из списка тестовых OTP в Supabase обходят отправку SMS. Доставку кодов проверяют на обычном номере.

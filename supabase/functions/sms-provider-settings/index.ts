@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { configuredSecret, kyivstarSignInCredentials } from '../_shared/sms-auth.ts'
+import { configuredSecret, kyivstarSignInCredentials, smsClubCredentials, smsClubHookQuery } from '../_shared/sms-auth.ts'
 
 type AuthConfig = {
   hook_send_sms_enabled: boolean
@@ -38,24 +38,34 @@ Deno.serve(async request => {
     const secret = configuredSecret('SMS_AUTH_HOOK_SECRET')
     const kyivstarMode = secret ? kyivstarSignInCredentials()?.mode ?? null : null
     const kyivstarConfigured = kyivstarMode !== null
+    const smsClubConfigured = Boolean(secret && smsClubCredentials())
+    const availability = { kyivstarConfigured, kyivstarMode, smsClubConfigured }
     if (!token) {
       if (request.method === 'PUT') return json({ error: 'The Supabase Management API token is missing.' }, 409)
-      return json({ provider: null, kyivstarConfigured, kyivstarMode, managementConfigured: false })
+      return json({ provider: null, ...availability, managementConfigured: false })
     }
 
     const project = new URL(url).hostname.match(/^([a-z0-9]+)\.supabase\.co$/)?.[1]
     if (!project) throw new Error('Supabase project reference could not be determined')
     const authConfigUrl = `https://api.supabase.com/v1/projects/${project}/config/auth`
     const hookUrl = new URL('/functions/v1/send-auth-sms', url).href
+    const hookUrls = { kyivstar: hookUrl, smsclub: `${hookUrl}${smsClubHookQuery}` }
     const managementHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
     const readConfig = async (): Promise<AuthConfig> => {
       const response = await fetch(authConfigUrl, { headers: managementHeaders, signal: AbortSignal.timeout(5000) })
       if (!response.ok) throw new Error(`Supabase Management API HTTP ${response.status}`)
       return response.json()
     }
+    const activeProvider = (config: AuthConfig) => {
+      if (!config.hook_send_sms_enabled) return 'twilio'
+      if (config.hook_send_sms_uri === hookUrls.kyivstar) return 'kyivstar'
+      if (config.hook_send_sms_uri === hookUrls.smsclub) return 'smsclub'
+      return null
+    }
 
-    let config = await readConfig()
-    if (config.hook_send_sms_enabled && config.hook_send_sms_uri !== hookUrl) {
+    const config = await readConfig()
+    let provider = activeProvider(config)
+    if (provider === null) {
       return json({ error: 'Another Send SMS hook is active in Supabase.' }, 409)
     }
     if (config.sms_provider !== 'twilio' && config.sms_provider !== 'twilio_verify') {
@@ -63,33 +73,36 @@ Deno.serve(async request => {
     }
 
     if (request.method === 'PUT') {
-      const payload = await request.json().catch(() => null)
-      const provider = payload?.provider
-      if (provider !== 'kyivstar' && provider !== 'twilio') return json({ error: 'Invalid SMS provider' }, 400)
-      if (provider === 'kyivstar' && !kyivstarConfigured) {
+      const payload: { provider?: unknown } | null = await request.json().catch(() => null)
+      const selected = payload?.provider
+      if (selected !== 'kyivstar' && selected !== 'twilio' && selected !== 'smsclub') {
+        return json({ error: 'Invalid SMS provider' }, 400)
+      }
+      if (selected === 'kyivstar' && !kyivstarConfigured) {
         return json({ error: 'Kyivstar credentials are missing.' }, 409)
       }
+      if (selected === 'smsclub' && !smsClubConfigured) {
+        return json({ error: 'SMSClub credentials are missing.' }, 409)
+      }
 
-      const enableHook = provider === 'kyivstar'
-      if (Boolean(config.hook_send_sms_enabled) !== enableHook) {
+      if (provider !== selected) {
         const response = await fetch(authConfigUrl, {
           method: 'PATCH',
           headers: managementHeaders,
-          body: JSON.stringify(enableHook
-            ? { hook_send_sms_enabled: true, hook_send_sms_uri: hookUrl, hook_send_sms_secrets: secret }
-            : { hook_send_sms_enabled: false }),
+          body: JSON.stringify(selected === 'twilio'
+            ? { hook_send_sms_enabled: false }
+            : { hook_send_sms_enabled: true, hook_send_sms_uri: hookUrls[selected], hook_send_sms_secrets: secret }),
           signal: AbortSignal.timeout(5000),
         })
         if (!response.ok) throw new Error(`Supabase Management API HTTP ${response.status}`)
         await response.body?.cancel()
-        config = await readConfig()
-      }
-      if (Boolean(config.hook_send_sms_enabled) !== enableHook) {
-        return json({ error: 'Could not verify the SMS provider change.' }, 502)
+        const updated = activeProvider(await readConfig())
+        if (updated !== selected) return json({ error: 'Could not verify the SMS provider change.' }, 502)
+        provider = updated
       }
     }
 
-    return json({ provider: config.hook_send_sms_enabled ? 'kyivstar' : 'twilio', kyivstarConfigured, kyivstarMode, managementConfigured: true })
+    return json({ provider, ...availability, managementConfigured: true })
   } catch {
     return json({ error: 'Could not load or save the SMS provider.' }, 502)
   }

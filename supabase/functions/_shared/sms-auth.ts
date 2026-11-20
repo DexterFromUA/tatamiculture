@@ -3,6 +3,31 @@ export function configuredSecret(name: string) {
   return value && value !== 'REPLACE_ME' ? value : undefined
 }
 
+export const smsClubHookQuery = '?provider=smsclub'
+
+export function smsClubCredentials() {
+  const apiKey = configuredSecret('SMSCLUB_API_TOKEN')
+  const from = configuredSecret('SMSCLUB_SMS_FROM')
+  return apiKey && from ? { apiKey, from } : null
+}
+
+export async function sendSmsClub(credentials: NonNullable<ReturnType<typeof smsClubCredentials>>, phone: string, body: string) {
+  const response = await fetch('https://alphasms.ua/api/http.php', {
+    method: 'POST',
+    body: new URLSearchParams({
+      version: 'http', key: credentials.apiKey, command: 'send', from: credentials.from, to: phone, message: body,
+    }),
+    redirect: 'error',
+    signal: AbortSignal.timeout(3500),
+  })
+  if (!response.ok) throw new Error(`SMSClub HTTP ${response.status}`)
+
+  const result = (await response.text()).trim()
+  if (!/^id:[ \t]*[1-9]\d*\s+sms_count:[ \t]*[1-9]\d*$/.test(result)) {
+    throw new Error('SMSClub did not accept the SMS')
+  }
+}
+
 export function kyivstarCredentials(mode: 'live' | 'sandbox' = 'live') {
   const clientId = configuredSecret('KYIVSTAR_CLIENT_ID')
   const clientSecret = configuredSecret('KYIVSTAR_CLIENT_SECRET')
