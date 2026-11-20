@@ -154,6 +154,9 @@ export function StoreLayout() {
     )
   }
 
+  const nextLanguage = i18n.language === 'uk' ? 'en' : 'uk'
+  const nextLanguageName = nextLanguage === 'en' ? 'English' : 'Українська'
+
   return (
     <div className="shell">
       <header className={`topbar${isHome ? ' topbar--scroll' : ''}${isHome && !scrollState.headerVisible ? ' topbar--hidden' : ''}`} inert={isHome && !scrollState.headerVisible}>
@@ -174,8 +177,8 @@ export function StoreLayout() {
           ) : (
             <NavLink to="/login">{t('Sign in')}</NavLink>
           )}
-          <button type="button" className="text-btn" onClick={() => void i18n.changeLanguage(i18n.language === 'uk' ? 'en' : 'uk')}>
-            {i18n.language === 'uk' ? t('English') : t('Ukrainian')}
+          <button type="button" className="text-btn nav__language" lang={nextLanguage} aria-label={nextLanguageName} onClick={() => void i18n.changeLanguage(nextLanguage)}>
+            {nextLanguage === 'en' ? 'EN' : 'UA'}
           </button>
           {showThemeSwitch && <ThemeSwitch mode={mode} theme={theme} onChange={selectTheme} />}
         </nav>
