@@ -156,7 +156,13 @@ textarea {
 .footer__contacts a strong { font-weight: 500; overflow-wrap: anywhere; }
 .footer__contacts a:hover strong { text-decoration: underline; text-underline-offset: 4px; }
 .contact-settings { margin-top: 16px; }
-@media (max-width: 600px) { .footer { flex-wrap: wrap; } .footer__contacts { width: 100%; } }
+@media (max-width: 600px) {
+  .footer { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); align-items: start; }
+  .footer__identity { overflow-wrap: anywhere; }
+  .footer__contacts { display: grid; gap: 10px; text-align: right; font-size: .75rem; }
+  .footer__contacts a { grid-template-columns: minmax(0, 1fr) auto; column-gap: 6px; }
+  .footer__contacts a span { font-size: .65rem; }
+}
 
 .page-head {
   margin-bottom: 32px;
