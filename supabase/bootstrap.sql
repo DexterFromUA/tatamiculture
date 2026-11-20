@@ -3,7 +3,7 @@
 -- Выполните файл целиком в SQL Editor под ролью postgres.
 -- Создаётся пустой магазин tatami. Существующие заказы, пользователи, файлы
 -- и ключи интеграций не копируются. Владелец назначается через seed-owner.sql.
--- Учтены миграции репозитория по 20261120150000 включительно.
+-- Учтены миграции репозитория по 20261121120000 включительно.
 BEGIN;
 
 DO $$
@@ -909,7 +909,8 @@ begin
   return (select jsonb_build_object(
     'paid',count(*) filter (where status = 'PAID' and created_at is not null),
     'failed',count(*) filter (where status = 'FAILED' and created_at is not null),
-    'pending',count(*) filter (where status = 'PENDING' and created_at is not null),
+    'pending',count(*) filter (where status = 'PENDING' and created_at is not null and expires_at > now()),
+    'expired',count(*) filter (where status = 'PENDING' and created_at is not null and expires_at <= now()),
     'undated',count(*) filter (where created_at is null)
   ) from public.online_checkouts
   where store_id = p_store_id and not test_mode and currency = p_currency
@@ -3784,7 +3785,8 @@ INSERT INTO supabase_migrations.schema_migrations (version, name) VALUES
   ('20261119110700', 'retire_stores_view'),
   ('20261119110800', 'remove_obsolete_rpcs'),
   ('20261120120000', 'storefront_theme_settings'),
-  ('20261120150000', 'registration_agreement')
+  ('20261120150000', 'registration_agreement'),
+  ('20261121120000', 'dashboard_expired_payment_attempts')
 ON CONFLICT (version) DO NOTHING;
 
 create function public.list_crm_customers(p_store_id uuid)

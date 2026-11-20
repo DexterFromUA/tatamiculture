@@ -10,7 +10,7 @@ import {
 } from '../lib/dashboard'
 import type { AnalyticsCost, AnalyticsReturn } from '../lib/analytics'
 
-type PaymentStats = { paid: number; failed: number; pending: number; undated: number }
+type PaymentStats = { paid: number; failed: number; pending: number; expired?: number; undated: number }
 type DashboardData = {
   costs: AnalyticsCost[]; refunds: AnalyticsReturn[]; sales: DashboardSale[]
   demand: { variant_id: string }[]; returns: { id: string; order_id: string; status: string }[]
@@ -241,7 +241,8 @@ export function AdminDashboard({ active, storeId, currency: storeCurrency, token
           {payments ? <>
             <div className="dashboard-payment-counts"><div><span>{t('Successful')}</span><strong>{payments.paid}</strong></div><div><span>{t('Unsuccessful')}</span><strong>{payments.failed}</strong></div><div><span>{t('Awaiting payment')}</span><strong>{payments.pending}</strong></div></div>
             <div className="dashboard-payment-bar" aria-label={t('Successful payments: {{percent}}%', { percent: payments.paid + payments.failed ? Math.round(payments.paid / (payments.paid + payments.failed) * 100) : 0 })}><span style={{ width: `${payments.paid / Math.max(1, payments.paid + payments.failed + payments.pending) * 100}%` }} /></div>
-            <p className="dashboard-note">{t('Online payment attempts in the selected period. Unfinished payments are counted separately.')}</p>
+            <p className="dashboard-note">{t('Online payment attempts in the selected period.')}</p>
+            {!!payments.expired && <p className="dashboard-note">{t('Expired payment attempts: {{count}}.', { count: payments.expired })}</p>}
             {payments.undated > 0 && <p className="dashboard-note">{t('{{count}} earlier payment attempts have no date and are excluded.', { count: payments.undated })}</p>}
           </> : <p className={paymentError ? 'error' : 'muted'} role={paymentError ? 'alert' : 'status'}>{t(paymentError ? 'Could not load this block.' : 'Loading…')}{paymentError && <button type="button" className="text-btn" onClick={onRefresh}>{t('Try again')}</button>}</p>}
           <button type="button" className="dashboard-cod" onClick={() => onOpenOrders(cod.map(order => rootId(order.id)))}><span>{t('Outstanding cash on delivery')}<small>{t('All open orders')}</small></span><strong>{money(cod.reduce((sum, order) => sum + Number(order.total_price), 0))}</strong><span aria-hidden="true">↗</span></button>
