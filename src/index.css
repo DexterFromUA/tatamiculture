@@ -2217,7 +2217,7 @@ input[type="date"] { color-scheme: light; }
 .field--checkbox { display: flex; align-items: center; gap: 10px; }
 .field--checkbox input { width: 18px; height: 18px; padding: 0; margin: 0; accent-color: var(--accent); }
 
-/* The three positions stay available on touch screens and for keyboard focus. */
+/* Compact theme button expands on hover, tap, or keyboard activation. */
 .theme-switch { --theme-position: 0px; position: relative; display: inline-flex; flex: 0 0 auto; width: 98px; height: 36px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper); transition: width .22s ease; }
 .theme-switch[data-mode="system"] { --theme-position: 30px; }
 .theme-switch[data-mode="dark"] { --theme-position: 60px; }
@@ -2225,15 +2225,25 @@ input[type="date"] { color-scheme: light; }
 .theme-switch__option { --option-position: 0px; position: absolute; top: 3px; left: 3px; width: 30px; height: 28px; cursor: pointer; transform: translateX(var(--option-position)); transition: transform .22s ease, opacity .16s ease; }
 .theme-switch__option:nth-child(2) { --option-position: 30px; }
 .theme-switch__option:nth-child(3) { --option-position: 60px; }
-.theme-switch__option input { position: absolute; width: 1px; height: 1px; padding: 0; margin: 0; opacity: 0; }
+.theme-switch__option input { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; padding: 0; margin: 0; opacity: 0; cursor: pointer; }
 .theme-switch__icon { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; border-radius: 999px; color: var(--muted); }
 .theme-switch__option:hover .theme-switch__icon { color: var(--ink); }
 .theme-switch__option input:checked + .theme-switch__icon { color: var(--paper); }
 .theme-switch__option input:focus-visible + .theme-switch__icon { outline: 2px solid var(--accent); outline-offset: 4px; }
-@media (hover: hover) and (pointer: fine) {
-  .theme-switch:not(:hover):not(:has(:focus-visible)) { width: 38px; }
-  .theme-switch:not(:hover):not(:has(:focus-visible))::before,
-  .theme-switch:not(:hover):not(:has(:focus-visible)) .theme-switch__option { transform: translateX(0); }
-  .theme-switch:not(:hover):not(:has(:focus-visible)) .theme-switch__option:not(:has(input:checked)) { opacity: 0; pointer-events: none; }
+.theme-switch__trigger { position: absolute; inset: 3px auto auto 3px; display: flex; align-items: center; justify-content: center; width: 30px; height: 28px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--paper); cursor: pointer; transition: opacity .16s ease; }
+.theme-switch__trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.theme-switch__options { position: absolute; inset: 3px; transition: opacity .16s ease; }
+.theme-switch__options .theme-switch__option { top: 0; left: 0; }
+.theme-switch[data-open="true"] .theme-switch__trigger { opacity: 0; pointer-events: none; }
+.theme-switch[data-open="false"] { width: 38px; }
+.theme-switch[data-open="false"]::before,
+.theme-switch[data-open="false"] .theme-switch__option { transform: translateX(0); }
+.theme-switch[data-open="false"] .theme-switch__options { opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .theme-switch, .theme-switch::before, .theme-switch__option, .theme-switch__trigger, .theme-switch__options { transition: none; } }
+
+@media (max-width: 600px) {
+  .topbar:not(.topbar--scroll) { position: relative; }
+  .topbar > .brand { max-width: calc(100% - 54px); }
+  .topbar .theme-switch-anchor { position: absolute; top: 24px; right: 0; width: 38px; height: 36px; }
+  .theme-switch-anchor .theme-switch { position: absolute; top: 0; right: 0; z-index: 1; }
 }
-@media (prefers-reduced-motion: reduce) { .theme-switch, .theme-switch::before, .theme-switch__option { transition: none; } }
