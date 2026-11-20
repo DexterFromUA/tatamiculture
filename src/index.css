@@ -1508,8 +1508,8 @@ textarea {
 .checkout-form__head { padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
 .checkout-form__head h2 { font-size: 1.5rem; }
 .checkout-form__head > p:last-child { margin: 10px 0 0; font-size: .85rem; }
-.checkout-contact { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-.checkout-contact .field { min-width: 0; margin-top: 0; }
+.checkout-contact { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 14px; }
+.checkout-contact .field { min-width: 0; margin: 0; }
 .checkout-form .field > label { color: var(--muted); font-size: .75rem; font-weight: 600; }
 .checkout-summary .payment-methods legend { padding: 0 8px 0 0; font-weight: 700; }
 .checkout-summary .payment-methods legend { width: 100%; }
@@ -1555,15 +1555,7 @@ textarea {
 }
 
 /* Native form controls */
-select:not([multiple]):not([size]), select[size="1"] {
-  appearance: none;
-  -webkit-appearance: none;
-  padding-right: 42px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='m4 6 4 4 4-4' stroke='%236b645c' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 14px center;
-  background-size: 16px 16px;
-}
+
 input[type="date"] { color-scheme: light; }
 :root[data-theme="dark"] select:not([multiple]):not([size]), :root[data-theme="dark"] select[size="1"] {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='m4 6 4 4 4-4' stroke='%23b3aaa0' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -2274,3 +2266,14 @@ input[type="date"] { color-scheme: light; }
 
 .footer__identity { display: grid; justify-items: start; align-content: start; gap: 8px; }
 .footer__identity > a { color: var(--muted); font-size: .82rem; text-underline-offset: 4px; }
+
+/* Keep the arrow and its geometry together after component background/padding shorthands. */
+:root select:not([multiple]):not([size]), :root select[size="1"] {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 42px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='m4 6 4 4 4-4' stroke='%236b645c' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px 16px;
+}

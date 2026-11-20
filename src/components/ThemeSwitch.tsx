@@ -37,7 +37,11 @@ export function ThemeSwitch({ mode, theme, onChange }: { mode: ThemeMode; theme:
     onPointerDownCapture={event => { pointerType.current = event.pointerType }}
     onPointerEnter={event => { if (event.pointerType === 'mouse') setOpen(true) }}
     onPointerLeave={event => { if (event.pointerType === 'mouse' && !event.currentTarget.querySelector(':focus-visible')) setOpen(false) }}
-    onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false) }}
+    onBlur={event => {
+      // Safari can blur the trigger with no next focus target before a radio's click/change.
+      // Keep the options active for that tap; outside pointerdown still dismisses them.
+      if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) setOpen(false)
+    }}
     onKeyDown={event => {
       if (event.key === 'Escape') { event.preventDefault(); trigger.current?.focus(); setOpen(false) }
     }}>

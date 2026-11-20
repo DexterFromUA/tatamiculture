@@ -250,8 +250,8 @@ function CheckoutForm() {
         {error ? <p className="error" role="alert">{t(error)}</p> : null}
         <div className="checkout-contact">
         <label className="field">
-          <span>{t('Name')}</span>
-          <input required value={form.name} onChange={setField('name')} />
+          <span id="checkout-name-label">{t('First and last name')}</span>
+          <input autoComplete="name" aria-labelledby="checkout-name-label" required value={form.name} onChange={setField('name')} />
         </label>
         <label className="field">
           <span>{t('Phone')}</span>
