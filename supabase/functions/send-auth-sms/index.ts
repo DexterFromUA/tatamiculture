@@ -24,7 +24,7 @@ Deno.serve(async request => {
   const query = new URL(request.url).search
   if (query && query !== smsClubHookQuery) return new Response(null, { status: 400 })
   const domain = new URL(configuredSecret('SITE_URL') ?? 'https://tatami.culture').hostname
-  const message = `Код tatami.culture: ${otp}\n\n@${domain} #${otp}`
+  const message = `@${domain} #${otp}`
   try {
     if (query === smsClubHookQuery) {
       const credentials = smsClubCredentials()
