@@ -300,6 +300,15 @@ textarea {
 .collection-filters:has(+ .collection-filters--subcategories) { padding-bottom: 6px; }
 .collection-filters--subcategories button { padding: 7px 12px; }
 .storefront-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 36px 16px; }
+.storefront .product-card--skeleton .skeleton-block { background: var(--line); }
+.skeleton-meta { display: grid; gap: 9px; padding: 4px 0; }
+.skeleton-meta .skeleton-block { display: block; height: 12px; width: 38%; }
+.skeleton-meta .skeleton-block:nth-child(2) { height: 17px; width: 80%; }
+.skeleton-meta .skeleton-block:nth-child(3) { width: 28%; }
+@media (prefers-reduced-motion: no-preference) {
+  .product-card--skeleton .skeleton-block { animation: skeleton-pulse 1.4s ease-in-out infinite alternate; }
+  @keyframes skeleton-pulse { from { opacity: .55; } to { opacity: 1; } }
+}
 .catalog-load-more { display: grid; justify-items: center; gap: 8px; margin-top: 24px; }
 .storefront .product-card__image { border: 0; background: #ebebeb; }
 .storefront .product-card__meta { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 4px 0; }

@@ -170,9 +170,13 @@ export function CatalogPage() {
               const card = event.target instanceof Element ? event.target.closest('a.product-card') : null
               if (card instanceof HTMLAnchorElement) rememberProduct(card)
             }}>
+              {catalog.loading && Array.from({ length: catalog.placeholderCount }, (_, index) => <div className="product-card product-card--skeleton" aria-hidden="true" key={index}>
+                <div className="product-card__image skeleton-block" />
+                <div className="skeleton-meta"><span className="skeleton-block" /><span className="skeleton-block" /><span className="skeleton-block" /></div>
+              </div>)}
               {visibleProducts.map(product => <ProductCard key={product.id} product={product} store={store} />)}
             </div>
-            {catalog.loading && <p className="muted" role="status">{t('Loading…')}</p>}
+            {catalog.loading && <p className="sr-only" role="status">{t('Loading…')}</p>}
             {catalogReady && visibleProducts.length === 0 && <p className="muted">{t('No products match these filters.')}</p>}
             {hasMore && <div ref={nextPage} className="catalog-load-more">
               {catalog.error === 'more' && <p className="error" role="alert">{t('Could not load more products.')}</p>}

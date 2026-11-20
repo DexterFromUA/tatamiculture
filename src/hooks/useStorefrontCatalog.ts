@@ -92,6 +92,7 @@ export function useStorefrontCatalog(storeId: string | undefined, filters: Catal
     page,
     metadata: metadataReady ? metadata?.value : undefined,
     loading: !page && pageError !== 'first',
+    placeholderCount: snapshot?.page.rows.length || 12,
     loadingMetadata: !metadataReady && !metadataFailed,
     loadingMore: Boolean(loadingMore),
     error: pageError ?? (metadataFailed ? 'metadata' : undefined),
