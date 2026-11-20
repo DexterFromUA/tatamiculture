@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { normalizePhone, normalizeUkrainianPhone, ukrainianPhoneInput } from '../lib/phone'
 import { listenForSmsCode } from '../lib/smsCode'
 import { SupabaseError } from '../lib/supabase'
+import { agreementPath } from '../content/agreement'
 import type { AuthSession } from '../types'
 
 export function PhoneAuthPage({ register = false }: { register?: boolean }) {
@@ -26,6 +27,7 @@ export function PhoneAuthPage({ register = false }: { register?: boolean }) {
   const phoneHintId = useId()
   const validPhone = normalizeUkrainianPhone(phone)
   useEffect(() => () => cancelSmsAutofill.current(), [])
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [name, setName] = useState('')
   const [sentTo, setSentTo] = useState<string | null>(null)
   const [code, setCode] = useState('')
@@ -61,13 +63,17 @@ export function PhoneAuthPage({ register = false }: { register?: boolean }) {
       return
     }
 
+    if (register && !acceptedTerms) {
+      setError('Accept the user agreement to create an account.')
+      return
+    }
     setBusy(true)
     setError('')
     cancelSmsAutofill.current()
     setCode('')
     cancelSmsAutofill.current = listenForSmsCode(setCode)
     try {
-      await requestPhoneCode(number, register ? { name: customerName, storeId: store.id } : undefined)
+      await requestPhoneCode(number, register ? { name: customerName, storeId: store.id, acceptedTerms } : undefined)
       setSentTo(number)
       setSeconds(60)
     } catch (cause) {
@@ -152,8 +158,15 @@ export function PhoneAuthPage({ register = false }: { register?: boolean }) {
                   value={phone} onChange={event => { setPhone(ukrainianPhoneInput(event.target.value)); setError('') }} required disabled={busy} />
                 <small id={phoneHintId} className="muted">{t('Enter 9 digits after +380.')}</small>
               </label>
+              {register && <div className="registration-agreement">
+                <label className="registration-agreement__label">
+                  <input type="checkbox" name="accept-agreement" required checked={acceptedTerms} disabled={busy} onChange={event => { setAcceptedTerms(event.target.checked); setError('') }} />
+                  <span>{t('I have read and accept the')} <Link to={agreementPath} target="_blank" rel="noopener noreferrer">{t('user agreement')}</Link>{t(', including the personal data processing terms.')}</span>
+                </label>
+                <small className="muted">{t('This does not subscribe you to marketing messages.')}</small>
+              </div>}
             </>}
-            <button type="submit" className="btn" disabled={busy || !store || (!sentTo && !validPhone) || (Boolean(sentTo) && !verified && code.length !== 6)}>
+            <button type="submit" className="btn" disabled={busy || !store || (!sentTo && (!validPhone || (register && !acceptedTerms))) || (Boolean(sentTo) && !verified && code.length !== 6)}>
               {t(busy ? sentTo ? 'Checking…' : 'Sending…' : verified ? 'Try again' : action)}
             </button>
           </form>

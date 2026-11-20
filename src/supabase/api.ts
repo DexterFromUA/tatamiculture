@@ -1,3 +1,4 @@
+import { agreementVersion } from '../content/agreement'
 import { normalizePhone, normalizeUkrainianPhone } from '../lib/phone'
 import { catalogOffer } from '../lib/catalogPricing'
 import { fetchAll } from '../lib/crm'
@@ -159,14 +160,15 @@ export const supabaseApi = {
     return rows.map(mapProduct)
   },
 
-  async requestPhoneCode(phone: string, registration?: { name: string; storeId: string }) {
+  async requestPhoneCode(phone: string, registration?: { name: string; storeId: string; acceptedTerms: boolean }) {
+    if (registration && !registration.acceptedTerms) throw new Error('Accept the user agreement to create an account.')
     const number = normalizeUkrainianPhone(phone)
     if (!number) throw new Error('Enter 9 digits after +380.')
     await supabaseRequest('/auth/v1/otp', {
       method: 'POST',
       body: JSON.stringify({
         phone: number, channel: 'sms', create_user: Boolean(registration),
-        ...(registration && { data: { name: registration.name, phone: number, registration_store_id: registration.storeId } }),
+        ...(registration && { data: { name: registration.name, phone: number, registration_store_id: registration.storeId, terms_accepted: true, terms_version: agreementVersion } }),
       }),
     })
   },

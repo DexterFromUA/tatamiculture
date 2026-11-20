@@ -5,6 +5,7 @@ import { ProtectedRoute } from './components/ProtectedRoute'
 import { StoreLayout } from './components/StoreLayout'
 import { CartProvider } from './context/CartContext'
 import { StoreProvider } from './context/StoreContext'
+import { AgreementPage } from './pages/AgreementPage'
 import { AccountPage } from './pages/AccountPage'
 import { AdminPage } from './pages/AdminPage'
 import { CartPage } from './pages/CartPage'
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="cart" element={<CartPage />} />
           <Route path="checkout" element={<CheckoutPage />} />
           <Route path="login" element={<PhoneAuthPage key="login" />} />
+          <Route path="agreement" element={<AgreementPage />} />
           <Route path="register" element={<PhoneAuthPage key="register" register />} />
           <Route path="forgot-password" element={<Navigate to="/login" replace />} />
           <Route path="reset-password" element={<Navigate to="/login" replace />} />

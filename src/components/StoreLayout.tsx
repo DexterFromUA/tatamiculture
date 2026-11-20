@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { hasStoreMembership } from '../lib/crm'
 import { supabaseConfigured } from '../lib/supabase'
 import { contactsChanged, getStorefrontContacts, type StorefrontContacts } from '../lib/storefrontContacts'
+import { agreementPath } from '../content/agreement'
 import { ThemeSwitch } from './ThemeSwitch'
 import { useStorefrontTheme } from '../hooks/useStorefrontTheme'
 import { LoadingIndicator } from './LoadingIndicator'
@@ -184,7 +185,10 @@ export function StoreLayout() {
       </main>
       {isHome && scrollState.showTopButton && <button type="button" className="back-to-top" aria-label={t('Back to top')} title={t('Back to top')} onClick={() => window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })}>↑</button>}
       <footer className="footer">
-        <span className="footer__copyright">© {new Date().getFullYear()} <strong>{store.name}</strong></span>
+        <div className="footer__identity">
+          <span className="footer__copyright">© {new Date().getFullYear()} <strong>{store.name}</strong></span>
+          <NavLink to={agreementPath}>{t('User agreement')}</NavLink>
+        </div>
         <div className="footer__contacts">
           {contacts?.instagram_url && <a href={contacts.instagram_url} target="_blank" rel="noopener noreferrer"><span>Instagram</span><strong>@{contacts.instagram_url.split('/').filter(Boolean).pop()}</strong> ↗</a>}
           {contacts?.email && <a href={`mailto:${contacts.email}`}><span>Email</span><strong>{contacts.email}</strong> ↗</a>}

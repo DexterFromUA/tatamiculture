@@ -2,6 +2,25 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 const uk = {
+  'Seller': 'Продавець',
+  'Version': 'Редакція',
+  'User agreement': 'Угода користувача',
+  'user agreement': 'угоду користувача',
+  'I have read and accept the': 'Я прочитав(-ла) та приймаю',
+  ', including the personal data processing terms.': ', включно з умовами обробки персональних даних.',
+  'This does not subscribe you to marketing messages.': 'Це не підписує вас на рекламні розсилки.',
+  'Accept the user agreement to create an account.': 'Для створення акаунта прийміть угоду користувача.',
+  'Legal information': 'Правова інформація',
+  'Agreement contents': 'Зміст угоди',
+  'Seller details and contacts': 'Реквізити та контакти продавця',
+  'Tax registration number': 'РНОКПП',
+  'Registered address': 'Адреса реєстрації',
+  'Contact the seller before sending a return to confirm the delivery address.': 'Перед відправленням повернення зверніться до продавця для підтвердження адреси доставки.',
+  'Legal framework': 'Нормативна основа',
+  'Electronic commerce': 'Електронна комерція',
+  'Consumer protection': 'Захист прав споживачів',
+  'Personal data protection': 'Захист персональних даних',
+
   'Enter 9 digits after +380.': 'Введіть 9 цифр після +380.',
   'Storefront theme': 'Тема вітрини',
   'Choose the default appearance and let visitors switch themes.': 'Виберіть стандартне оформлення та дозвольте відвідувачам змінювати тему.',
