@@ -2,6 +2,7 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 const uk = {
+  'Enter 9 digits after +380.': 'Введіть 9 цифр після +380.',
   'Storefront theme': 'Тема вітрини',
   'Choose the default appearance and let visitors switch themes.': 'Виберіть стандартне оформлення та дозвольте відвідувачам змінювати тему.',
   'Show theme switch next to language': 'Показувати кнопку зміни теми поруч із мовою',

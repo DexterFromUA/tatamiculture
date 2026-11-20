@@ -1,4 +1,4 @@
-import { normalizePhone } from '../lib/phone'
+import { normalizePhone, normalizeUkrainianPhone } from '../lib/phone'
 import { catalogOffer } from '../lib/catalogPricing'
 import { fetchAll } from '../lib/crm'
 import { getSizeGuideImageUrls } from '../lib/productText'
@@ -160,11 +160,13 @@ export const supabaseApi = {
   },
 
   async requestPhoneCode(phone: string, registration?: { name: string; storeId: string }) {
+    const number = normalizeUkrainianPhone(phone)
+    if (!number) throw new Error('Enter 9 digits after +380.')
     await supabaseRequest('/auth/v1/otp', {
       method: 'POST',
       body: JSON.stringify({
-        phone, channel: 'sms', create_user: Boolean(registration),
-        ...(registration && { data: { name: registration.name, phone, registration_store_id: registration.storeId } }),
+        phone: number, channel: 'sms', create_user: Boolean(registration),
+        ...(registration && { data: { name: registration.name, phone: number, registration_store_id: registration.storeId } }),
       }),
     })
   },

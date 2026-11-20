@@ -1,10 +1,11 @@
-import { useEffect, useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { api } from '../lib/api'
-import { normalizePhone } from '../lib/phone'
+import { normalizePhone, normalizeUkrainianPhone, ukrainianPhoneInput } from '../lib/phone'
+import { listenForSmsCode } from '../lib/smsCode'
 import { SupabaseError } from '../lib/supabase'
 import type { AuthSession } from '../types'
 
@@ -20,7 +21,11 @@ export function PhoneAuthPage({ register = false }: { register?: boolean }) {
   const receiptToClaim = intent?.receiptToClaim
   const claimOrder = receiptToClaim && from === `/receipt/${encodeURIComponent(receiptToClaim)}`
   const orderPhone = claimOrder ? normalizePhone(intent?.orderPhone ?? '') : null
-  const [phone, setPhone] = useState(orderPhone ?? '')
+  const [phone, setPhone] = useState(orderPhone ?? '+380')
+  const cancelSmsAutofill = useRef<() => void>(() => {})
+  const phoneHintId = useId()
+  const validPhone = normalizeUkrainianPhone(phone)
+  useEffect(() => () => cancelSmsAutofill.current(), [])
   const [name, setName] = useState('')
   const [sentTo, setSentTo] = useState<string | null>(null)
   const [code, setCode] = useState('')
@@ -41,9 +46,9 @@ export function PhoneAuthPage({ register = false }: { register?: boolean }) {
 
   const sendCode = async () => {
     if (busy || !store) return
-    const number = normalizePhone(phone)
+    const number = normalizeUkrainianPhone(phone)
     if (!number) {
-      setError('Enter a valid phone number.')
+      setError('Enter 9 digits after +380.')
       return
     }
     if (orderPhone && number !== orderPhone) {
@@ -58,12 +63,15 @@ export function PhoneAuthPage({ register = false }: { register?: boolean }) {
 
     setBusy(true)
     setError('')
+    cancelSmsAutofill.current()
+    setCode('')
+    cancelSmsAutofill.current = listenForSmsCode(setCode)
     try {
       await requestPhoneCode(number, register ? { name: customerName, storeId: store.id } : undefined)
       setSentTo(number)
-      setCode('')
       setSeconds(60)
     } catch (cause) {
+      cancelSmsAutofill.current()
       setError(cause instanceof SupabaseError && cause.status === 429
         ? 'Too many requests. Wait a minute and try again.'
         : 'Could not send an SMS code. Check the number or try again later.')
@@ -80,6 +88,7 @@ export function PhoneAuthPage({ register = false }: { register?: boolean }) {
       return
     }
 
+    cancelSmsAutofill.current()
     setBusy(true)
     setError('')
     let session = verified
@@ -126,7 +135,7 @@ export function PhoneAuthPage({ register = false }: { register?: boolean }) {
               <p className="muted" role="status">{t('Code sent to {{phone}}.', { phone: sentTo })}</p>
               <label className="field">
                 <span>{t('SMS code')}</span>
-                <input type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6}
+                <input type="text" name="sms-code" inputMode="numeric" autoComplete="one-time-code" autoFocus maxLength={6}
                   pattern="[0-9]{6}" value={code} onChange={event => setCode(event.target.value.replace(/[^0-9]/g, ''))}
                   required disabled={busy || Boolean(verified)} />
               </label>
@@ -139,15 +148,17 @@ export function PhoneAuthPage({ register = false }: { register?: boolean }) {
               </label>}
               <label className="field">
                 <span>{t('Phone')}</span>
-                <input type="tel" autoComplete="tel" value={phone} onChange={event => setPhone(event.target.value)} required disabled={busy} />
+                <input type="tel" name="phone" inputMode="tel" autoComplete="tel" placeholder="+380" pattern="\+380[1-9][0-9]{8}" aria-describedby={phoneHintId}
+                  value={phone} onChange={event => { setPhone(ukrainianPhoneInput(event.target.value)); setError('') }} required disabled={busy} />
+                <small id={phoneHintId} className="muted">{t('Enter 9 digits after +380.')}</small>
               </label>
             </>}
-            <button type="submit" className="btn" disabled={busy || !store || (Boolean(sentTo) && !verified && code.length !== 6)}>
+            <button type="submit" className="btn" disabled={busy || !store || (!sentTo && !validPhone) || (Boolean(sentTo) && !verified && code.length !== 6)}>
               {t(busy ? sentTo ? 'Checking…' : 'Sending…' : verified ? 'Try again' : action)}
             </button>
           </form>
           {sentTo && !verified && <div className="auth-card__code-actions">
-            <button type="button" className="text-btn" onClick={() => { setSentTo(null); setCode(''); setError('') }} disabled={busy}>{t('Change number')}</button>
+            <button type="button" className="text-btn" onClick={() => { cancelSmsAutofill.current(); setSentTo(null); setCode(''); setError('') }} disabled={busy}>{t('Change number')}</button>
             <button type="button" className="text-btn" onClick={() => void sendCode()} disabled={busy || seconds > 0}>
               {seconds > 0 ? t('Resend in {{seconds}} s', { seconds }) : t('Resend code')}
             </button>
