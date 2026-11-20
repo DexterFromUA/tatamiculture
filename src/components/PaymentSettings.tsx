@@ -3,8 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { getPaymentSettings, paymentMethods, savePaymentSettings, setPaymentTestMode, type PaymentMethodSettings } from '../lib/paymentMethods'
+import { SettingsSectionHeading } from './SettingsSectionHeading'
 
-export function PaymentSettings() {
+export function PaymentSettings({ heading }: { heading: { number: string; title: string } }) {
   const { t } = useTranslation()
   const { token } = useAuth()
   const { store } = useStore()
@@ -49,13 +50,14 @@ export function PaymentSettings() {
     }
   }
 
-  const changeMode = async (value: boolean) => {
+  const changeMode = async (liveMode: boolean) => {
     if (!storeId || !token || !saved || busy || modeBusy) return
+    const nextTestMode = !liveMode
     setModeError('')
     setModeBusy(true)
-    setTestMode(value)
+    setTestMode(nextTestMode)
     try {
-      await setPaymentTestMode(storeId, value, token)
+      await setPaymentTestMode(storeId, nextTestMode, token)
     } catch (cause) {
       setTestMode(testMode)
       setModeError(cause instanceof Error ? cause.message : 'Could not save payment mode.')
@@ -65,27 +67,19 @@ export function PaymentSettings() {
   }
 
   return <>
-    {saved && <section className="nova-mode">
-      <div>
-        <p className="eyebrow">{t('Payment environment')}</p>
-        <h2>{t(testMode === null ? 'Current provider modes' : testMode ? 'Test mode' : 'Live mode')}</h2>
-        <p className="muted">{t(testMode === null
-          ? 'Turn on test mode to use the sandbox for both Monobank and LiqPay.'
-          : testMode ? 'New Monobank and LiqPay payments use test credentials.'
-          : 'New Monobank and LiqPay payments use live credentials.')}</p>
-      </div>
+    <SettingsSectionHeading {...heading} action={saved && (
       <label className="mode-switch">
-        <input type="checkbox" checked={testMode === true} disabled={busy || modeBusy || !token} onChange={event => void changeMode(event.target.checked)} />
-        <span aria-hidden="true" />{t('Test mode')}
+        <input type="checkbox" role="switch" aria-label={t('Live mode')} checked={testMode === false}
+          disabled={busy || modeBusy || !token} onChange={event => void changeMode(event.target.checked)} />
+        <span aria-hidden="true" />{t(testMode === null ? 'Provider defaults' : testMode ? 'Test mode' : 'Live mode')}
       </label>
-      {modeError && <p className="error" role="alert">{t(modeError)}</p>}
-    </section>}
+    )} />
     <section className="settings-card payment-settings">
       <header className="banner-settings__header">
-        <p className="eyebrow">03 / {t('Settings')}</p>
-        <h2>{t('Payment methods')}</h2>
+        <h3>{t('Payment methods')}</h3>
         <p className="muted">{t('Choose which payment methods customers can use at checkout.')}</p>
       </header>
+      {modeError && <p className="error" role="alert">{t(modeError)}</p>}
       {error && <p className="error" role="alert">{t(error)}</p>}
       {!draft && (error
         ? <button type="button" className="text-btn" onClick={() => { setError(''); setAttempt(value => value + 1) }}>{t('Try again')}</button>

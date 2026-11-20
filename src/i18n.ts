@@ -526,11 +526,7 @@ const uk = {
   'Loading payment methods…': 'Завантаження способів оплати…',
   'No payment methods are currently available. Please try again later.': 'Наразі немає доступних способів оплати. Спробуйте пізніше.',
   'This payment method is no longer available.': 'Цей спосіб оплати більше недоступний.',
-  'Payment environment': 'Середовище оплати',
-  'Current provider modes': 'Поточні режими провайдерів',
-  'Turn on test mode to use the sandbox for both Monobank and LiqPay.': 'Увімкніть тестовий режим, щоб використовувати пісочницю для monobank і LiqPay.',
-  'New Monobank and LiqPay payments use test credentials.': 'Для нових платежів monobank і LiqPay використовуються тестові ключі.',
-  'New Monobank and LiqPay payments use live credentials.': 'Для нових платежів monobank і LiqPay використовуються бойові ключі.',
+  'Provider defaults': 'За налаштуваннями провайдерів',
   'Could not save payment mode.': 'Не вдалося зберегти режим оплати.',
   'Payment settings changed. Please try again.': 'Налаштування оплати змінилися. Спробуйте ще раз.',
   'Monobank test mode requires a separate test token.': 'Для тестового режиму monobank потрібен окремий тестовий токен.',
@@ -641,7 +637,7 @@ const uk = {
   PENDING: 'Очікує', PAID: 'Оплачено', IN_PROGRESS: 'В обробці', READY_FOR_PICKUP: 'Готово до видачі', DELIVERED: 'Доставлено', CANCELLED_BY_USER: 'Скасовано клієнтом', CANCELLED_BY_STORE: 'Скасовано магазином',
   CRM: 'CRM', Overview: 'Огляд', Orders: 'Замовлення', Customers: 'Клієнти', Catalogue: 'Каталог', Settings: 'Налаштування',
   Shipping: 'Доставка', Sender: 'Відправник', Recipient: 'Одержувач',
-  'Save settings': 'Зберегти налаштування', Saved: 'Збережено', 'Test mode': 'Тестовий режим', 'Live mode': 'Бойовий режим',
+  'Save settings': 'Зберегти налаштування', Saved: 'Збережено', 'Test mode': 'Тестовий режим', 'Live mode': 'Робочий режим',
 }
 
 const savedLanguage = typeof window === 'undefined' ? null : window.localStorage.getItem('tatami-language')

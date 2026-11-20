@@ -72,10 +72,6 @@ export function BannerSettings() {
     } finally { setBusy(false) }
   }
   return <section className="settings-card banner-settings">
-    <div className="banner-settings__header">
-      <p className="eyebrow">01 / {t('Storefront')}</p>
-      <h2>{t('Homepage banner')}</h2>
-    </div>
     {error && <p className="error" role="alert">{t(error)}</p>}
     {banner && <>
       <label className="check banner-settings__visibility">

@@ -72,10 +72,7 @@ export function SmsProviderSettings() {
   }
 
   return <section className="settings-card sms-provider-settings">
-    <header className="banner-settings__header">
-      <h2>SMS</h2>
-      <p className="muted">{t('Choose who sends verification codes for sign-in and registration.')}</p>
-    </header>
+    <p className="muted sms-provider-settings__intro">{t('Choose who sends verification codes for sign-in and registration.')}</p>
     {error && <p className="error" role="alert">{t(error)}</p>}
     {!settings && (error
       ? <button type="button" className="text-btn" onClick={() => { setError(''); setAttempt(value => value + 1) }}>{t('Try again')}</button>
