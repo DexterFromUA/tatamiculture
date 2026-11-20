@@ -7,7 +7,7 @@ import { api } from '../lib/api'
 import { normalizePhone, normalizeUkrainianPhone, ukrainianPhoneInput } from '../lib/phone'
 import { listenForSmsCode } from '../lib/smsCode'
 import { SupabaseError } from '../lib/supabase'
-import { agreementPath } from '../content/agreement'
+import { AgreementCheckbox } from '../components/AgreementCheckbox'
 import type { AuthSession } from '../types'
 
 export function PhoneAuthPage({ register = false }: { register?: boolean }) {
@@ -159,10 +159,7 @@ export function PhoneAuthPage({ register = false }: { register?: boolean }) {
                 <small id={phoneHintId} className="muted">{t('Enter 9 digits after +380.')}</small>
               </label>
               {register && <div className="registration-agreement">
-                <label className="registration-agreement__label">
-                  <input type="checkbox" name="accept-agreement" required checked={acceptedTerms} disabled={busy} onChange={event => { setAcceptedTerms(event.target.checked); setError('') }} />
-                  <span>{t('I have read and accept the')} <Link to={agreementPath} target="_blank" rel="noopener noreferrer">{t('user agreement')}</Link>{t(', including the personal data processing terms.')}</span>
-                </label>
+                <AgreementCheckbox checked={acceptedTerms} disabled={busy} onChange={accepted => { setAcceptedTerms(accepted); setError('') }} />
                 <small className="muted">{t('This does not subscribe you to marketing messages.')}</small>
               </div>}
             </>}

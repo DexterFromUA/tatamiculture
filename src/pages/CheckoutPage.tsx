@@ -15,6 +15,7 @@ import { supabaseRequest } from '../lib/supabase'
 import type { CheckoutInput } from '../types'
 import { useTranslation } from 'react-i18next'
 import { LoadingIndicator } from '../components/LoadingIndicator'
+import { AgreementCheckbox } from '../components/AgreementCheckbox'
 
 export function CheckoutPage() {
   const { user, initializing } = useAuth()
@@ -31,6 +32,8 @@ function CheckoutForm() {
   const navigate = useNavigate()
   const { t, i18n } = useTranslation()
   const [submitting, setSubmitting] = useState(false)
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
+  const termsRequired = !user && !acceptedTerms
   const storeId = store?.id
   const userId = user?.id
   const hasItems = items.length > 0
@@ -164,6 +167,7 @@ function CheckoutForm() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault()
+    if (termsRequired) return
     if ((!provider && total > 0) || submitting || loadingProducts || unavailableItems || customerDiscount.loading || customerDiscount.error) return
     setError(null)
     setSubmitting(true)
@@ -310,7 +314,10 @@ function CheckoutForm() {
             : !provider ? <p className="muted" role="status">{t('No payment methods are currently available. Please try again later.')}</p> : null}
         </fieldset>}
         {unavailableItems && error !== unavailableQuantity && <p className="error" role="alert">{t(unavailableQuantity)}</p>}
-        <button type="submit" form="checkout-form" className="btn checkout-submit" disabled={submitting || loadingProducts || unavailableItems || (!provider && total > 0) || customerDiscount.loading || Boolean(customerDiscount.error)}>
+        {!user && <div className="checkout-agreement">
+          <AgreementCheckbox form="checkout-form" checked={acceptedTerms} onChange={setAcceptedTerms} disabled={submitting} />
+        </div>}
+        <button type="submit" form="checkout-form" className="btn checkout-submit" disabled={termsRequired || submitting || loadingProducts || unavailableItems || (!provider && total > 0) || customerDiscount.loading || Boolean(customerDiscount.error)}>
           {submitting ? t('Placing order…') : total === 0 || !provider || provider === 'CASH_ON_DELIVERY' ? t('Place order') : `${t('Pay')} ${formatPrice(total, store.currency)}`}
         </button>
       </aside></div>
