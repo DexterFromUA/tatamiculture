@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tatami.culture</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --ink: #1c1916;
+        --muted: #6b645c;
+        --paper: #f6f1e8;
+        --accent: #bd2731;
+        color: var(--ink);
+        background: var(--paper);
+        font: 16px/1.5 "Avenir Next", "Segoe UI", sans-serif;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root { --ink: #f3eee6; --muted: #b3aaa0; --paper: #161411; --accent: #d83f43; }
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      main {
+        display: grid;
+        align-content: center;
+        justify-items: start;
+        min-height: 100vh;
+        min-height: 100svh;
+        max-width: 480px;
+        margin: 0 auto;
+        padding: 36px 24px;
+      }
+      .brand { display: flex; align-items: center; gap: 12px; font-weight: 600; }
+      .brand img { border-radius: 12px; }
+      h1 { margin: 24px 0 8px; font-size: clamp(1.75rem, 6vw, 2.4rem); line-height: 1.2; }
+      p { margin: 0 0 24px; color: var(--muted); }
+      button {
+        min-height: 44px;
+        padding: 10px 18px;
+        border: 0;
+        background: var(--accent);
+        color: #fff;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="brand"><img src="/apple-touch-icon.png" width="48" height="48" alt="" /> tatami.culture</div>
+      <h1 id="offline-title">Немає інтернет-з’єднання</h1>
+      <p id="offline-description">Підключіться до Wi-Fi або мобільної мережі, щоб відкрити магазин.</p>
+      <button id="retry" type="button">Спробувати ще раз</button>
+    </main>
+    <script>
+      const retry = document.getElementById('retry')
+      try {
+        if (localStorage.getItem('tatami-language') === 'en') {
+          document.documentElement.lang = 'en'
+          document.getElementById('offline-title').textContent = 'No internet connection'
+          document.getElementById('offline-description').textContent = 'Connect to Wi-Fi or mobile data to open the store.'
+          retry.textContent = 'Try again'
+        }
+      } catch {
+        // The Ukrainian text is already present when storage is unavailable.
+      }
+      const reload = () => location.reload()
+      retry.addEventListener('click', reload)
+      window.addEventListener('online', reload)
+    </script>
+  </body>
+</html>

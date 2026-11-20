@@ -20,3 +20,9 @@ createRoot(document.getElementById('root')!).render(
     </BrowserRouter>
   </StrictMode>,
 )
+
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  void navigator.serviceWorker.register('/service-worker.js').catch(error => {
+    console.warn('Could not prepare the offline page.', error)
+  })
+}
