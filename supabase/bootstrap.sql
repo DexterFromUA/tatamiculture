@@ -3,7 +3,7 @@
 -- Выполните файл целиком в SQL Editor под ролью postgres.
 -- Создаётся пустой магазин tatami. Существующие заказы, пользователи, файлы
 -- и ключи интеграций не копируются. Владелец назначается через seed-owner.sql.
--- Учтены миграции репозитория по 20261119110800 включительно.
+-- Учтены миграции репозитория по 20261120120000 включительно.
 BEGIN;
 
 DO $$
@@ -3782,7 +3782,8 @@ INSERT INTO supabase_migrations.schema_migrations (version, name) VALUES
   ('20261119110500', 'single_shop_settings'),
   ('20261119110600', 'retire_order_status_history'),
   ('20261119110700', 'retire_stores_view'),
-  ('20261119110800', 'remove_obsolete_rpcs')
+  ('20261119110800', 'remove_obsolete_rpcs'),
+  ('20261120120000', 'storefront_theme_settings')
 ON CONFLICT (version) DO NOTHING;
 
 create function public.list_crm_customers(p_store_id uuid)
@@ -4222,6 +4223,21 @@ grant execute on function public.storefront_product_payload(uuid),
   public.storefront_catalog_page(uuid, text, text, text, uuid, text, integer, bigint, timestamptz, uuid),
   public.storefront_catalog_metadata(uuid), public.storefront_related_products(uuid, uuid)
   to anon, authenticated;
+
+create table public.storefront_theme_settings (
+  store_id uuid primary key references public.shop_settings(id) on delete cascade,
+  show_theme_switch boolean not null default true,
+  default_theme text not null default 'system' check (default_theme in ('system', 'light', 'dark'))
+);
+
+alter table public.storefront_theme_settings enable row level security;
+grant select on public.storefront_theme_settings to anon, authenticated;
+grant insert, update, delete on public.storefront_theme_settings to authenticated;
+create policy "public read storefront theme" on public.storefront_theme_settings for select to anon, authenticated using (true);
+create policy "staff manage storefront theme" on public.storefront_theme_settings for all to authenticated
+  using (public.is_store_member(store_id)) with check (public.is_store_member(store_id));
+
+notify pgrst, 'reload schema';
 
 -- Обновление курсов начинается по расписанию, даже если НБУ недоступен при установке.
 SELECT cron.schedule('tatami-catalog-exchange-rates', '*/15 * * * *',

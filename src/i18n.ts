@@ -2,6 +2,17 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 const uk = {
+  'Storefront theme': 'Тема вітрини',
+  'Choose the default appearance and let visitors switch themes.': 'Виберіть стандартне оформлення та дозвольте відвідувачам змінювати тему.',
+  'Show theme switch next to language': 'Показувати кнопку зміни теми поруч із мовою',
+  'Default theme': 'Стандартна тема',
+  'System theme': 'Системна тема',
+  'Light theme': 'Світла тема',
+  'Dark theme': 'Темна тема',
+  'Choose theme': 'Вибрати тему',
+  'Visitors’ saved choices take priority. When the switch is hidden, everyone uses the default theme.': 'Збережений вибір відвідувача має пріоритет. Якщо кнопку приховано, для всіх діє стандартна тема.',
+  'Could not load theme settings.': 'Не вдалося завантажити налаштування теми.',
+  'Could not save theme settings.': 'Не вдалося зберегти налаштування теми.',
   'View all customer orders': 'Усі замовлення клієнта',
   'Orders for {{name}}': 'Замовлення клієнта {{name}}',
   'Customer since': 'Клієнт із',

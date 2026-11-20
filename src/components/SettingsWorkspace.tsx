@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BannerSettings } from './BannerSettings'
+import { ThemeSettings } from './ThemeSettings'
 import { ContactSettings } from './ContactSettings'
 import { PaymentSettings } from './PaymentSettings'
 import { SmsProviderSettings } from './SmsProviderSettings'
@@ -17,7 +18,7 @@ export function SettingsWorkspace() {
       <button type="button" className={section === 'sms' ? 'active' : ''} aria-current={section === 'sms' ? 'page' : undefined} onClick={() => setSection('sms')}><span className="settings-nav__index">04</span><span><strong>SMS</strong><small>{t('Sign-in and notifications')}</small></span><span className="settings-nav__arrow" aria-hidden="true">↗</span></button>
     </nav>
     <div className="settings-workspace__content">
-      <div hidden={section !== 'storefront'}><BannerSettings /><ContactSettings /></div>
+      <div hidden={section !== 'storefront'}><BannerSettings /><ThemeSettings /><ContactSettings /></div>
       <div hidden={section !== 'delivery'}><div className="settings-workspace__heading"><p className="eyebrow">02 / {t('Settings')}</p><h2>{t('Nova Poshta settings')}</h2></div><DeliverySettingsPage embedded /></div>
       {section === 'payments' && <PaymentSettings />}
       {section === 'sms' && <SmsProviderSettings />}

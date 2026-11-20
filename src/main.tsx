@@ -7,6 +7,8 @@ import { ToastProvider } from './context/ToastContext.tsx'
 import './i18n.ts'
 import './index.css'
 
+document.documentElement.dataset.theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>

@@ -7,6 +7,8 @@ import { useTranslation } from 'react-i18next'
 import { hasStoreMembership } from '../lib/crm'
 import { supabaseConfigured } from '../lib/supabase'
 import { contactsChanged, getStorefrontContacts, type StorefrontContacts } from '../lib/storefrontContacts'
+import { ThemeSwitch } from './ThemeSwitch'
+import { useStorefrontTheme } from '../hooks/useStorefrontTheme'
 import { LoadingIndicator } from './LoadingIndicator'
 import { useStorefrontCatalog } from '../hooks/useStorefrontCatalog'
 import type { CatalogFilters } from '../lib/storefrontCatalog'
@@ -34,6 +36,7 @@ export function StoreLayout() {
   })
   const [scrollState, setScrollState] = useState({ headerVisible: true, showTopButton: false })
   const storeId = store?.id
+  const { mode, showThemeSwitch, selectTheme } = useStorefrontTheme(storeId)
   const catalog = useStorefrontCatalog(storeId, filters, catalogRevision, isHome)
   const userId = user?.id
   const [crmAccess, setCrmAccess] = useState<{ storeId: string; userId: string; token: string } | null>(null)
@@ -173,6 +176,7 @@ export function StoreLayout() {
           <button type="button" className="text-btn" onClick={() => void i18n.changeLanguage(i18n.language === 'uk' ? 'en' : 'uk')}>
             {i18n.language === 'uk' ? t('English') : t('Ukrainian')}
           </button>
+          {showThemeSwitch && <ThemeSwitch mode={mode} onChange={selectTheme} />}
         </nav>
       </header>
       <main className="main">
