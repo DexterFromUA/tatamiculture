@@ -5,8 +5,29 @@ export const defaultParcelDescription = 'речі від tatami.culture'
 const endpoint = '/functions/v1/nova-poshta-create-ttn'
 
 export type DispatchLocation = { cityRef: string; cityName: string; warehouseRef: string; warehouseName: string }
-export type TtnPreview = { weightGrams: number | null; declaredValueMinor: number; dispatchLocation: DispatchLocation }
+export type TtnPreview = {
+  weightGrams: number | null
+  declaredValueMinor: number
+  dispatchLocation: DispatchLocation
+  recipientLocation: DispatchLocation
+}
 export type TtnShipment = { ttn: string; documentRef: string; existing?: boolean }
+export type TtnAttempt = { id: string; state: 'creating' | 'review' }
+export type OrderDeliveryActions = { cancelStockPending: boolean; ttn: string | null; ttnAttempt: TtnAttempt | null }
+
+export function getOrderDeliveryActions(orderId: string, token: string, signal: AbortSignal) {
+  return supabaseRequest<OrderDeliveryActions>('/rest/v1/rpc/get_order_delivery_actions', {
+    method: 'POST', token, signal, body: JSON.stringify({ p_order_id: orderId }),
+  })
+}
+
+export function resolveTtnAttempt(orderId: string, token: string, recovery: {
+  action: 'attach' | 'not_created'; attemptId: string; ttn?: string
+}) {
+  return supabaseRequest<{ ttn: string | null; documentRef: string | null }>(endpoint, {
+    method: 'POST', token, signal: AbortSignal.timeout(20000), body: JSON.stringify({ orderId, recovery }),
+  })
+}
 
 export async function getTtnPreview(orderId: string, token: string, signal?: AbortSignal) {
   const timeout = AbortSignal.timeout(15000)
@@ -28,6 +49,7 @@ export async function createTtn(token: string, details: {
   declaredValueMinor: number
   recipientName?: string
   dispatchLocation?: Pick<DispatchLocation, 'cityRef' | 'warehouseRef'>
+  recipientLocation?: DispatchLocation
 }) {
   const signal = AbortSignal.timeout(45000)
   try {

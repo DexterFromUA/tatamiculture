@@ -1,6 +1,8 @@
 import { ItemReturns, type ReturnableOrderItem } from './ItemReturns'
 import { CancelledOrderRefunds } from './CancelledOrderRefunds'
+import { ConfirmationDialog } from './ConfirmationDialog'
 import { NovaPoshtaTrackingLink } from './NovaPoshtaTrackingLink'
+import { OrderTtnRecovery } from './OrderTtnRecovery'
 import type { CustomerOrder } from './CustomerPanel'
 import { SalesBreakdown } from './SalesBreakdown'
 import { useEffect, useState } from 'react'
@@ -11,6 +13,8 @@ import { formatDate, formatPrice } from '../lib/format'
 import { OrderActivity } from './OrderActivity'
 import { calculateAnalytics } from '../lib/analytics'
 import { useDrawer } from '../lib/useDrawer'
+import { useStore } from '../context/StoreContext'
+import { getOrderDeliveryActions, type OrderDeliveryActions } from '../lib/ttn'
 
 export type MetricOrder = { id: string; user_id: string | null; customer_phone: string; customer_email: string; status: string; payment_status: string; total_price: number; currency: string }
 export type OrderDetailsOrder = CustomerOrder & {
@@ -30,8 +34,15 @@ type OrderDetails = {
 type Cost = { order_id: string; cost_amount: number }
 type Return = { id: string; order_id: string; amount: number; reason: string }
 
-export function OrderOperations({ order, orderIds = [order.id], token, onClose }: { order: OrderDetailsOrder; orderIds?: string[]; token: string; onClose: () => void }) {
+export function OrderOperations({ order, orderIds = [order.id], token, onClose, onChanged }: {
+  order: OrderDetailsOrder
+  orderIds?: string[]
+  token: string
+  onClose: () => void
+  onChanged: () => void
+}) {
   const { t } = useTranslation()
+  const { refreshProducts } = useStore()
   const note = order.note?.trim()
   const { ref: dialogRef, close: closeDrawer, onCancel, onClick } = useDrawer({ openOnMount: true, onClose })
   const [details, setDetails] = useState<OrderDetails | null>(null)
@@ -40,7 +51,18 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose }
   const [revision, setRevision] = useState(0)
   const [error, setError] = useState('')
   const [refundedLocally, setRefundedLocally] = useState(false)
-  const idList = orderIds.join(',')
+  const [confirmRestock, setConfirmRestock] = useState(false)
+  const [restocking, setRestocking] = useState(false)
+  const [restockError, setRestockError] = useState('')
+  const [deliveryActions, setDeliveryActions] = useState<OrderDeliveryActions | null>(null)
+  const [detailsRevision, setDetailsRevision] = useState(0)
+  const [recoveryMessage, setRecoveryMessage] = useState('')
+  const idList = [...new Set([order.id, ...orderIds])].join(',')
+  const trackingNumber = deliveryActions?.ttn ?? order.nova_poshta_ttn
+  const refreshDetails = () => {
+    setDetailsFailed(false)
+    setDetailsRevision(current => current + 1)
+  }
   useEffect(() => {
     const abort = new AbortController()
     const fields = 'id,delivery_city,delivery_address,order_items(id,product_id,variant_id,product_name,variant_name,quantity,unit_price,line_total)'
@@ -48,12 +70,21 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose }
       .then(results => {
         if (abort.signal.aborted) return
         const main = results.find(result => result.id === order.id)
-        setDetails(main ? { ...main, order_items: results.flatMap(result => result.order_items) } : null)
+        setDetails(main ? {
+          ...main,
+          order_items: results.flatMap(result => result.order_items),
+        } : null)
         setDetailsFailed(!main)
       })
       .catch(() => { if (!abort.signal.aborted) setDetailsFailed(true) })
+    // New delivery actions are optional while a database migration rolls out.
+    void getOrderDeliveryActions(order.id, token, abort.signal).then(actions => {
+      if (!abort.signal.aborted) setDeliveryActions(actions)
+    }).catch(() => {
+      if (!abort.signal.aborted) setDeliveryActions(null)
+    })
     return () => abort.abort()
-  }, [order.id, token, idList])
+  }, [order.id, token, idList, detailsRevision])
   useEffect(() => {
     const abort = new AbortController()
     void supabaseRequest<Return[]>(`/rest/v1/order_returns?order_id=in.(${idList})&select=id,order_id,amount,reason&order=created_at.desc`, { token, signal: abort.signal })
@@ -66,6 +97,22 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose }
     return () => abort.abort()
   }, [idList, token, revision])
   const canManageReturns = order.status === 'COMPLETED' && details
+  const restoreStock = async () => {
+    setRestocking(true)
+    setRestockError('')
+    try {
+      await supabaseRequest('/rest/v1/rpc/confirm_cancelled_order_stock_return', {
+        method: 'POST', token, body: JSON.stringify({ p_order_id: order.id }),
+      })
+      setDeliveryActions(current => current && { ...current, cancelStockPending: false })
+      setRevision(current => current + 1)
+      refreshProducts()
+    } catch (cause) {
+      setRestockError(cause instanceof Error ? cause.message : 'Could not return items to stock.')
+    } finally {
+      setRestocking(false)
+    }
+  }
   return <dialog ref={dialogRef} className="order-drawer" aria-labelledby="order-drawer-title"
     onCancel={onCancel} onClick={onClick}>
     <header className="order-drawer__header">
@@ -107,15 +154,43 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose }
           <dl className="order-drawer__details">
             <div><dt>{t('City')}</dt><dd>{details.delivery_city || '—'}</dd></div>
             <div><dt>{t('Address')}</dt><dd>{details.delivery_address || '—'}</dd></div>
-            {order.nova_poshta_ttn && <div><dt>{t('TTN')}</dt><dd>
-              <NovaPoshtaTrackingLink ttn={order.nova_poshta_ttn}>{order.nova_poshta_ttn}</NovaPoshtaTrackingLink>
+            {trackingNumber && <div><dt>{t('TTN')}</dt><dd>
+              <NovaPoshtaTrackingLink ttn={trackingNumber}>{trackingNumber}</NovaPoshtaTrackingLink>
             </dd></div>}
             {order.nova_poshta_status && <div><dt>{t('Shipment status')}</dt><dd>{order.nova_poshta_status}</dd></div>}
             {note && <div className="order-drawer__note"><dt>{t('Note')}</dt><dd>{note}</dd></div>}
           </dl>
         </section>
-      </> : detailsFailed ? <p className="error" role="alert">{t('Could not load order details')}</p> : <p role="status">{t('Loading…')}</p>}
+      </> : detailsFailed ? <section className="order-drawer__card">
+        <p className="error" role="alert">{t('Could not load order details')}</p>
+        <button type="button" className="text-btn" onClick={refreshDetails}>{t('Try again')}</button>
+      </section> : <p role="status">{t('Loading…')}</p>}
+      {deliveryActions?.ttnAttempt && !trackingNumber && <OrderTtnRecovery
+        key={deliveryActions.ttnAttempt.id} attempt={deliveryActions.ttnAttempt} orderId={order.id}
+        token={token} onRefresh={refreshDetails} onResolved={ttn => {
+          setDeliveryActions(current => current && { ...current, ttn, ttnAttempt: null })
+          setRecoveryMessage(ttn ? 'TTN linked to the order.' : 'You can now create a new TTN for this order.')
+          refreshDetails()
+          onChanged()
+        }} />}
+      {recoveryMessage && <p role="status">{t(recoveryMessage)}</p>}
       {error && <p className="error" role="alert">{error}</p>}
+      {order.status.startsWith('CANCELLED') && deliveryActions?.cancelStockPending && <section className="order-drawer__card">
+        <h3>{t('Return cancelled items to stock')}</h3>
+        <p>{t('Use this after the parcel is back and the items can be sold again.')}</p>
+        {restockError && <p className="error" role="alert">{t(restockError)}</p>}
+        <button type="button" className="btn btn--ghost" disabled={restocking} onClick={() => setConfirmRestock(true)}>
+          {t('Confirm stock return')}
+        </button>
+        {confirmRestock && <ConfirmationDialog
+          title={t('Return cancelled items to stock')}
+          message={t('Confirm that the items from this shipment are physically available for sale.')}
+          confirmLabel={t('Confirm stock return')}
+          onClose={confirmed => {
+            setConfirmRestock(false)
+            if (confirmed) void restoreStock()
+          }} />}
+      </section>}
       {canManageReturns && <ItemReturns orderIds={orderIds} items={details.order_items} token={token} currency={order.currency} onChange={() => setRevision(value => value + 1)} />}
       <section className="order-drawer__card">
         <h3>{t('Confirmed refunds')}</h3>

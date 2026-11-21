@@ -23,6 +23,7 @@ export function CreateTtnDrawer({ orderId, receiptCode, customerName, token, onC
   const [weight, setWeight] = useState('')
   const [declaredValue, setDeclaredValue] = useState('')
   const [dispatchLocation, setDispatchLocation] = useState<DispatchLocation | null>(null)
+  const [recipientLocation, setRecipientLocation] = useState<DispatchLocation | null>(null)
   const [loading, setLoading] = useState(true)
   const [previewAttempt, setPreviewAttempt] = useState(0)
   const [previewReady, setPreviewReady] = useState(false)
@@ -35,11 +36,12 @@ export function CreateTtnDrawer({ orderId, receiptCode, customerName, token, onC
     void getTtnPreview(orderId, token, controller.signal).then(result => {
       if (controller.signal.aborted) return
       if (!Number.isSafeInteger(result.declaredValueMinor)) throw new Error('Could not load the declared value.')
-      if (!result.dispatchLocation) throw new Error('The TTN service must be updated to load dispatch locations.')
+      if (!result.dispatchLocation || !result.recipientLocation) throw new Error('Could not load shipment locations.')
       setCalculatedWeight(result.weightGrams)
       setWeight(result.weightGrams == null ? '' : String(result.weightGrams))
       setDeclaredValue(String(result.declaredValueMinor / 100))
       setDispatchLocation(result.dispatchLocation)
+      setRecipientLocation(result.recipientLocation)
       setPreviewReady(true)
     }).catch(cause => {
       if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'Could not calculate the order weight.')
@@ -54,6 +56,10 @@ export function CreateTtnDrawer({ orderId, receiptCode, customerName, token, onC
     if (saving || !previewReady) return
     if (!dispatchLocation?.cityRef || !dispatchLocation.warehouseRef) {
       setError('Choose a dispatch city and branch from the Nova Poshta directory.')
+      return
+    }
+    if (!recipientLocation?.cityRef || !recipientLocation.warehouseRef) {
+      setError('Choose a city and Nova Poshta branch')
       return
     }
     if (!parseTtnRecipientName(recipientName)) {
@@ -81,7 +87,7 @@ export function CreateTtnDrawer({ orderId, receiptCode, customerName, token, onC
       const { cityRef, warehouseRef } = dispatchLocation
       const shipment = await createTtn(token, {
         orderId, description, internalOrderNumber, weightGrams, declaredValueMinor, recipientName,
-        dispatchLocation: { cityRef, warehouseRef },
+        dispatchLocation: { cityRef, warehouseRef }, recipientLocation,
       })
       close(() => onCreated(shipment))
     } catch (cause) {
@@ -115,6 +121,10 @@ export function CreateTtnDrawer({ orderId, receiptCode, customerName, token, onC
           <input required value={recipientName} disabled={saving} onChange={event => setRecipientName(event.target.value)} />
           <small>{t(invalidTtnRecipientName)}</small>
         </label>
+        {recipientLocation && <section className="ttn-dispatch">
+          <h3>{t('Recipient')}</h3>
+          <TtnDispatchFields location={recipientLocation} onChange={setRecipientLocation} disabled={saving} recipient />
+        </section>}
         <label className="field">
           <span>{t('Parcel description')}</span>
           <textarea required value={description} disabled={saving}

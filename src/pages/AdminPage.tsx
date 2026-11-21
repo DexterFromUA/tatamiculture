@@ -212,6 +212,7 @@ export function AdminPage() {
       return update ? { ...order, ...update, is_new: order.is_new && update.status === order.status } : order
     }))
     setOrdersRevision(value => value + 1)
+    refreshProducts()
     return true
   }
 
@@ -222,7 +223,7 @@ export function AdminPage() {
     try {
       await updateOrderStatus([id], status, restoreStock)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t('Action failed'))
+      setError(cause instanceof Error ? t(cause.message) : t('Action failed'))
     } finally {
       setUpdatingId(null)
     }
@@ -379,7 +380,7 @@ export function AdminPage() {
         }
         if (eligible.length) addToast(t('Orders updated: {{count}}', { count: eligible.length }))
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : t('Action failed'))
+        setError(cause instanceof Error ? t(cause.message) : t('Action failed'))
       } finally {
         setBulkBusy(false)
       }
@@ -597,7 +598,9 @@ export function AdminPage() {
         setConfirmation(null)
         confirmation.resolve(confirmed)
       }} />}
-      {selectedOrder && token && <OrderOperations key={selectedOrder.id} order={selectedOrder} orderIds={selectedOrder.member_ids} token={token} onClose={() => { setSelectedOrderId(null); setOrdersRevision(value => value + 1) }} />}
+      {selectedOrder && token && <OrderOperations key={selectedOrder.id} order={selectedOrder} orderIds={selectedOrder.member_ids} token={token}
+        onChanged={() => setOrdersRevision(value => value + 1)}
+        onClose={() => { setSelectedOrderId(null); setOrdersRevision(value => value + 1) }} />}
       {mergeOpen && token && <MergeOrdersDrawer orders={selectedOrders} busy={bulkBusy} error={mergeError} onClose={() => setMergeOpen(false)} onMerge={targetId => {
         setBulkBusy(true)
         setMergeError(null)

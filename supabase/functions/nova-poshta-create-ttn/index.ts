@@ -9,9 +9,8 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const isDirectoryRef = (value: unknown): value is string =>
   typeof value === 'string' && /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i.test(value)
 
-function dateForNovaPost() {
-  const now = new Date()
-  return `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}`
+function dateForNovaPost(date = new Date()) {
+  return new Intl.DateTimeFormat('uk-UA', { timeZone: 'Europe/Kyiv', day: '2-digit', month: '2-digit', year: 'numeric' }).format(date)
 }
 
 async function novaPost(apiKey: string, modelName: string, calledMethod: string, methodProperties: NovaData) {
@@ -72,11 +71,11 @@ Deno.serve(async (request) => {
 
   const db = createClient(supabaseUrl, serviceRoleKey)
   let reservedOrder: string | null = null
+  let attemptId: string | null = null
   let documentAttempted = false
-  let documentSaved = false
   let documentRejected = false
   try {
-    const { orderId, description, internalOrderNumber, weightGrams, declaredValueMinor, recipientName, dispatchLocation } = (preview
+    const { orderId, description, internalOrderNumber, weightGrams, declaredValueMinor, recipientName, dispatchLocation, recipientLocation, recovery } = (preview
       ? { orderId: new URL(request.url).searchParams.get('orderId') }
       : await request.json()) as {
       orderId?: string | null
@@ -86,6 +85,8 @@ Deno.serve(async (request) => {
       declaredValueMinor?: unknown
       recipientName?: unknown
       dispatchLocation?: { cityRef?: unknown; warehouseRef?: unknown } | null
+      recipientLocation?: { cityRef?: unknown; cityName?: unknown; warehouseRef?: unknown; warehouseName?: unknown } | null
+      recovery?: { action?: unknown; attemptId?: unknown; ttn?: unknown }
     }
     if (!orderId) throw new Error('Order is required')
     const authorization = request.headers.get('Authorization') ?? `Bearer ${anonKey}`
@@ -96,6 +97,53 @@ Deno.serve(async (request) => {
     if (orderError || !order) return json({ error: 'Order was not found' }, 404)
     const { data: membership } = await db.from('store_members').select('role').eq('store_id', order.store_id).eq('user_id', userData.user.id).maybeSingle()
     if (!membership) return json({ error: 'You do not have access to this order' }, 403)
+    if (recovery !== undefined) {
+      if (!isDirectoryRef(recovery?.attemptId) || !['attach', 'not_created'].includes(String(recovery.action))) {
+        return json({ error: 'Invalid TTN recovery request.' }, 400)
+      }
+      if (order.nova_poshta_ttn && recovery.action === 'attach' && order.nova_poshta_ttn === recovery.ttn) {
+        return json({ ttn: order.nova_poshta_ttn, documentRef: order.nova_poshta_document_ref, existing: true })
+      }
+      const { data: pending, error: pendingError } = await db.from('order_ttn_reservations')
+        .select('client_reference,needs_review,created_at').eq('order_id', orderId).eq('attempt_id', recovery.attemptId).maybeSingle()
+      if (pendingError) throw new Error(pendingError.message)
+      if (!pending) return json({ error: 'This TTN attempt is no longer current.' }, 409)
+      if (!pending.needs_review && Date.now() - Date.parse(pending.created_at) < 8 * 60_000) {
+        return json({ error: 'TTN creation is still in progress.' }, 409)
+      }
+      let ttn: string | null = null
+      let documentRef: string | null = null
+      if (recovery.action === 'attach') {
+        if (typeof recovery.ttn !== 'string' || !/^[0-9]{14}$/.test(recovery.ttn)) {
+          return json({ error: 'Enter a valid 14-digit Nova Poshta tracking number.' }, 400)
+        }
+        const apiKey = Deno.env.get('NOVA_POSHTA_API_KEY')?.trim()
+        if (!apiKey) throw new Error('NOVA_POSHTA_API_KEY is not configured')
+        const attemptedAt = Date.parse(pending.created_at)
+        const documents = await novaPost(apiKey, 'InternetDocument', 'getDocumentList', {
+          IntDocNumber: recovery.ttn, Page: '1', GetFullList: '1',
+          DateTimeFrom: dateForNovaPost(new Date(attemptedAt - 86_400_000)),
+          DateTimeTo: dateForNovaPost(new Date(attemptedAt + 86_400_000)),
+        })
+        const document = documents.find(row => String(row.IntDocNumber) === recovery.ttn)
+        if (typeof document?.Ref !== 'string' || !document.Ref) {
+          return json({ error: 'Nova Poshta did not find this TTN in the connected account.' }, 404)
+        }
+        if (pending.client_reference && document.InfoRegClientBarcodes &&
+          String(document.InfoRegClientBarcodes) !== pending.client_reference) {
+          return json({ error: 'This TTN belongs to a different order number.' }, 409)
+        }
+        ttn = recovery.ttn
+        documentRef = document.Ref
+      }
+      const { error } = await db.rpc('finish_order_ttn_attempt', {
+        p_order_id: orderId, p_attempt_id: recovery.attemptId,
+        p_outcome: recovery.action === 'attach' ? 'attached' : 'not_created',
+        p_ttn: ttn, p_document_ref: documentRef,
+      })
+      if (error) return json({ error: error.message }, 409)
+      return json({ ttn, documentRef })
+    }
     if (String(order.status).startsWith('CANCELLED')) throw new Error('A TTN cannot be created for a cancelled order')
     if (!preview && order.nova_poshta_ttn) return json({ ttn: order.nova_poshta_ttn, documentRef: order.nova_poshta_document_ref, existing: true })
     if (!(order.payment_test_mode ?? order.monobank_test_mode) &&
@@ -104,13 +152,14 @@ Deno.serve(async (request) => {
     }
     if (order.currency !== 'UAH') throw new Error('Nova Poshta TTN requires an order in UAH')
     if (!preview) {
-      const { error } = await db.rpc('reserve_order_ttn', { p_order_id: orderId })
+      const { data, error } = await db.rpc('begin_order_ttn_attempt', { p_order_id: orderId })
       if (error) throw new Error('TTN creation is already in progress or the order was merged. Refresh the page.')
       reservedOrder = orderId
+      attemptId = data as string
     }
     const { data: shippingRows, error: shippingError } = await db.rpc('merged_order_shipping', { p_order_id: orderId })
     if (shippingError || !shippingRows?.[0]) throw new Error('Could not calculate the merged order.')
-    const shipping = shippingRows[0] as { order_ids: string[]; total_minor: number; cod_minor: number; weight_grams: number | null }
+    const shipping = shippingRows[0] as { total_minor: number; cod_minor: number; weight_grams: number | null }
     const orderTotalMinor = Number(shipping.total_minor)
     const { data: settings, error: settingsError } = await db.from('delivery_settings').select('*').eq('store_id', order.store_id).maybeSingle()
     if (preview) {
@@ -125,9 +174,39 @@ Deno.serve(async (request) => {
           warehouseRef: settings?.warehouse_ref ?? '',
           warehouseName: settings?.warehouse_name ?? '',
         },
+        recipientLocation: {
+          cityRef: order.delivery_city_ref ?? '',
+          cityName: order.delivery_city ?? '',
+          warehouseRef: order.delivery_address_ref ?? '',
+          warehouseName: order.delivery_address ?? '',
+        },
       })
     }
-    if (!order.delivery_city_ref || !order.delivery_address_ref) throw new Error('This order lacks Nova Poshta branch references. Create a new order after enabling delivery, or set its destination again.')
+    let destination = {
+      delivery_city_ref: order.delivery_city_ref,
+      delivery_city: order.delivery_city,
+      delivery_address_ref: order.delivery_address_ref,
+      delivery_address: order.delivery_address,
+      delivery_service_type: order.delivery_service_type,
+    }
+    if (recipientLocation !== undefined) {
+      const cityName = typeof recipientLocation?.cityName === 'string' ? recipientLocation.cityName.trim() : ''
+      const branchName = typeof recipientLocation?.warehouseName === 'string' ? recipientLocation.warehouseName.trim() : ''
+      if (!isDirectoryRef(recipientLocation?.cityRef) || !isDirectoryRef(recipientLocation?.warehouseRef) ||
+        !cityName || cityName.length > 200 || !branchName || branchName.length > 500) {
+        throw new Error('Choose a city and Nova Poshta branch')
+      }
+      if (recipientLocation.cityRef !== destination.delivery_city_ref || recipientLocation.warehouseRef !== destination.delivery_address_ref) {
+        destination = {
+          delivery_city_ref: recipientLocation.cityRef, delivery_city: cityName,
+          delivery_address_ref: recipientLocation.warehouseRef, delivery_address: branchName,
+          delivery_service_type: /поштомат|postomat/i.test(branchName) ? 'WarehousePostomat' : 'WarehouseWarehouse',
+        }
+      }
+    }
+    if (!destination.delivery_city_ref || !destination.delivery_address_ref) {
+      throw new Error('Choose a city and Nova Poshta branch')
+    }
     const person = parseTtnRecipientName(recipientName === undefined ? order.customer_name : recipientName)
     if (!person) throw new Error(invalidTtnRecipientName)
 
@@ -175,13 +254,20 @@ Deno.serve(async (request) => {
     const recipients = await novaPost(apiKey, 'Counterparty', 'save', {
       FirstName: person.firstName, MiddleName: person.middleName, LastName: person.lastName,
       Phone: String(order.customer_phone).replace(/\D/g, ''), Email: String(order.customer_email),
-      CounterpartyType: 'PrivatePerson', CounterpartyProperty: 'Recipient', CityRef: order.delivery_city_ref,
+      CounterpartyType: 'PrivatePerson', CounterpartyProperty: 'Recipient', CityRef: destination.delivery_city_ref,
     })
     const recipient = recipients[0]
     const recipientContact = (recipient?.ContactPerson as { data?: NovaData[] } | undefined)?.data?.[0]?.Ref
     if (!recipient?.Ref || !recipientContact) throw new Error('Nova Poshta could not create the recipient')
 
     const weightKg = String(parcelWeightGrams / 1000)
+    const codMinor = Number(shipping.cod_minor)
+    if (!Number.isSafeInteger(codMinor) || codMinor < 0) throw new Error('Invalid cash on delivery amount')
+    const codAmount = codMinor % 100 === 0 ? String(codMinor / 100) : (codMinor / 100).toFixed(2)
+    const { error: prepareError } = await db.rpc('prepare_order_ttn_request', {
+      p_order_id: orderId, p_attempt_id: attemptId, p_address: destination, p_client_reference: orderNumber || null,
+    })
+    if (prepareError) throw new Error(prepareError.message)
     documentAttempted = true
     const document = (await novaPost(apiKey, 'InternetDocument', 'save', {
       PayerType: settings.delivery_payer === 'SENDER' ? 'Sender' : 'Recipient', PaymentMethod: 'Cash',
@@ -189,23 +275,29 @@ Deno.serve(async (request) => {
       Description: parcelDescription.trim(), Cost: String(declaredValueUah),
       ...(orderNumber ? { InfoRegClientBarcodes: orderNumber } : {}),
       CitySender: dispatchCityRef, Sender: sender.senderRef, SenderAddress: dispatchWarehouseRef, ContactSender: sender.contactRef,
-      SendersPhone: dispatchPhone, CityRecipient: order.delivery_city_ref,
-      Recipient: recipient.Ref, RecipientAddress: order.delivery_address_ref, ContactRecipient: recipientContact,
-      RecipientsPhone: String(order.customer_phone).replace(/\D/g, ''), ServiceType: order.delivery_service_type === 'WarehousePostomat' ? 'WarehousePostomat' : 'WarehouseWarehouse',
-      ...(Number(shipping.cod_minor) > 0 ? { BackwardDeliveryData: [{ PayerType: 'Recipient', CargoType: 'Money', RedeliveryString: String(Math.max(1, Math.round(Number(shipping.cod_minor) / 100))) }] } : {}),
+      SendersPhone: dispatchPhone, CityRecipient: destination.delivery_city_ref,
+      Recipient: recipient.Ref, RecipientAddress: destination.delivery_address_ref, ContactRecipient: recipientContact,
+      RecipientsPhone: String(order.customer_phone).replace(/\D/g, ''), ServiceType: destination.delivery_service_type === 'WarehousePostomat' ? 'WarehousePostomat' : 'WarehouseWarehouse',
+      ...(codMinor > 0 ? { BackwardDeliveryData: [{ PayerType: 'Recipient', CargoType: 'Money', RedeliveryString: codAmount }] } : {}),
       VolumeGeneral: String((Number(settings.length_cm) * Number(settings.width_cm) * Number(settings.height_cm)) / 1_000_000),
       OptionsSeat: [{ volumetricWidth: String(settings.width_cm), volumetricLength: String(settings.length_cm), volumetricHeight: String(settings.height_cm), weight: weightKg }],
     }))[0]
     if (!document?.IntDocNumber || !document.Ref) throw new Error('Nova Poshta did not return a TTN number')
-    const { error: updateError } = await db.from('orders').update({ nova_poshta_ttn: document.IntDocNumber, nova_poshta_document_ref: document.Ref, nova_poshta_ttn_created_at: new Date().toISOString() }).in('id', shipping.order_ids).is('nova_poshta_ttn', null)
+    const { error: updateError } = await db.rpc('finish_order_ttn_attempt', {
+      p_order_id: orderId, p_attempt_id: attemptId, p_outcome: 'created',
+      p_ttn: String(document.IntDocNumber), p_document_ref: document.Ref,
+    })
     if (updateError) throw new Error(updateError.message)
-    documentSaved = true
+    attemptId = null
     return json({ ttn: document.IntDocNumber, documentRef: document.Ref, existing: false })
   } catch (error) {
     documentRejected = error instanceof NovaPostRejection
     const message = error instanceof Error ? error.message : 'TTN could not be created'
-    return json({ error: documentAttempted && !documentSaved && !documentRejected ? `${message} Check the Nova Poshta account before retrying.` : message }, 400)
+    return json({ error: documentAttempted && !documentRejected ? 'Check the Nova Poshta account and resolve this TTN in the order card.' : message }, 400)
   } finally {
-    if (reservedOrder && (!documentAttempted || documentSaved || documentRejected)) await db.rpc('release_order_ttn', { p_order_id: reservedOrder })
+    if (reservedOrder && attemptId) await db.rpc('finish_order_ttn_attempt', {
+      p_order_id: reservedOrder, p_attempt_id: attemptId,
+      p_outcome: documentAttempted && !documentRejected ? 'uncertain' : 'rejected',
+    })
   }
 })
