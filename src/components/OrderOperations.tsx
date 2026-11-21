@@ -160,20 +160,20 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
             {order.nova_poshta_status && <div><dt>{t('Shipment status')}</dt><dd>{order.nova_poshta_status}</dd></div>}
             {note && <div className="order-drawer__note"><dt>{t('Note')}</dt><dd>{note}</dd></div>}
           </dl>
+          {!trackingNumber && <OrderTtnRecovery
+            key={deliveryActions?.ttnAttempt?.id ?? 'manual'} attempt={deliveryActions?.ttnAttempt} orderId={order.id}
+            token={token} onRefresh={refreshDetails} onResolved={ttn => {
+              setDeliveryActions(current => ({ cancelStockPending: current?.cancelStockPending ?? false, ttn, ttnAttempt: null }))
+              setRecoveryMessage(ttn ? 'TTN linked to the order.' : 'You can now create a new TTN for this order.')
+              refreshDetails()
+              onChanged()
+            }} />}
+          {recoveryMessage && <p role="status">{t(recoveryMessage)}</p>}
         </section>
       </> : detailsFailed ? <section className="order-drawer__card">
         <p className="error" role="alert">{t('Could not load order details')}</p>
         <button type="button" className="text-btn" onClick={refreshDetails}>{t('Try again')}</button>
       </section> : <p role="status">{t('Loading…')}</p>}
-      {deliveryActions?.ttnAttempt && !trackingNumber && <OrderTtnRecovery
-        key={deliveryActions.ttnAttempt.id} attempt={deliveryActions.ttnAttempt} orderId={order.id}
-        token={token} onRefresh={refreshDetails} onResolved={ttn => {
-          setDeliveryActions(current => current && { ...current, ttn, ttnAttempt: null })
-          setRecoveryMessage(ttn ? 'TTN linked to the order.' : 'You can now create a new TTN for this order.')
-          refreshDetails()
-          onChanged()
-        }} />}
-      {recoveryMessage && <p role="status">{t(recoveryMessage)}</p>}
       {error && <p className="error" role="alert">{error}</p>}
       {order.status.startsWith('CANCELLED') && deliveryActions?.cancelStockPending && <section className="order-drawer__card">
         <h3>{t('Return cancelled items to stock')}</h3>

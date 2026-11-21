@@ -4,7 +4,7 @@ import { resolveTtnAttempt, type TtnAttempt } from '../lib/ttn'
 import { ConfirmationDialog } from './ConfirmationDialog'
 
 export function OrderTtnRecovery({ attempt, orderId, token, onResolved, onRefresh }: {
-  attempt: TtnAttempt
+  attempt?: TtnAttempt | null
   orderId: string
   token: string
   onResolved: (ttn: string | null) => void
@@ -21,7 +21,7 @@ export function OrderTtnRecovery({ attempt, orderId, token, onResolved, onRefres
     setBusy(true)
     setError('')
     try {
-      const result = await resolveTtnAttempt(orderId, token, { action, attemptId: attempt.id, ttn })
+      const result = await resolveTtnAttempt(orderId, token, { action, attemptId: attempt?.id, ttn })
       onResolved(result.ttn)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not resolve the TTN.')
@@ -39,15 +39,17 @@ export function OrderTtnRecovery({ attempt, orderId, token, onResolved, onRefres
     }
     void resolve('attach', ttn)
   }
-  if (attempt.state === 'creating') return <section className="order-drawer__card">
+  if (attempt?.state === 'creating') return <div>
     <h3>{t('Creating TTN…')}</h3>
     <p>{t('The previous request is still running. Check its status in a moment.')}</p>
     <button className="text-btn" type="button" onClick={onRefresh}>{t('Update status')}</button>
-  </section>
+  </div>
 
-  return <section className="order-drawer__card">
-    <h3>{t('Verify the TTN')}</h3>
-    <p>{t('Check whether this order already has a waybill in the Nova Poshta business account.')}</p>
+  return <div>
+    {attempt && <>
+      <h3>{t('Verify the TTN')}</h3>
+      <p>{t('Check whether this order already has a waybill in the Nova Poshta business account.')}</p>
+    </>}
     {error && <p className="error" role="alert">{t(error)}</p>}
     {mode === 'attach' ? <form className="form" onSubmit={attach}>
       <label className="field">
@@ -61,11 +63,11 @@ export function OrderTtnRecovery({ attempt, orderId, token, onResolved, onRefres
       </div>
     </form> : <div className="actions">
       <button type="button" className="btn btn--ghost" disabled={busy} onClick={() => { setMode('attach'); setError('') }}>
-        {t('Link existing TTN')}
+        {t(attempt ? 'Link existing TTN' : 'Add TTN')}
       </button>
-      <button type="button" className="btn btn--ghost" disabled={busy} onClick={() => { setMode('not_created'); setError('') }}>
+      {attempt && <button type="button" className="btn btn--ghost" disabled={busy} onClick={() => { setMode('not_created'); setError('') }}>
         {t('Confirm TTN was not created')}
-      </button>
+      </button>}
     </div>}
     {mode === 'not_created' && <ConfirmationDialog
       title={t('Confirm TTN was not created')}
@@ -75,5 +77,5 @@ export function OrderTtnRecovery({ attempt, orderId, token, onResolved, onRefres
         setMode(null)
         if (confirmed) void resolve('not_created')
       }} />}
-  </section>
+  </div>
 }

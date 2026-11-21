@@ -98,49 +98,61 @@ Deno.serve(async (request) => {
     const { data: membership } = await db.from('store_members').select('role').eq('store_id', order.store_id).eq('user_id', userData.user.id).maybeSingle()
     if (!membership) return json({ error: 'You do not have access to this order' }, 403)
     if (recovery !== undefined) {
-      if (!isDirectoryRef(recovery?.attemptId) || !['attach', 'not_created'].includes(String(recovery.action))) {
+      const { action, attemptId: requestedAttempt, ttn: trackingNumber } = recovery ?? {}
+      if ((action !== 'attach' && action !== 'not_created') ||
+        ((requestedAttempt !== undefined || action === 'not_created') && !isDirectoryRef(requestedAttempt))) {
         return json({ error: 'Invalid TTN recovery request.' }, 400)
       }
-      if (order.nova_poshta_ttn && recovery.action === 'attach' && order.nova_poshta_ttn === recovery.ttn) {
-        return json({ ttn: order.nova_poshta_ttn, documentRef: order.nova_poshta_document_ref, existing: true })
+      if (action === 'attach' && order.nova_poshta_ttn) {
+        if (order.nova_poshta_ttn === trackingNumber) {
+          return json({ ttn: order.nova_poshta_ttn, documentRef: order.nova_poshta_document_ref, existing: true })
+        }
+        return json({ error: 'This order already has a TTN.' }, 409)
       }
-      const { data: pending, error: pendingError } = await db.from('order_ttn_reservations')
-        .select('client_reference,needs_review,created_at').eq('order_id', orderId).eq('attempt_id', recovery.attemptId).maybeSingle()
-      if (pendingError) throw new Error(pendingError.message)
-      if (!pending) return json({ error: 'This TTN attempt is no longer current.' }, 409)
-      if (!pending.needs_review && Date.now() - Date.parse(pending.created_at) < 8 * 60_000) {
-        return json({ error: 'TTN creation is still in progress.' }, 409)
+      let pending: { client_reference: string | null; created_at: string } | null = null
+      if (requestedAttempt !== undefined) {
+        const { data, error: pendingError } = await db.from('order_ttn_reservations')
+          .select('client_reference,needs_review,created_at').eq('order_id', orderId).eq('attempt_id', requestedAttempt).maybeSingle()
+        if (pendingError) throw new Error(pendingError.message)
+        if (!data) return json({ error: 'This TTN attempt is no longer current.' }, 409)
+        if (!data.needs_review && Date.now() - Date.parse(data.created_at) < 8 * 60_000) {
+          return json({ error: 'TTN creation is still in progress.' }, 409)
+        }
+        pending = data
       }
       let ttn: string | null = null
       let documentRef: string | null = null
-      if (recovery.action === 'attach') {
-        if (typeof recovery.ttn !== 'string' || !/^[0-9]{14}$/.test(recovery.ttn)) {
+      if (action === 'attach') {
+        if (typeof trackingNumber !== 'string' || !/^[0-9]{14}$/.test(trackingNumber)) {
           return json({ error: 'Enter a valid 14-digit Nova Poshta tracking number.' }, 400)
         }
         const apiKey = Deno.env.get('NOVA_POSHTA_API_KEY')?.trim()
         if (!apiKey) throw new Error('NOVA_POSHTA_API_KEY is not configured')
-        const attemptedAt = Date.parse(pending.created_at)
-        const documents = await novaPost(apiKey, 'InternetDocument', 'getDocumentList', {
-          IntDocNumber: recovery.ttn, Page: '1', GetFullList: '1',
-          DateTimeFrom: dateForNovaPost(new Date(attemptedAt - 86_400_000)),
-          DateTimeTo: dateForNovaPost(new Date(attemptedAt + 86_400_000)),
-        })
-        const document = documents.find(row => String(row.IntDocNumber) === recovery.ttn)
+        const search: NovaData = { IntDocNumber: trackingNumber, Page: '1' }
+        if (pending) {
+          const attemptedAt = Date.parse(pending.created_at)
+          search.GetFullList = '1'
+          search.DateTimeFrom = dateForNovaPost(new Date(attemptedAt - 86_400_000))
+          search.DateTimeTo = dateForNovaPost(new Date(attemptedAt + 86_400_000))
+        }
+        const documents = await novaPost(apiKey, 'InternetDocument', 'getDocumentList', search)
+        const document = documents.find(row => String(row.IntDocNumber) === trackingNumber)
         if (typeof document?.Ref !== 'string' || !document.Ref) {
           return json({ error: 'Nova Poshta did not find this TTN in the connected account.' }, 404)
         }
-        if (pending.client_reference && document.InfoRegClientBarcodes &&
+        if (pending?.client_reference && document.InfoRegClientBarcodes &&
           String(document.InfoRegClientBarcodes) !== pending.client_reference) {
           return json({ error: 'This TTN belongs to a different order number.' }, 409)
         }
-        ttn = recovery.ttn
+        ttn = trackingNumber
         documentRef = document.Ref
       }
-      const { error } = await db.rpc('finish_order_ttn_attempt', {
-        p_order_id: orderId, p_attempt_id: recovery.attemptId,
-        p_outcome: recovery.action === 'attach' ? 'attached' : 'not_created',
-        p_ttn: ttn, p_document_ref: documentRef,
-      })
+      const shipment = { p_order_id: orderId, p_ttn: ttn, p_document_ref: documentRef }
+      const { error } = requestedAttempt === undefined
+        ? await db.rpc('attach_verified_order_ttn', shipment)
+        : await db.rpc('finish_order_ttn_attempt', {
+          ...shipment, p_attempt_id: requestedAttempt, p_outcome: action === 'attach' ? 'attached' : 'not_created',
+        })
       if (error) return json({ error: error.message }, 409)
       return json({ ttn, documentRef })
     }

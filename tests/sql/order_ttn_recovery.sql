@@ -7,10 +7,12 @@ declare
   shop uuid;
   first_order uuid;
   other_order uuid;
+  manual_order uuid;
   first_attempt uuid;
   next_attempt uuid;
   actions jsonb;
   carrier_ref text := '11111111-2222-3333-4444-555555555555';
+  manual_carrier_ref text := '11111111-2222-3333-4444-555555555556';
 begin
   select id into shop from public.shop_settings;
   insert into auth.users(id) values (manager), (stranger);
@@ -23,6 +25,10 @@ begin
     store_id, customer_name, customer_email, customer_phone, delivery_city, delivery_address, total_price, currency, status
   ) values (shop, 'B', '', '0990000002', 'City', 'Branch', 105050, 'UAH', 'PREPARING_SHIPMENT')
   returning id into other_order;
+  insert into public.orders (
+    store_id, customer_name, customer_email, customer_phone, delivery_city, delivery_address, total_price, currency, status
+  ) values (shop, 'C', '', '0990000003', 'City', 'Branch', 105050, 'UAH', 'IN_PROGRESS')
+  returning id into manual_order;
 
   perform set_config('request.jwt.claim.sub', stranger::text, true);
   begin
@@ -30,7 +36,8 @@ begin
     raise exception 'A non-staff user could inspect recovery';
   exception when insufficient_privilege then null;
   end;
-  if has_function_privilege('authenticated', 'public.finish_order_ttn_attempt(uuid,uuid,text,text,text)', 'execute') then
+  if has_function_privilege('authenticated', 'public.finish_order_ttn_attempt(uuid,uuid,text,text,text)', 'execute')
+    or has_function_privilege('authenticated', 'public.attach_verified_order_ttn(uuid,text,text)', 'execute') then
     raise exception 'A frontend caller can bypass carrier verification';
   end if;
   perform set_config('request.jwt.claim.sub', manager::text, true);
@@ -73,6 +80,25 @@ begin
   end;
   if not exists (select from public.order_ttn_reservations where order_id = other_order and attempt_id = next_attempt) then
     raise exception 'Retry did not create a new active attempt';
+  end if;
+
+  begin
+    perform public.attach_verified_order_ttn(other_order, '59000000000124', carrier_ref);
+    raise exception 'Manual attachment raced an active creation attempt';
+  exception when raise_exception then
+    if sqlerrm <> 'TTN creation is still in progress.' then raise; end if;
+  end;
+  begin
+    perform public.attach_verified_order_ttn(manual_order, '59000000000123', carrier_ref);
+    raise exception 'Manual attachment accepted a duplicate TTN';
+  exception when raise_exception then
+    if sqlerrm <> 'This TTN is already linked to an order.' then raise; end if;
+  end;
+  perform public.attach_verified_order_ttn(manual_order, '59000000000124', manual_carrier_ref);
+  if not exists (select from public.orders where id = manual_order and nova_poshta_ttn = '59000000000124'
+    and nova_poshta_document_ref = manual_carrier_ref and status = 'IN_PROGRESS')
+    or exists (select from public.order_ttn_reservations where order_id = manual_order) then
+    raise exception 'Manual attachment failed to save the TTN without an existing attempt';
   end if;
 end;
 $$;

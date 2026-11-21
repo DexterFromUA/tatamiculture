@@ -649,6 +649,8 @@ const uk = {
   'The previous request is still running. Check its status in a moment.': 'Попередній запит ще обробляється. Оновіть статус трохи згодом.',
   'Nova Poshta tracking number': 'Номер ТТН Нової пошти',
   'Link existing TTN': 'Прив’язати наявну ТТН',
+  'Add TTN': 'Додати ТТН',
+  'Link the TTN from the primary order.': 'Прив’яжіть ТТН з картки основного замовлення.',
   'Confirm TTN was not created': 'Підтвердити, що ТТН не створено',
   'Confirm that you checked Nova Poshta and found no TTN for this order. This will allow a new creation attempt.': 'Підтвердьте, що ви перевірили бізнес-кабінет Нової пошти й ТТН для цього замовлення немає. Після підтвердження можна буде створити ТТН знову.',
   'Enter a valid 14-digit Nova Poshta tracking number.': 'Введіть 14 цифр номера ТТН Нової пошти.',

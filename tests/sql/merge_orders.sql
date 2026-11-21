@@ -84,7 +84,12 @@ begin
   if (select count(*) from public.orders where id in(first_order,second_order) and payment_status='PAID')<>2 then raise exception 'Webhook could not update payment after a manual correction'; end if;
   if not exists(select 1 from public.orders where id=first_order and status='IN_PROGRESS') then raise exception 'Webhook could not move the order to processing after a manual correction'; end if;
   if not exists(select 1 from public.orders where id=paid_order and status='IN_PROGRESS' and payment_status='PAID') then raise exception 'Automatic payment was blocked for an unmodified order'; end if;
-  update public.orders set nova_poshta_ttn='test-ttn' where id=first_order;
+  perform public.attach_verified_order_ttn(first_order, '59000000000200', '33333333-4444-5555-6666-777777777777');
+  if (select count(*) from public.orders where id in (first_order, second_order) and nova_poshta_ttn = '59000000000200') <> 2
+    or not exists (select from public.orders where id = first_order and nova_poshta_document_ref is not null)
+    or exists (select from public.orders where id = second_order and nova_poshta_document_ref is not null) then
+    raise exception 'A consolidated shipment did not share the TTN with a single carrier reference on the primary order';
+  end if;
   begin
     perform public.merge_orders(array[first_order,paid_order],first_order);
     raise exception 'Order with TTN accepted';

@@ -22,7 +22,7 @@ export function getOrderDeliveryActions(orderId: string, token: string, signal: 
 }
 
 export function resolveTtnAttempt(orderId: string, token: string, recovery: {
-  action: 'attach' | 'not_created'; attemptId: string; ttn?: string
+  action: 'attach' | 'not_created'; attemptId?: string; ttn?: string
 }) {
   return supabaseRequest<{ ttn: string | null; documentRef: string | null }>(endpoint, {
     method: 'POST', token, signal: AbortSignal.timeout(20000), body: JSON.stringify({ orderId, recovery }),
