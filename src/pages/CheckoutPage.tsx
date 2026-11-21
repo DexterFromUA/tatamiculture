@@ -1,3 +1,4 @@
+import { useCodReceiptRecovery } from '../lib/useCodReceiptRecovery'
 import { customerUnitPrice } from '../lib/catalogPricing'
 import { purchaseQuantityLimit, unavailableQuantity } from '../lib/catalogAvailability'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
@@ -26,6 +27,7 @@ export function CheckoutPage() {
 
 function CheckoutForm() {
   const { store, refreshProducts } = useStore()
+  useCodReceiptRecovery(store?.id)
   const { items, products, loadingProducts, productsError, clear, rememberOnlineCheckout, customerDiscount } = useCart()
   const { user, token } = useAuth()
   const { addToast } = useToast()
@@ -173,7 +175,7 @@ function CheckoutForm() {
     setSubmitting(true)
     try {
       if (novaPoshtaEnabled && (!cityRef || !addressRef || !form.address)) throw new Error(t('Choose a city and Nova Poshta branch'))
-      const checkout = { ...form, expectedDiscountPercent: customerDiscount.percent, expectedTotal: Math.round(total * 100),
+      const checkout = { ...form, customerAccountId: user?.id, expectedDiscountPercent: customerDiscount.percent, expectedTotal: Math.round(total * 100),
         ...(novaPoshtaEnabled && { cityRef: cityRef ?? undefined, addressRef: addressRef ?? undefined, deliveryServiceType }) }
       if (total > 0 && (provider === 'MONOBANK' || provider === 'LIQPAY')) {
         try {
@@ -202,6 +204,7 @@ function CheckoutForm() {
       navigate(`/receipt/${order.receiptCode}`)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Checkout failed'
+      window.dispatchEvent(new Event('tatami:cod-uncertain'))
       customerDiscount.retry()
       if (message === unavailableQuantity || message === 'Cart prices changed. Review your cart and try again.') refreshProducts()
       setError(message)

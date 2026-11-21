@@ -126,6 +126,7 @@ export type Order = {
 }
 
 export type CheckoutInput = {
+  customerAccountId?: string
   expectedDiscountPercent?: number
   expectedTotal?: number
   name: string

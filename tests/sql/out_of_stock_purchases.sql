@@ -102,9 +102,14 @@ begin
   end if;
   result := public.update_admin_orders_with_stock_notice(array[attempt.id], 'CANCELLED_BY_STORE', true, false);
   if result->>'stock_added' <> '0' then raise exception 'A repeated cancellation duplicated stock'; end if;
-  perform public.update_admin_orders(array[attempt.id], 'PREPARING_SHIPMENT', true);
+  perform public.correct_admin_order_status(array[attempt.id], 'PREPARING_SHIPMENT', true, false, 'stock', null);
   result := public.update_admin_orders_with_stock_notice(array[attempt.id], 'CANCELLED_BY_STORE', true, false);
-  if result->>'stock_added' <> '0' then raise exception 'Reopening an order duplicated stock'; end if;
+  if result->>'stock_added' <> '0' or exists (select from public.product_variants
+    where id in (variant,preorder_variant) and stock_quantity <> 2) then raise exception 'Reopening an order duplicated stock'; end if;
+
+  perform public.correct_admin_order_status(array[attempt.id], 'IN_PROGRESS', true, false, 'supplier', null);
+  result := public.update_admin_orders_with_stock_notice(array[attempt.id], 'CANCELLED_BY_STORE', true, false);
+  if result->>'stock_added' <> '0' then raise exception 'Old procurement stages credited a new unstarted purchase'; end if;
 
   -- A direct cancellation of a fresh paid order must leave empty stock untouched.
   update public.product_variants set stock_quantity = 0, allow_out_of_stock = true where id = variant;

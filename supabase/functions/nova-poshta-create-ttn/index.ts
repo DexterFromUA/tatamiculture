@@ -75,13 +75,14 @@ Deno.serve(async (request) => {
   let documentAttempted = false
   let documentRejected = false
   try {
-    const { orderId, description, internalOrderNumber, weightGrams, declaredValueMinor, recipientName, dispatchLocation, recipientLocation, recovery } = (preview
+    const { orderId, description, internalOrderNumber, weightGrams, declaredValueMinor, expectedCodMinor, recipientName, dispatchLocation, recipientLocation, recovery } = (preview
       ? { orderId: new URL(request.url).searchParams.get('orderId') }
       : await request.json()) as {
       orderId?: string | null
       description?: unknown
       internalOrderNumber?: unknown
       weightGrams?: unknown
+      expectedCodMinor?: unknown
       declaredValueMinor?: unknown
       recipientName?: unknown
       dispatchLocation?: { cityRef?: unknown; warehouseRef?: unknown } | null
@@ -167,7 +168,8 @@ Deno.serve(async (request) => {
       attemptId = data as string
     }
     const { data: shippingRows, error: shippingError } = await db.rpc('merged_order_shipping', { p_order_id: orderId })
-    if (shippingError || !shippingRows?.[0]) throw new Error('Could not calculate the merged order.')
+    if (shippingError) throw new Error(shippingError.message)
+    if (!shippingRows?.[0]) throw new Error('Could not calculate the merged order.')
     const shipping = shippingRows[0] as { total_minor: number; cod_minor: number; weight_grams: number | null }
     const orderTotalMinor = Number(shipping.total_minor)
     const { data: settings, error: settingsError } = await db.from('delivery_settings').select('*').eq('store_id', order.store_id).maybeSingle()
@@ -175,6 +177,7 @@ Deno.serve(async (request) => {
       if (order.nova_poshta_ttn) throw new Error('This order already has a TTN.')
       if (settingsError) throw new Error('Could not load delivery settings.')
       return json({
+        codMinor: Number(shipping.cod_minor),
         weightGrams: shipping.weight_grams,
         declaredValueMinor: Math.max(100, orderTotalMinor),
         dispatchLocation: {
@@ -191,6 +194,7 @@ Deno.serve(async (request) => {
         },
       })
     }
+    if (expectedCodMinor !== undefined && expectedCodMinor !== Number(shipping.cod_minor)) throw new Error('COD amount changed. Reopen the shipment.')
     let destination = {
       delivery_city_ref: order.delivery_city_ref,
       delivery_city: order.delivery_city,

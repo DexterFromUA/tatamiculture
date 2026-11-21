@@ -14,53 +14,61 @@ export async function reconcileDiscountPayments(client: SupabaseClient, storeId:
       if (error) throw new Error(error.message)
       continue
     }
-    let paid = false
-    let failed = false
-    let amount = NaN
-    let currency = ''
-    let paymentId: string | null = null
-    let callback: unknown
-    if (attempt.provider === 'MONOBANK') {
-      const token = monobankToken(attempt.test_mode)
-      if (!token) continue
-      const response = await fetch(`${monobankApi}/invoice/status?invoiceId=${encodeURIComponent(attempt.provider_order_id)}`, {
-        headers: { 'X-Token': token }, signal: AbortSignal.timeout(5000),
-      })
-      if (!response.ok) continue
-      const invoice = await response.json()
-      if (invoice.invoiceId !== attempt.provider_order_id) continue
-      paid = invoice.status === 'success' && invoice.reference === attempt.id
-      failed = ['failure', 'expired', 'reversed'].includes(invoice.status)
-      amount = invoice.amount
-      currency = invoice.ccy === 980 ? 'UAH' : ''
-      callback = invoice
-    } else {
-      const keys = liqPayKeys(attempt.test_mode)
-      if (!keys) continue
-      const data = encodeLiqPayData({ public_key: keys.publicKey, version: '3', action: 'status', order_id: attempt.provider_order_id })
-      const response = await fetch('https://www.liqpay.ua/api/request', {
-        method: 'POST', body: new URLSearchParams({ data, signature: await liqPaySignature(keys.privateKey, data) }),
-        signal: AbortSignal.timeout(5000),
-      })
-      if (!response.ok) continue
-      const invoice = await response.json()
-      paid = invoice.order_id === attempt.provider_order_id && (invoice.status === 'success' || (attempt.test_mode && invoice.status === 'sandbox'))
-      failed = (invoice.order_id === attempt.provider_order_id && ['failure', 'error', 'reversed', 'expired'].includes(invoice.status))
-        || invoice.err_code === 'order_not_found'
-      amount = Math.round(Number(invoice.amount) * 100)
-      currency = invoice.currency
-      paymentId = invoice.payment_id ? String(invoice.payment_id) : null
-      callback = invoice
-    }
-    if (paid && Number.isSafeInteger(amount) && amount > 0 && currency) {
-      const { error } = await client.rpc('confirm_online_checkout', {
-        p_provider: attempt.provider, p_reference: attempt.provider_order_id, p_amount: amount,
-        p_currency: currency, p_payment_id: paymentId, p_callback: callback,
-      })
-      if (error) throw new Error(error.message)
-    } else if (failed) {
-      const { error } = await client.from('online_checkouts').update({ status: 'FAILED' }).eq('id', attempt.id).eq('status', 'PENDING')
-      if (error) throw new Error(error.message)
-    }
+    await reconcilePayment(client, attempt, true)
   }
+}
+
+type Attempt = { id: string; provider: string; provider_order_id: string | null; test_mode: boolean }
+export async function reconcilePayment(client: SupabaseClient, attempt: Attempt, expired: boolean) {
+  if (!attempt.provider_order_id) return 'Missing bank reference'
+  let paid = false
+  let failed = false
+  let amount = NaN
+  let currency = ''
+  let paymentId: string | null = null
+  let callback: unknown
+  if (attempt.provider === 'MONOBANK') {
+    const token = monobankToken(attempt.test_mode)
+    if (!token) return 'Bank lookup unavailable'
+    const response = await fetch(`${monobankApi}/invoice/status?invoiceId=${encodeURIComponent(attempt.provider_order_id)}`, {
+      headers: { 'X-Token': token }, signal: AbortSignal.timeout(5000),
+    })
+    if (!response.ok) return 'Bank lookup unavailable'
+    const invoice = await response.json()
+    if (invoice.invoiceId !== attempt.provider_order_id) return 'Payment details require review'
+    paid = invoice.status === 'success' && invoice.reference === attempt.id
+    failed = ['failure', 'expired', 'reversed'].includes(invoice.status)
+    amount = invoice.amount
+    currency = invoice.ccy === 980 ? 'UAH' : ''
+    callback = invoice
+  } else {
+    const keys = liqPayKeys(attempt.test_mode)
+    if (!keys) return 'Bank lookup unavailable'
+    const data = encodeLiqPayData({ public_key: keys.publicKey, version: '3', action: 'status', order_id: attempt.provider_order_id })
+    const response = await fetch('https://www.liqpay.ua/api/request', {
+      method: 'POST', body: new URLSearchParams({ data, signature: await liqPaySignature(keys.privateKey, data) }),
+      signal: AbortSignal.timeout(5000),
+    })
+    if (!response.ok) return 'Bank lookup unavailable'
+    const invoice = await response.json()
+    paid = invoice.order_id === attempt.provider_order_id && (invoice.status === 'success' || (attempt.test_mode && invoice.status === 'sandbox'))
+    failed = (invoice.order_id === attempt.provider_order_id && ['failure', 'error', 'reversed', 'expired'].includes(invoice.status))
+      || (expired && invoice.err_code === 'order_not_found')
+    amount = Math.round(Number(invoice.amount) * 100)
+    currency = invoice.currency
+    paymentId = invoice.payment_id ? String(invoice.payment_id) : null
+    callback = invoice
+  }
+  if (paid && Number.isSafeInteger(amount) && amount > 0 && currency) {
+    const { error } = await client.rpc('confirm_online_checkout', {
+      p_provider: attempt.provider, p_reference: attempt.provider_order_id, p_amount: amount,
+      p_currency: currency, p_payment_id: paymentId, p_callback: callback,
+    })
+    if (error) throw new Error(error.message)
+    return null
+  } else if (failed) {
+    const { error } = await client.from('online_checkouts').update({ status: 'FAILED' }).eq('id', attempt.id).eq('status', 'PENDING')
+    if (error) throw new Error(error.message)
+  }
+  return failed ? null : expired ? 'Payment still unconfirmed' : null
 }

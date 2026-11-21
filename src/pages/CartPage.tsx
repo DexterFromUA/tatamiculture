@@ -1,3 +1,4 @@
+import { useCodReceiptRecovery } from '../lib/useCodReceiptRecovery'
 import { customerUnitPrice } from '../lib/catalogPricing'
 import { purchaseQuantityLimit, unavailableQuantity } from '../lib/catalogAvailability'
 import { useEffect } from 'react'
@@ -14,6 +15,7 @@ import { LoadingIndicator } from '../components/LoadingIndicator'
 
 export function CartPage() {
   const { store, refreshProducts } = useStore()
+  useCodReceiptRecovery(store?.id)
   const { items, products, loadingProducts, productsError, setQuantity, removeItem, customerDiscount } = useCart()
   const { addToast } = useToast()
   const navigate = useNavigate()

@@ -50,7 +50,13 @@ export function ImportOrdersDialog({ store, token, onClose, onImported }: {
     setError('')
     try {
       const [sheet, catalog] = await Promise.all([readSource(), api.getProducts(store.id, token)])
-      setPreview(prepareOrderImport(sheet, catalog, i18n.resolvedLanguage))
+      const url = file ? null : new URL(link)
+      const source = file ? ['file', file.name] : ['sheet', url!.pathname.split('/d/')[1].replace(/\/(edit|view|export|pubhtml|pub)\/?$/, ''),
+        url!.searchParams.get('gid') ?? new URLSearchParams(url!.hash.slice(1)).get('gid') ?? '0']
+      setResults({})
+      setPreview(await prepareOrderImport(sheet, catalog, i18n.resolvedLanguage, [store.id, ...source], ids =>
+        supabaseRequest<string[]>('/rest/v1/rpc/existing_import_orders', { method: 'POST', token,
+          body: JSON.stringify({ p_store: store.id, p_ids: ids }) })))
     } catch (cause) {
       setError(cause instanceof SupabaseError || cause instanceof OrderImportReadError
         ? cause.message : 'Could not read the spreadsheet.')
@@ -130,6 +136,10 @@ export function ImportOrdersDialog({ store, token, onClose, onImported }: {
         </button>
       </div>
     </form> : <div className="order-import-dialog__content">
+      {!!preview.skipped?.length && <details>
+        <summary>{t('Already imported: {{count}}', { count: preview.skipped.length })}</summary>
+        <ul>{preview.skipped.map(({ row, label }) => <li key={row}>{t('Row {{row}}', { row })}{label && ' · #' + label}</li>)}</ul>
+      </details>}
       {preview.issues.length > 0 ? <div className="order-import-dialog__issues" role="alert">
         <strong>{t('Fix these rows in the spreadsheet and load it again.')}</strong>
         <ul className="confirmation-dialog__details">

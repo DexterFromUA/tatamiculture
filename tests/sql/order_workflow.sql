@@ -174,7 +174,7 @@ begin
     raise exception 'Manual review did not record the refund and its author';
   end if;
 
-  perform public.update_admin_orders(array[cod_order.id], 'CANCELLED_BY_STORE', true);
+  perform public.correct_admin_order_status(array[cod_order.id], 'CANCELLED_BY_STORE', true, false, null, 'yes');
   if public.begin_order_cancellation_refund(cod_order.id, manager, 'manual', 12000)->>'status' <> 'completed'
     or (select amount from public.order_returns where order_id = cod_order.id) <> 12000 then
     raise exception 'A confirmed manual refund was not recorded';

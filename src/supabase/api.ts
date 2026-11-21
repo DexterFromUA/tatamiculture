@@ -1,3 +1,4 @@
+import { stableOrderId, pendingCodKey } from '../lib/orderRequestId'
 import { agreementVersion } from '../content/agreement'
 import { normalizePhone, normalizeUkrainianPhone } from '../lib/phone'
 import { catalogOffer } from '../lib/catalogPricing'
@@ -206,21 +207,32 @@ export const supabaseApi = {
 
   async createOrder(input: { store: Store; items: CartItem[]; checkout: CheckoutInput; token: string | null }): Promise<Order> {
     if (input.items.length === 0) throw new Error('Cart is empty')
-    const row = await supabaseRequest<Row>('/rest/v1/rpc/create_discounted_store_order', {
-      method: 'POST', token: input.token,
-      body: JSON.stringify({
-        p_store_id: input.store.id,
-        p_expected_discount_percent: input.checkout.expectedDiscountPercent ?? null,
-        p_expected_total: input.checkout.expectedTotal ?? null,
-        p_items: input.items.map((item) => ({ variantId: item.optionId, quantity: item.quantity })),
-        p_customer_name: input.checkout.name, p_customer_email: input.checkout.email,
-        p_customer_phone: input.checkout.phone, p_delivery_city: input.checkout.city,
-        p_delivery_address: input.checkout.address, p_note: input.checkout.note,
-        p_delivery_city_ref: input.checkout.cityRef ?? null,
-        p_delivery_address_ref: input.checkout.addressRef ?? null,
-        p_delivery_service_type: input.checkout.deliveryServiceType ?? null,
-      }),
+    const order = {
+      p_store_id: input.store.id,
+      p_expected_discount_percent: input.checkout.expectedDiscountPercent ?? null,
+      p_expected_total: input.checkout.expectedTotal ?? null,
+      p_items: input.items.map((item) => ({ variantId: item.optionId, quantity: item.quantity })),
+      p_customer_name: input.checkout.name, p_customer_email: input.checkout.email,
+      p_customer_phone: input.checkout.phone, p_delivery_city: input.checkout.city,
+      p_delivery_address: input.checkout.address, p_note: input.checkout.note,
+      p_delivery_city_ref: input.checkout.cityRef ?? null,
+      p_delivery_address_ref: input.checkout.addressRef ?? null,
+      p_delivery_service_type: input.checkout.deliveryServiceType ?? null,
+    }
+    const key = 'tatami.cod.' + await stableOrderId([order, input.checkout.customerAccountId ?? null])
+    const getRequestId = () => {
+      const id = localStorage.getItem(key) ?? crypto.randomUUID()
+      localStorage.setItem(key, id)
+      return id
+    }
+    const requestId = navigator.locks ? await navigator.locks.request(key, getRequestId) : getRequestId()
+    const pendingKey = pendingCodKey(input.store.id, input.checkout.customerAccountId, input.items)
+    localStorage.setItem(pendingKey, JSON.stringify({ id: requestId, fingerprintKey: key }))
+    const row = await supabaseRequest<Row>('/rest/v1/rpc/place_cod_order', {
+      method: 'POST', token: input.token, body: JSON.stringify({ p_request_id: requestId, p_order: order }),
     })
+    localStorage.removeItem(key)
+    localStorage.removeItem(pendingKey)
     return mapOrder(row)
   },
 

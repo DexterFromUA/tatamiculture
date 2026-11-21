@@ -22,6 +22,7 @@ export function CreateTtnDrawer({ orderId, receiptCode, customerName, token, onC
   const [description, setDescription] = useState(defaultParcelDescription)
   const [internalOrderNumber, setInternalOrderNumber] = useState(receiptCode)
   const [weight, setWeight] = useState('')
+  const [codMinor, setCodMinor] = useState(0)
   const [declaredValue, setDeclaredValue] = useState('')
   const [dispatchLocation, setDispatchLocation] = useState<DispatchLocation | null>(null)
   const [recipientLocation, setRecipientLocation] = useState<DispatchLocation | null>(null)
@@ -40,6 +41,8 @@ export function CreateTtnDrawer({ orderId, receiptCode, customerName, token, onC
       if (!result.dispatchLocation || !result.recipientLocation) throw new Error('Could not load shipment locations.')
       setCalculatedWeight(result.weightGrams)
       setWeight(result.weightGrams == null ? '' : String(result.weightGrams))
+      if (!Number.isSafeInteger(result.codMinor)) throw new Error('Could not calculate the merged order.')
+      setCodMinor(result.codMinor)
       setDeclaredValue(String(result.declaredValueMinor / 100))
       setDispatchLocation(result.dispatchLocation)
       setRecipientLocation(result.recipientLocation)
@@ -87,7 +90,7 @@ export function CreateTtnDrawer({ orderId, receiptCode, customerName, token, onC
     try {
       const { cityRef, warehouseRef } = dispatchLocation
       const shipment = await createTtn(token, {
-        orderId, description, internalOrderNumber, weightGrams, declaredValueMinor, recipientName,
+        orderId, description, internalOrderNumber, weightGrams, declaredValueMinor, expectedCodMinor: codMinor, recipientName,
         dispatchLocation: { cityRef, warehouseRef }, recipientLocation,
       })
       close(() => onCreated(shipment))
@@ -143,6 +146,7 @@ export function CreateTtnDrawer({ orderId, receiptCode, customerName, token, onC
             ? t('The order weight is unavailable. Enter the parcel weight manually.')
             : t('Total item weight is {{weight}} g. Adjust it if needed.', { weight: calculatedWeight })}</small>
         </label>
+        {previewReady && <p>{t('Cash on delivery amount')} · {(codMinor / 100).toFixed(2)} UAH</p>}
         <label className="field">
           <span>{t('Declared value, UAH')}</span>
           <input type="number" required min="1" step="0.01" value={declaredValue} disabled={!previewReady || saving}

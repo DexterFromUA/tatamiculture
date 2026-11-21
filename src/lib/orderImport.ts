@@ -1,3 +1,4 @@
+import { stableOrderId } from './orderRequestId'
 import { maxOrderVariantQuantity } from './catalogAvailability'
 import type { CrmOrderInput } from './crmOrder'
 import { optionPrice } from './format'
@@ -33,7 +34,7 @@ export type ImportOrder = Omit<CrmOrderInput, 'items'> & {
   row: number
   items: ImportLine[]
 }
-export type OrderImport = { orders: ImportOrder[]; issues: ImportIssue[] }
+export type OrderImport = { orders: ImportOrder[]; issues: ImportIssue[]; skipped?: { row: number; label: string }[] }
 
 const normalize = (value: string) => value.trim().normalize('NFC').toLowerCase().replace(/\s+/g, ' ')
 const headerKey = (value: string) => normalize(value).replace(/[_-]/g, ' ')
@@ -65,7 +66,8 @@ export async function readOrderImportFile(file: File): Promise<unknown[][]> {
   throw new OrderImportReadError('Choose a CSV or XLSX file.')
 }
 
-export function prepareOrderImport(sheet: unknown[][], catalog: Product[], language?: string): OrderImport {
+export async function prepareOrderImport(sheet: unknown[][], catalog: Product[], language: string | undefined,
+  source: string[], findExisting: (ids: string[]) => Promise<string[]>): Promise<OrderImport> {
   const orders: ImportOrder[] = []
   const issues: ImportIssue[] = []
   const rows: SheetRow[] = sheet.map((cells, index) => ({
@@ -106,7 +108,17 @@ export function prepareOrderImport(sheet: unknown[][], catalog: Product[], langu
       names: [product.name, product.name_uk ?? '', product.name_en ?? ''].map(normalize).filter(Boolean),
     })),
   )
-  for (const group of groups.values()) {
+  const keyedGroups = await Promise.all([...groups].map(async ([key, group]) => {
+    const identity = key.startsWith('order:') ? key : [key, group[0].cells]
+    return { group, requestId: await stableOrderId([...source, identity]) }
+  }))
+  const existing = new Set(await findExisting(keyedGroups.map(entry => entry.requestId)))
+  const skipped = []
+  for (const { group, requestId } of keyedGroups) {
+    if (existing.has(requestId)) {
+      skipped.push({ row: group[0].number, label: cell(group[0], 'order_id') })
+      continue
+    }
     const firstRow = group[0]
     const issueCount = issues.length
     const details = (column: 'name' | 'phone' | 'city' | 'address' | 'note', maxLength: number) => {
@@ -157,7 +169,7 @@ export function prepareOrderImport(sheet: unknown[][], catalog: Product[], langu
     }
     if (issues.length !== issueCount) continue
     orders.push({
-      requestId: crypto.randomUUID(), label: cell(firstRow, 'order_id'), row: firstRow.number,
+      requestId, label: cell(firstRow, 'order_id'), row: firstRow.number,
       customer: { name, phone }, delivery: { city, address }, note, items: [...items.values()],
       total: [...items.values()].reduce((sum, item) => sum + item.total, 0),
     })
@@ -175,5 +187,5 @@ export function prepareOrderImport(sheet: unknown[][], catalog: Product[], langu
       }
     }
   }
-  return { orders, issues }
+  return { orders, issues, skipped }
 }

@@ -37,3 +37,7 @@ verify_jwt = false
 [functions.crm-refund-order]
 # The handler verifies the bearer token and the database checks store membership.
 verify_jwt = false
+
+[functions.reconcile-payments]
+# Requests require the scheduler credential verified by the function.
+verify_jwt = false

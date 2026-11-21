@@ -1,3 +1,5 @@
+import { PaymentReviewList } from '../components/PaymentReviewList'
+import { CenteredDialog } from '../components/CenteredDialog'
 import { useEffect, useMemo, useState } from 'react'
 import { CustomerPanel, type CustomerPanelTarget } from '../components/CustomerPanel'
 import { CreateTtnDrawer } from '../components/CreateTtnDrawer'
@@ -70,6 +72,11 @@ export function AdminPage() {
   const [error, setError] = useState<string | null>(null)
   const [exportingOrders, setExportingOrders] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [orderChoice, setOrderChoice] = useState<{
+    question: string; options: [string, string][]; resolve: (choice: string) => void
+  } | null>(null)
+  const choose = (question: string, options: [string, string][]) =>
+    new Promise<string>(resolve => setOrderChoice({ question, options, resolve }))
   const [confirmation, setConfirmation] = useState<{
     content: ConfirmationDialogContent
     resolve: (confirmed: boolean) => void
@@ -191,22 +198,35 @@ export function AdminPage() {
 
   const updateOrderStatus = async (ids: string[], status: OrderStatus, restoreStock = false) => {
     if (!token) return false
-    const request = (confirmed: boolean) => supabaseRequest<{ orders: Array<Pick<AdminOrder, 'id' | 'status' | 'payment_status'>>; stock_added: number }>(
-      '/rest/v1/rpc/update_admin_orders_with_stock_notice', {
+    let source: string | null = null
+    let received: string | null = null
+    let confirmed = false
+    const request = () => supabaseRequest<{ orders: Array<Pick<AdminOrder, 'id' | 'status' | 'payment_status'>>; stock_added: number }>(
+      '/rest/v1/rpc/correct_admin_order_status', {
         method: 'POST', token, body: JSON.stringify({
-          p_order_ids: ids, p_status: status, p_confirm_paid: confirmed, p_restore_stock: restoreStock,
+          p_order_ids: ids, p_status: status, p_confirm_paid: confirmed, p_restore_stock: restoreStock, p_source: source, p_received: received,
         }),
       },
     )
-    const updated = await request(false).catch(async cause => {
-      if (!(cause instanceof SupabaseError) || cause.code !== 'PT409') throw cause
-      const message = restoreStock
-        ? t('There is a payment record for at least one of these orders. Cancel and restore stock anyway?')
-        : t('There is a payment record for at least one of these orders. Change the status to {{status}} anyway?', { status: t(status) })
-      const confirmed = await confirmAction({ title: t('Payment recorded'), message })
-      return confirmed ? request(true) : null
-    })
-    if (!updated) return false
+    let updated
+    while (!updated) {
+      try {
+        updated = await request()
+      } catch (cause) {
+        if (!(cause instanceof SupabaseError)) throw cause
+        if (cause.code === 'PT409' && !confirmed) {
+          confirmed = await confirmAction({ title: t('Payment recorded'),
+            message: t('There is a payment record for at least one of these orders. Change the status to {{status}} anyway?', { status: t(status) }) })
+          if (!confirmed) return false
+        } else if (cause.message === 'Confirm COD collection' && !received) {
+          received = await choose('Was the COD payment received for the selected completed orders?', [['yes','Payment received'],['no','Still awaiting payment']])
+          if (!received) return false
+        } else if (cause.message === 'Choose stock for reopened orders' && !source) {
+          source = await choose('Where will the unallocated items for the reopened orders come from?', [['stock','Use available stock'],['supplier','Order from supplier']])
+          if (!source) return false
+        } else throw cause
+      }
+    }
     if (updated.stock_added > 0) addToast(t('Added to stock after cancellation: {{quantity}} units.', { quantity: updated.stock_added }))
     const byId = new Map(updated.orders.map(order => [order.id, order]))
     setOrderSelection(current => current.map(order => {
@@ -255,7 +275,7 @@ export function AdminPage() {
     setError(null)
     let skipped = selectedOrders.length - selectedTtnCandidates.length
     let refreshOrders = false
-    const ready: Array<{ order: AdminOrder; weightGrams: number; declaredValueMinor: number }> = []
+    const ready: Array<{ order: AdminOrder; weightGrams: number; declaredValueMinor: number; codMinor: number }> = []
     const issues: string[] = []
     const skippedMessage = () => t('TTN skipped for {{count}} orders that already have a TTN or are cancelled', { count: skipped })
     const issue = (order: AdminOrder, cause: unknown) =>
@@ -277,6 +297,7 @@ export function AdminPage() {
           }
           const { weightGrams, declaredValueMinor } = preview.value
           const missing = [
+            !Number.isSafeInteger(preview.value.codMinor) && t('Cash on delivery amount'),
             (weightGrams === null || !Number.isSafeInteger(weightGrams) || weightGrams <= 0) && t('Weight, g'),
             (!Number.isSafeInteger(declaredValueMinor) || declaredValueMinor < 100) && t('Declared value, UAH'),
             (!order.delivery_city_ref || !order.delivery_address_ref) && t('Nova Poshta city or branch'),
@@ -290,7 +311,7 @@ export function AdminPage() {
             issues.push(`#${order.receipt_code}: ${problems.join(' ')}`)
             return
           }
-          ready.push({ order, weightGrams, declaredValueMinor })
+          ready.push({ order, weightGrams, declaredValueMinor, codMinor: preview.value.codMinor })
         })
       }
       if (!ready.length && !issues.length) {
@@ -309,7 +330,7 @@ export function AdminPage() {
       const confirmed = await confirmAction({
         title: t(issues.length ? 'Orders need attention before creating TTNs' : 'Create TTNs automatically'),
         message,
-        details: issues,
+        details: [...issues, ...ready.map(({ order, codMinor }) => `#${order.receipt_code} · ${t('Cash on delivery amount')} ${formatPrice(codMinor / 100, order.currency)}`)],
         confirmLabel: t(issues.length ? 'Skip and create TTNs' : 'Create TTNs'),
         confirmDisabled: !ready.length,
       })
@@ -317,14 +338,14 @@ export function AdminPage() {
 
       let created = 0
       const failures: string[] = []
-      for (const { order, weightGrams, declaredValueMinor } of ready) {
+      for (const { order, weightGrams, declaredValueMinor, codMinor } of ready) {
         try {
           const shipment = await createTtn(token, {
             orderId: order.id,
             description: defaultParcelDescription,
             internalOrderNumber: order.receipt_code,
             weightGrams,
-            declaredValueMinor,
+            declaredValueMinor, expectedCodMinor: codMinor,
           })
           saveShipment(order.id, shipment, false)
           refreshOrders = true
@@ -459,6 +480,7 @@ export function AdminPage() {
         onOpenCustomers={() => setSection('customers')}
       /></div>}
       {section === 'customers' ? <CustomersPage revision={customerRevision} onOpenCustomer={id => setSelectedCustomer({ kind: 'customer', id })} /> : section === 'catalogue' ? <CatalogAdminPage key={`${catalogFilter}:${catalogSearch}`} embedded initialFilter={catalogFilter} initialSearch={catalogSearch} /> : section === 'settings' ? <SettingsWorkspace /> : section === 'orders' ? <>
+      {store && token && <PaymentReviewList storeId={store.id} token={token} revision={ordersRevision} />}
       <div className="crm-grid crm-grid--orders">
         <section className="crm-panel">
           <div className="order-filters">
@@ -600,6 +622,17 @@ export function AdminPage() {
           setSearch(''); setOrderFilter('ALL'); setFromDate(''); setToDate(''); setPage(1)
           setOrderSelection([]); setBulkAction(''); setOrdersRevision(value => value + 1); setSection('orders')
         }} />}
+      {orderChoice && <CenteredDialog aria-label={t(orderChoice.question)} onClose={value => {
+        orderChoice.resolve(orderChoice.options.some(([key]) => key === value) ? value : '')
+        setOrderChoice(null)
+      }}>
+        <h2>{t(orderChoice.question)}</h2>
+        {orderChoice.options.some(([key]) => key === 'yes') && <p>{t('For an existing waybill, verify the collection amount in Nova Poshta.')}</p>}
+        <form method="dialog" className="confirmation-dialog__actions">
+          <button className="btn btn--ghost" value="cancel" autoFocus>{t('Cancel')}</button>
+          {orderChoice.options.map(([key, label]) => <button className="btn" key={key} value={key}>{t(label)}</button>)}
+        </form>
+      </CenteredDialog>}
       {confirmation && <ConfirmationDialog {...confirmation.content} onClose={confirmed => {
         setConfirmation(null)
         confirmation.resolve(confirmed)

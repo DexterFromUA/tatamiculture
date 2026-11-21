@@ -7,6 +7,7 @@ const endpoint = '/functions/v1/nova-poshta-create-ttn'
 export type DispatchLocation = { cityRef: string; cityName: string; warehouseRef: string; warehouseName: string }
 export type TtnPreview = {
   weightGrams: number | null
+  codMinor: number
   declaredValueMinor: number
   dispatchLocation: DispatchLocation
   recipientLocation: DispatchLocation
@@ -47,6 +48,7 @@ export async function createTtn(token: string, details: {
   internalOrderNumber: string
   weightGrams: number
   declaredValueMinor: number
+  expectedCodMinor?: number
   recipientName?: string
   dispatchLocation?: Pick<DispatchLocation, 'cityRef' | 'warehouseRef'>
   recipientLocation?: DispatchLocation
