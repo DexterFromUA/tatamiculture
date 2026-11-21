@@ -8,6 +8,7 @@ import { LoadingIndicator } from '../components/LoadingIndicator'
 import { MergeOrdersDrawer } from '../components/MergeOrdersDrawer'
 import { ConfirmationDialog, type ConfirmationDialogContent } from '../components/ConfirmationDialog'
 import { NovaPoshtaTrackingLink } from '../components/NovaPoshtaTrackingLink'
+import { OrderActionButton } from '../components/OrderActionButton'
 import { AdminDashboard } from '../components/AdminDashboard'
 import type { DashboardOrder, DashboardInventory } from '../lib/dashboard'
 import { AdminTabs } from '../components/AdminTabs'
@@ -560,10 +561,14 @@ export function AdminPage() {
                 {order.nova_poshta_ttn ? (
                   <span className="ttn-actions">
                     <NovaPoshtaTrackingLink className="text-btn" ttn={order.nova_poshta_ttn}>TTN {order.nova_poshta_ttn}</NovaPoshtaTrackingLink>
-                    <button type="button" className="text-btn" disabled={bulkBusy || trackingId === order.id} onClick={() => void refreshTracking(order.id)}>{trackingId === order.id ? t('Updating…') : t('Update status')}</button>
+                    <OrderActionButton type="button" className="text-btn"
+                      disabledReason={trackingId === order.id ? t('Tracking status is being updated.') : bulkBusy ? t('A bulk order action is running.') : undefined}
+                      onClick={() => void refreshTracking(order.id)}>{trackingId === order.id ? t('Updating…') : t('Update status')}</OrderActionButton>
                   </span>
                 ) : canCreateTtn(order) && (
-                  <button type="button" className="text-btn" aria-haspopup="dialog" disabled={bulkBusy} onClick={() => setTtnOrder(order)}>{t('Create TTN')}</button>
+                  <OrderActionButton type="button" className="text-btn" aria-haspopup="dialog"
+                    disabledReason={bulkBusy ? t('A bulk order action is running.') : undefined}
+                    onClick={() => setTtnOrder(order)}>{t('Create TTN')}</OrderActionButton>
                 )}
                 {canCancelWithStock(order) && <button type="button" className="text-btn crm-order__cancel" disabled={bulkBusy || Boolean(updatingId)} onClick={() => void changeStatus(order.id, 'CANCELLED_BY_STORE', true)}>{t(order.payment_test_mode ? 'Cancel test order' : 'Cancel & restore stock')}</button>}</div>
               </li>

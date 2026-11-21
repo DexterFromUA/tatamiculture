@@ -438,6 +438,10 @@ textarea {
   margin-top: 20px;
 }
 
+.order-action { display: inline-grid; gap: 4px; min-width: 0; max-width: 100%; }
+.order-action__hint { color: var(--muted); font-size: .78rem; line-height: 1.4; overflow-wrap: anywhere; }
+.order-action > .text-btn:disabled { opacity: .6; cursor: wait; text-decoration: none; }
+
 .btn {
   display: inline-flex;
   align-items: center;

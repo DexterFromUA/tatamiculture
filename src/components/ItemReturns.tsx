@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { supabaseRequest } from '../lib/supabase'
 import { formatPrice } from '../lib/format'
+import { OrderActionButton } from './OrderActionButton'
 
 export type ReturnableOrderItem = { id: string; product_id: string | null; variant_id: string | null; product_name: string; variant_name: string; quantity: number; unit_price: number }
 type Return = { id: string; item_id: string; quantity: number; reason: string; status: string; replacement_variant: string | null; refund_amount: number; restock: boolean }
@@ -35,6 +36,10 @@ export function ItemReturns({ orderIds, items, token, currency, onChange }: {
     return () => abort.abort()
   }, [item?.product_id, token, revision])
   const available = item ? item.quantity - returns.filter(row => row.item_id === item.id && row.status !== 'cancelled').reduce((sum, row) => sum + row.quantity, 0) : 0
+  const createDisabledReason = busy ? 'A return is being saved.'
+    : !items.length ? 'No items in this order'
+    : !item ? 'Select an item to return.'
+    : available < 1 ? 'All units of this item are already included in returns.' : undefined
   const refresh = () => { setRevision(value => value + 1); onChange() }
   const advance = async (id: string, status: string) => {
     if (busy) return
@@ -55,7 +60,9 @@ export function ItemReturns({ orderIds, items, token, currency, onChange }: {
       <p>{t(`return_${row.status}`)} · {row.replacement_variant ? t('Size exchange') : formatPrice(row.refund_amount / 100, currency)} · {row.reason}</p>
       <div className="actions">
         {row.status === 'requested' && <><button className="text-btn" disabled={busy} onClick={() => void advance(row.id, 'received')}>{t('Item received')}</button><button className="text-btn" disabled={busy} onClick={() => void advance(row.id, 'cancelled')}>{t('Cancel')}</button></>}
-        {row.status === 'received' && <button className="text-btn" disabled={busy} onClick={() => void advance(row.id, 'completed')}>{t(row.replacement_variant ? 'Replacement handed over' : 'Refund paid')}</button>}
+        {row.status === 'received' && <OrderActionButton className="text-btn"
+          disabledReason={busy ? t('A return is being saved.') : undefined}
+          onClick={() => void advance(row.id, 'completed')}>{t(row.replacement_variant ? 'Replacement handed over' : 'Refund paid')}</OrderActionButton>}
       </div>
     </li>)}</ul>
     <form className="form" onSubmit={async event => {
@@ -86,7 +93,9 @@ export function ItemReturns({ orderIds, items, token, currency, onChange }: {
       <p>{t('Exchange is available for another size at the original price. Stock is checked when handed over.')}</p>
       <label className="check"><input name="restock" type="checkbox" defaultChecked />{t('Return received goods to stock')}</label>
       <label className="field">{t('Reason')}<textarea name="reason" required maxLength={1000} /></label>
-      <button className="btn" disabled={busy || available < 1}>{t('Create return request')}</button>
+      <OrderActionButton type="submit" className="btn" disabledReason={createDisabledReason && t(createDisabledReason)}>
+        {t('Create return request')}
+      </OrderActionButton>
     </form>
   </section>
 }

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { resolveTtnAttempt, type TtnAttempt } from '../lib/ttn'
 import { ConfirmationDialog } from './ConfirmationDialog'
@@ -11,6 +11,7 @@ export function OrderTtnRecovery({ attempt, orderId, token, onResolved, onRefres
   onRefresh: () => void
 }) {
   const { t } = useTranslation()
+  const busyHintId = useId()
   const [mode, setMode] = useState<'attach' | 'not_created' | null>(null)
   const [number, setNumber] = useState('')
   const [busy, setBusy] = useState(false)
@@ -59,16 +60,19 @@ export function OrderTtnRecovery({ attempt, orderId, token, onResolved, onRefres
       </label>
       <div className="actions">
         <button className="btn btn--ghost" type="button" disabled={busy} onClick={() => { setMode(null); setError('') }}>{t('Cancel')}</button>
-        <button className="btn" type="submit" disabled={busy}>{t('Link existing TTN')}</button>
+        <button className="btn" type="submit" disabled={busy} aria-describedby={busy ? busyHintId : undefined}>{t('Link existing TTN')}</button>
       </div>
     </form> : <div className="actions">
-      <button type="button" className="btn btn--ghost" disabled={busy} onClick={() => { setMode('attach'); setError('') }}>
+      <button type="button" className="btn btn--ghost" disabled={busy} aria-describedby={busy ? busyHintId : undefined}
+        onClick={() => { setMode('attach'); setError('') }}>
         {t(attempt ? 'Link existing TTN' : 'Add TTN')}
       </button>
-      {attempt && <button type="button" className="btn btn--ghost" disabled={busy} onClick={() => { setMode('not_created'); setError('') }}>
+      {attempt && <button type="button" className="btn btn--ghost" disabled={busy} aria-describedby={busy ? busyHintId : undefined}
+        onClick={() => { setMode('not_created'); setError('') }}>
         {t('Confirm TTN was not created')}
       </button>}
     </div>}
+    {busy && <p id={busyHintId} className="order-action__hint" role="status">{t('A TTN request is being processed.')}</p>}
     {mode === 'not_created' && <ConfirmationDialog
       title={t('Confirm TTN was not created')}
       message={t('Confirm that you checked Nova Poshta and found no TTN for this order. This will allow a new creation attempt.')}

@@ -5,6 +5,7 @@ import { useDrawer } from '../lib/useDrawer'
 import { invalidTtnRecipientName, parseTtnRecipientName } from '../../supabase/functions/_shared/ttn-recipient.ts'
 import { TtnDispatchFields } from './TtnDispatchFields'
 import { LoadingIndicator } from './LoadingIndicator'
+import { OrderActionButton } from './OrderActionButton'
 
 export function CreateTtnDrawer({ orderId, receiptCode, customerName, token, onClose, onCreated }: {
   orderId: string
@@ -152,7 +153,9 @@ export function CreateTtnDrawer({ orderId, receiptCode, customerName, token, onC
           <TtnDispatchFields location={dispatchLocation} onChange={setDispatchLocation} disabled={saving} />
         </section>}
         {error && <p className="error" role="alert">{t(error)}</p>}
-        <button type="submit" className="btn" disabled={!previewReady || saving}>{t(saving ? 'Creating TTN…' : 'Create TTN')}</button>
+        <OrderActionButton type="submit" className="btn" disabledReason={saving ? t('The TTN creation request is being processed.') : undefined}>
+          {t(saving ? 'Creating TTN…' : 'Create TTN')}
+        </OrderActionButton>
       </form>}
     </div>
   </dialog>

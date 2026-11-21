@@ -2,6 +2,7 @@ import { ItemReturns, type ReturnableOrderItem } from './ItemReturns'
 import { CancelledOrderRefunds } from './CancelledOrderRefunds'
 import { ConfirmationDialog } from './ConfirmationDialog'
 import { NovaPoshtaTrackingLink } from './NovaPoshtaTrackingLink'
+import { OrderActionButton } from './OrderActionButton'
 import { OrderTtnRecovery } from './OrderTtnRecovery'
 import type { CustomerOrder } from './CustomerPanel'
 import { SalesBreakdown } from './SalesBreakdown'
@@ -179,9 +180,10 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
         <h3>{t('Return cancelled items to stock')}</h3>
         <p>{t('Use this after the parcel is back and the items can be sold again.')}</p>
         {restockError && <p className="error" role="alert">{t(restockError)}</p>}
-        <button type="button" className="btn btn--ghost" disabled={restocking} onClick={() => setConfirmRestock(true)}>
+        <OrderActionButton type="button" className="btn btn--ghost"
+          disabledReason={restocking ? t('Stock return is being recorded.') : undefined} onClick={() => setConfirmRestock(true)}>
           {t('Confirm stock return')}
-        </button>
+        </OrderActionButton>
         {confirmRestock && <ConfirmationDialog
           title={t('Return cancelled items to stock')}
           message={t('Confirm that the items from this shipment are physically available for sale.')}

@@ -4,6 +4,7 @@ import { formatPrice } from '../lib/format'
 import { supabaseRequest } from '../lib/supabase'
 import { CenteredDialog } from './CenteredDialog'
 import { ConfirmationDialog } from './ConfirmationDialog'
+import { OrderActionButton } from './OrderActionButton'
 
 type Refund = {
   order_id: string
@@ -63,22 +64,28 @@ export function CancelledOrderRefunds({ orderIds, token, onChange }: {
   return <section className="order-drawer__card">
     <h3>{t('Payment refund')}</h3>
     {error && <p className="error" role="alert">{t(error)}</p>}
-    {refunds.map(refund => (
-      <div key={refund.order_id} className="order-refund">
+    {refunds.map(refund => {
+      const disabledReason = refund.status === 'completed' ? 'This refund has already been recorded.'
+        : refund.status === 'processing' ? 'The refund is pending confirmation. Use Check refund status.'
+        : refund.amount <= 0 ? 'There is no amount left to refund.'
+        : busy ? 'A refund request is being processed.' : undefined
+
+      return <div key={refund.order_id} className="order-refund">
         <div className="actions">
           {orderIds.length > 1 && <span>#{refund.receipt_code}</span>}
           <strong>{formatPrice(refund.amount / 100, refund.currency)}</strong>
-          <button type="button" className="btn btn--ghost" aria-haspopup="dialog"
-            disabled={busy || refund.amount <= 0 || refund.status === 'processing' || refund.status === 'completed'}
+          <OrderActionButton type="button" className="btn btn--ghost" aria-haspopup="dialog"
+            disabledReason={disabledReason && t(disabledReason)}
             onClick={() => { setError(''); setSelection({ refund, step: 'confirm' }) }}>
             {t(refund.status === 'completed' ? 'Refund paid' : refund.status === 'processing' ? 'Refund in progress' : 'Refund payment')}
-          </button>
-          {refund.status === 'processing' && <button type="button" className="text-btn" disabled={busy}
-            onClick={() => void run(refund, 'check')}>{t('Check refund status')}</button>}
+          </OrderActionButton>
+          {refund.status === 'processing' && <OrderActionButton type="button" className="text-btn"
+            disabledReason={busy ? t('A refund request is being processed.') : undefined}
+            onClick={() => void run(refund, 'check')}>{t('Check refund status')}</OrderActionButton>}
         </div>
         {refund.status === 'failed' && <p className="error" role="alert">{t(refund.error || 'The payment provider rejected the refund')}</p>}
       </div>
-    ))}
+    })}
     {selection?.step === 'confirm' && <ConfirmationDialog title={t('Refund payment')}
       message={t('Start a refund of {{amount}} for this cancelled order?', { amount: selectedAmount })}
       confirmLabel={t('Continue')} onClose={confirmed => setSelection(confirmed ? { ...selection, step: 'method' } : null)} />}
