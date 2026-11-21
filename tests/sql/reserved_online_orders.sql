@@ -73,7 +73,7 @@ begin
     raise exception 'A paid reservation was cancelled';
   exception when sqlstate 'PT409' then null;
   end;
-  if not exists (select 1 from public.orders where id = v_order.id and status = 'PAID' and payment_status = 'PAID')
+  if not exists (select 1 from public.orders where id = v_order.id and status = 'IN_PROGRESS' and payment_status = 'PAID')
       or (select stock_quantity from public.product_variants where id = v_variant) <> 3 then
     raise exception 'Paid order state or stock changed unexpectedly';
   end if;

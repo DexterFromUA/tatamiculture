@@ -4,7 +4,7 @@ import { alignMergedOrderDates, dashboardDay, dashboardRange, dashboardMetrics, 
 
 const order = (id, extra = {}) => ({
   id, user_id: null, crm_customer_id: null, customer_name: 'Buyer', customer_phone: '+380681234567', customer_email: '',
-  created_at: '2026-11-17T10:00:00Z', receipt_code: id, status: 'DELIVERED', payment_status: 'PAID',
+  created_at: '2026-11-17T10:00:00Z', receipt_code: id, status: 'COMPLETED', payment_status: 'PAID',
   payment_method: 'ONLINE', payment_test_mode: false, nova_poshta_ttn: null, nova_poshta_document_ref: null,
   total_price: 10000, customer_discount_amount: 0, currency: 'UAH', ...extra,
 })

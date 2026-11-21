@@ -98,6 +98,10 @@ Deno.serve(async (request) => {
     if (!membership) return json({ error: 'You do not have access to this order' }, 403)
     if (String(order.status).startsWith('CANCELLED')) throw new Error('A TTN cannot be created for a cancelled order')
     if (!preview && order.nova_poshta_ttn) return json({ ttn: order.nova_poshta_ttn, documentRef: order.nova_poshta_document_ref, existing: true })
+    if (!(order.payment_test_mode ?? order.monobank_test_mode) &&
+      !['PREPARING_SHIPMENT', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(order.status)) {
+      throw new Error('Move the order to preparing for shipment first')
+    }
     if (order.currency !== 'UAH') throw new Error('Nova Poshta TTN requires an order in UAH')
     if (!preview) {
       const { error } = await db.rpc('reserve_order_ttn', { p_order_id: orderId })

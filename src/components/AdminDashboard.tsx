@@ -114,12 +114,12 @@ export function AdminDashboard({ active, storeId, currency: storeCurrency, token
 
   const financeReady = Boolean(data.costs && data.refunds)
   const periodIds = new Set(current.filter(order => !isCancelled(order)).map(order => order.id))
-  const deliveredIds = new Set(current.filter(order => order.status === 'DELIVERED').map(order => order.id))
+  const deliveredIds = new Set(current.filter(order => order.status === 'COMPLETED').map(order => order.id))
   const trend = range ? dashboardTrend(live, range) : []
   const max = Math.max(1, ...trend.flatMap(bar => [bar.current, bar.previous]))
   const highlighted = trend[Math.min(activeBar ?? trend.length - 1, trend.length - 1)]
-  const currentWork = live.filter(order => !isCancelled(order) && order.status !== 'DELIVERED')
-  const awaitingShipment = currentWork.filter(order => ['PENDING', 'PAID', 'IN_PROGRESS'].includes(order.status) && !order.nova_poshta_ttn && !order.nova_poshta_document_ref)
+  const currentWork = live.filter(order => !isCancelled(order) && order.status !== 'COMPLETED')
+  const awaitingShipment = currentWork.filter(order => ['PENDING', 'PAID', 'IN_PROGRESS', 'WAITING_FOR_STOCK', 'PREPARING_SHIPMENT'].includes(order.status))
   const overdue = awaitingShipment.filter(order => order.payment_status === 'PAID' && Date.now() - Date.parse(order.created_at) >= 86400000)
   const cod = currentWork.filter(order => order.payment_method === 'CASH_ON_DELIVERY' && order.payment_status !== 'PAID' && order.payment_status !== 'REFUNDED')
   const openReturns = (data.returns ?? []).filter(row => live.some(order => order.id === row.order_id))
@@ -127,11 +127,11 @@ export function AdminDashboard({ active, storeId, currency: storeCurrency, token
   const alerts = [
     { label: 'Paid orders over 24 hours old', rows: overdue },
     { label: 'Awaiting shipment', rows: awaitingShipment },
-    { label: 'Ready for pickup', rows: currentWork.filter(order => order.status === 'READY_FOR_PICKUP') },
+    { label: 'Ready for pickup', rows: currentWork.filter(order => order.status === 'DELIVERED') },
   ]
   const attention = [...new Set([...overdue, ...awaitingShipment].map(order => rootId(order.id)))].slice(0, 4)
     .flatMap(id => { const order = live.find(order => order.id === id); return order ? [order] : [] })
-  const allDeliveredIds = new Set(alignedOrders.filter(order => !order.payment_test_mode && order.status === 'DELIVERED' && range && inDashboardRange(order, range.from, range.to)).map(order => order.id))
+  const allDeliveredIds = new Set(alignedOrders.filter(order => !order.payment_test_mode && order.status === 'COMPLETED' && range && inDashboardRange(order, range.from, range.to)).map(order => order.id))
   const soldVariants = new Set((data.sales ?? []).filter(row => allDeliveredIds.has(row.order_id)).map(row => row.variant_id))
   const demandCounts = new Map<string, number>()
   for (const row of data.demand ?? []) demandCounts.set(row.variant_id, (demandCounts.get(row.variant_id) ?? 0) + 1)

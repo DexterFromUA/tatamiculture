@@ -1344,6 +1344,16 @@ textarea {
 .crm-order__email { display: block; margin-top: 4px; }
 .crm-page .crm-order__identity span, .crm-page .crm-order__amount span, .crm-page .crm-order__status > span { color: var(--muted); font-size: .75rem; overflow-wrap: anywhere; }
 .crm-page .crm-order__reference { font-weight: 700; letter-spacing: .04em; }
+.crm-order__new {
+  display: inline-block;
+  margin-inline-start: .4em;
+  padding: .14em .55em;
+  border: 1px solid currentColor;
+  border-radius: 99px;
+  color: var(--accent);
+  font-size: .74em;
+  letter-spacing: 0;
+}
 .crm-page .crm-order__date { display: inline; }
 .crm-order__date::before { content: ' · '; }
 .crm-page .admin-list .crm-order { cursor: pointer; }

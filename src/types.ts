@@ -2,8 +2,12 @@ export type OrderStatus =
   | 'PENDING'
   | 'PAID'
   | 'IN_PROGRESS'
+  | 'WAITING_FOR_STOCK'
+  | 'PREPARING_SHIPMENT'
+  | 'IN_TRANSIT'
   | 'READY_FOR_PICKUP'
   | 'DELIVERED'
+  | 'COMPLETED'
   | 'CANCELLED_BY_USER'
   | 'CANCELLED_BY_STORE'
 

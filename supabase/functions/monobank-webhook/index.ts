@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { Buffer } from 'node:buffer'
 import { createPublicKey, verify, type KeyObject } from 'node:crypto'
 import { monobankApi, monobankToken } from '../_shared/monobank.ts'
+import { reconcileOrderRefund, type MonoInvoice } from '../_shared/order-refunds.ts'
 
 import { findOnlineCheckout, settleOnlineCheckout } from '../_shared/checkout-order.ts'
 
@@ -63,8 +64,10 @@ Deno.serve(async (request) => {
     const statusResponse = await fetch(`${monobankApi}/invoice/status?invoiceId=${encodeURIComponent(callback.invoiceId)}`, {
       headers: { 'X-Token': monoToken }, signal: AbortSignal.timeout(5000),
     })
-    const invoice = await statusResponse.json() as { status?: string; invoiceId?: string; reference?: string; amount?: number; ccy?: number }
+    const invoice = await statusResponse.json() as MonoInvoice
     if (!statusResponse.ok) throw new Error('Monobank status check failed')
+    if (!testMode && (invoice.status === 'reversed' || invoice.cancelList?.length) &&
+      await reconcileOrderRefund(client, 'MONOBANK', callback.invoiceId, invoice)) return new Response('OK')
     const paid = invoice.status === 'success'
     const failed = invoice.status === 'failure' || invoice.status === 'expired' || (attempt && invoice.status === 'reversed')
     if (!paid && !failed) return new Response('OK')

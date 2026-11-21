@@ -111,7 +111,7 @@ export function downloadCustomersCsv(customers: CrmCustomer[], orders: CustomerE
     const history = ordersByCustomer.get(customer.id) ?? []
     const active = history.filter(order => !isCancelled(order))
     const paid = active.filter(order => order.payment_status === 'PAID')
-    const delivered = active.filter(order => order.status === 'DELIVERED')
+    const delivered = active.filter(order => order.status === 'COMPLETED')
     // The customer page loads the order history newest first.
     const latest = history[0]
     const first = history.at(-1)

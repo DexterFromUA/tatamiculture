@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { decodeLiqPayData, legacyLiqPayKeys, liqPayKeys, liqPaySignature, secureEqual } from '../_shared/liqpay.ts'
+import { reconcileOrderRefund } from '../_shared/order-refunds.ts'
 
 import { findOnlineCheckout, settleOnlineCheckout } from '../_shared/checkout-order.ts'
 
@@ -44,6 +45,8 @@ Deno.serve(async (request) => {
       return new Response('Invalid signature', { status: 401 })
     }
 
+    if (!testMode && callback.status === 'reversed' &&
+      await reconcileOrderRefund(client, 'LIQPAY', callback.order_id)) return new Response('OK')
     const paid = callback.status === 'success' || (testMode && callback.status === 'sandbox')
     const failed = callback.status === 'failure' || callback.status === 'error' || (attempt && callback.status === 'reversed')
     if (!paid && !failed) return new Response('OK')

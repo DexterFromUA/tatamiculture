@@ -3,7 +3,7 @@ export type AnalyticsCost = { order_id: string; cost_amount: number }
 export type AnalyticsReturn = { order_id: string; amount: number }
 
 export function calculateAnalytics(orders: AnalyticsOrder[], costs: AnalyticsCost[], returns: AnalyticsReturn[]) {
-  const eligible = orders.filter(order => !order.status.startsWith('CANCELLED') && (['PAID', 'MOCK_PAID'].includes(order.payment_status) || order.status === 'DELIVERED'))
+  const eligible = orders.filter(order => !order.status.startsWith('CANCELLED') && (['PAID', 'MOCK_PAID'].includes(order.payment_status) || order.status === 'COMPLETED'))
   const customers = new Map<string, number>()
   for (const order of eligible) {
     const phone = order.customer_phone.replace(/\D/g, '')
@@ -17,7 +17,7 @@ export function calculateAnalytics(orders: AnalyticsOrder[], costs: AnalyticsCos
     customers: customers.size,
     repeat: [...customers.values()].filter(count => count > 1).length,
     currencies: [...new Set(orders.map(order => order.currency))].map(currency => {
-      const delivered = orders.filter(order => order.status === 'DELIVERED' && order.currency === currency)
+      const delivered = orders.filter(order => order.status === 'COMPLETED' && order.currency === currency)
       const known = delivered.filter(order => costByOrder.has(order.id))
       const returned = delivered.reduce((sum, order) => sum + (returnedByOrder.get(order.id) ?? 0), 0)
       return {

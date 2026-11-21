@@ -28,6 +28,7 @@ begin
   exception when raise_exception then
     if sqlerrm <> 'Paid and unpaid orders cannot be merged together' then raise; end if;
   end;
+  perform public.update_admin_orders(array[first_order], 'PREPARING_SHIPMENT');
   perform public.reserve_order_ttn(first_order);
   begin
     perform public.merge_orders(array[first_order,second_order],first_order);
@@ -45,7 +46,7 @@ begin
   if (select count(*) from public.orders where id in(first_order,second_order) and status='IN_PROGRESS')<>2 then raise exception 'Status did not propagate'; end if;
   if exists(select 1 from public.orders where id in(first_order,second_order) and payment_status<>'PENDING') then raise exception 'A non-paid status changed payment'; end if;
   perform public.update_admin_orders(array[first_order],'PAID');
-  if (select count(*) from public.orders where id in(first_order,second_order) and status='PAID' and payment_status='PAID')<>2 then raise exception 'Manual paid status did not confirm all payments'; end if;
+  if (select count(*) from public.orders where id in(first_order,second_order) and status='IN_PROGRESS' and payment_status='PAID')<>2 then raise exception 'Manual payment confirmation changed fulfillment'; end if;
   begin
     perform public.update_admin_orders(array[first_order],'PENDING');
     raise exception 'Paid group status changed without confirmation';
@@ -81,8 +82,8 @@ begin
   update public.orders set payment_status='PAID' where id=second_order;
   reset role;
   if (select count(*) from public.orders where id in(first_order,second_order) and payment_status='PAID')<>2 then raise exception 'Webhook could not update payment after a manual correction'; end if;
-  if not exists(select 1 from public.orders where id=first_order and status='PAID') then raise exception 'Webhook could not update order status after a manual correction'; end if;
-  if not exists(select 1 from public.orders where id=paid_order and status='PAID' and payment_status='PAID') then raise exception 'Automatic payment was blocked for an unmodified order'; end if;
+  if not exists(select 1 from public.orders where id=first_order and status='IN_PROGRESS') then raise exception 'Webhook could not move the order to processing after a manual correction'; end if;
+  if not exists(select 1 from public.orders where id=paid_order and status='IN_PROGRESS' and payment_status='PAID') then raise exception 'Automatic payment was blocked for an unmodified order'; end if;
   update public.orders set nova_poshta_ttn='test-ttn' where id=first_order;
   begin
     perform public.merge_orders(array[first_order,paid_order],first_order);

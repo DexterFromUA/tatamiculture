@@ -11,7 +11,8 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.nova-poshta-track-ttn]
-verify_jwt = true
+# The handler verifies either the job credential or the staff user's bearer token.
+verify_jwt = false
 
 [functions.crm-import-sheet]
 # The function checks the bearer token and store membership before fetching a sheet.
@@ -31,4 +32,8 @@ verify_jwt = false
 
 [functions.customer-discount]
 # Auth verifies the bearer token before resolving the caller's own discount.
+verify_jwt = false
+
+[functions.crm-refund-order]
+# The handler verifies the bearer token and the database checks store membership.
 verify_jwt = false

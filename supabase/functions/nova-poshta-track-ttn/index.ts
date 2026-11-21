@@ -1,36 +1,91 @@
-import { createClient } from 'npm:@supabase/supabase-js@2'
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2'
 
 const cors = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, apikey, content-type' }
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: cors })
 
-Deno.serve(async (request) => {
+type Shipment = { store_id: string; ttn: string; sender_phone: string }
+type Tracking = { Number?: string | number; Status?: string; StatusCode?: string | number }
+
+async function trackShipments(db: SupabaseClient, key: string, shipments: Shipment[]) {
+  const checkedAt = new Date().toISOString()
+  const response = await fetch('https://api.novaposhta.ua/v2.0/json/', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(8000),
+    body: JSON.stringify({
+      apiKey: key, modelName: 'TrackingDocument', calledMethod: 'getStatusDocuments',
+      methodProperties: { Documents: shipments.map(({ ttn, sender_phone }) => ({
+        DocumentNumber: ttn, Phone: sender_phone.replace(/\D/g, ''),
+      })) },
+    }),
+  })
+  const result = await response.json() as { success?: boolean; data?: Tracking[]; errors?: string[] }
+  if (!response.ok || !result.success) throw new Error(result.errors?.join(', ') || 'Nova Poshta tracking is unavailable')
+  const byNumber = new Map(result.data?.map(tracking => [String(tracking.Number ?? ''), tracking]))
+  return await Promise.allSettled(shipments.map(async shipment => {
+    const tracking = byNumber.get(shipment.ttn) ?? (shipments.length === 1 && !result.data?.[0]?.Number ? result.data?.[0] : undefined)
+    if (!tracking?.Status) throw new Error('Nova Poshta returned no status for this TTN')
+    const code = String(tracking.StatusCode ?? '')
+    const { data: changed, error } = await db.rpc('apply_nova_poshta_tracking', {
+      p_store_id: shipment.store_id, p_ttn: shipment.ttn,
+      p_status: tracking.Status, p_code: code, p_checked_at: checkedAt,
+    })
+    if (error) throw error
+    return { status: tracking.Status, code, changed }
+  }))
+}
+
+Deno.serve(async request => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: cors })
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')
+  const url = Deno.env.get('SUPABASE_URL')
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('SUPABASE_PUBLISHABLE_KEY')
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SECRET_KEY')
-  if (!supabaseUrl || !anonKey || !serviceRoleKey) return json({ error: 'Supabase is not configured' }, 503)
+  const key = Deno.env.get('NOVA_POSHTA_API_KEY')?.trim()
+  if (!url || !anonKey || !serviceRoleKey || !key) return json({ error: 'Nova Poshta tracking is not configured' }, 503)
+  const db = createClient(url, serviceRoleKey)
+
   try {
+    const jobToken = request.headers.get('X-Tracking-Job')
+    if (jobToken) {
+      const { data: allowed, error: authError } = await db.rpc('is_nova_poshta_tracking_job', { p_token: jobToken })
+      if (authError) throw authError
+      if (!allowed) return json({ error: 'Invalid tracking job credentials' }, 403)
+      const { data, error } = await db.rpc('active_nova_poshta_shipments')
+      if (error) throw error
+      const shipments = (data ?? []) as Shipment[]
+      let updated = 0
+      let failed = 0
+      for (let offset = 0; offset < shipments.length; offset += 25) {
+        const batch = shipments.slice(offset, offset + 25)
+        try {
+          const results = await trackShipments(db, key, batch)
+          updated += results.filter(result => result.status === 'fulfilled').length
+          failed += results.filter(result => result.status === 'rejected').length
+        } catch {
+          failed += batch.length
+        }
+      }
+      return json({ updated, failed }, failed && !updated ? 502 : 200)
+    }
+
+    const auth = createClient(url, anonKey, { global: { headers: { Authorization: request.headers.get('Authorization') ?? '' } } })
+    const { data: { user } } = await auth.auth.getUser()
+    if (!user) return json({ error: 'Sign in as a store manager first' }, 401)
     const { orderId } = await request.json() as { orderId?: string }
-    if (!orderId) throw new Error('Order is required')
-    const auth = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: request.headers.get('Authorization') ?? `Bearer ${anonKey}` } } })
-    const { data: user } = await auth.auth.getUser()
-    if (!user.user) return json({ error: 'Sign in as a store manager first' }, 401)
-    const db = createClient(supabaseUrl, serviceRoleKey)
-    const { data: order } = await db.from('orders').select('*').eq('id', orderId).maybeSingle()
-    if (!order?.nova_poshta_ttn) throw new Error('Create a TTN first')
-    const { data: member } = await db.from('store_members').select('role').eq('store_id', order.store_id).eq('user_id', user.user.id).maybeSingle()
+    if (!orderId) return json({ error: 'Order is required' }, 400)
+    const { data: order, error: orderError } = await db.from('orders').select('store_id,nova_poshta_ttn').eq('id', orderId).maybeSingle()
+    if (orderError) throw orderError
+    if (!order) return json({ error: 'Order was not found' }, 404)
+    const { data: member, error: memberError } = await db.from('store_members').select('role').eq('store_id', order.store_id).eq('user_id', user.id).maybeSingle()
+    if (memberError) throw memberError
     if (!member) return json({ error: 'You do not have access to this order' }, 403)
-    const { data: settings } = await db.from('delivery_settings').select('sender_phone').eq('store_id', order.store_id).maybeSingle()
-    const key = Deno.env.get('NOVA_POSHTA_API_KEY')?.trim()
-    if (!key) throw new Error('Nova Poshta API key is not configured')
-    const response = await fetch('https://api.novaposhta.ua/v2.0/json/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: key, modelName: 'TrackingDocument', calledMethod: 'getStatusDocuments', methodProperties: { Documents: [{ DocumentNumber: order.nova_poshta_ttn, Phone: String(settings?.sender_phone ?? '').replace(/\D/g, '') }] } }) })
-    const result = await response.json() as { success?: boolean; data?: Array<{ Status?: string; StatusCode?: string }> ; errors?: string[] }
-    const tracking = result.data?.[0]
-    if (!response.ok || !result.success || !tracking?.Status) throw new Error(result.errors?.join(', ') || 'Nova Poshta tracking is unavailable')
-    const changed = order.nova_poshta_status_code !== (tracking.StatusCode ?? '') || order.nova_poshta_status !== tracking.Status
-    await db.from('orders').update({ nova_poshta_status: tracking.Status, nova_poshta_status_code: tracking.StatusCode ?? '', nova_poshta_status_updated_at: new Date().toISOString() }).eq('id', order.id)
-    if (changed) await db.from('order_delivery_events').insert({ order_id: order.id, status_code: tracking.StatusCode ?? '', status_text: tracking.Status })
-    return json({ status: tracking.Status, code: tracking.StatusCode ?? '', changed })
-  } catch (error) { return json({ error: error instanceof Error ? error.message : 'Tracking could not be updated' }, 400) }
+    if (!order.nova_poshta_ttn) return json({ error: 'Create a TTN first' }, 400)
+    const { data: settings, error: settingsError } = await db.from('delivery_settings').select('sender_phone').eq('store_id', order.store_id).maybeSingle()
+    if (settingsError) throw settingsError
+
+    const [result] = await trackShipments(db, key, [{ store_id: order.store_id, ttn: order.nova_poshta_ttn, sender_phone: settings?.sender_phone ?? '' }])
+    if (result.status === 'rejected') throw result.reason
+    return json(result.value)
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : 'Tracking could not be updated' }, 502)
+  }
 })

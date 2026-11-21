@@ -1,4 +1,5 @@
 import { ItemReturns, type ReturnableOrderItem } from './ItemReturns'
+import { CancelledOrderRefunds } from './CancelledOrderRefunds'
 import { NovaPoshtaTrackingLink } from './NovaPoshtaTrackingLink'
 import type { CustomerOrder } from './CustomerPanel'
 import { SalesBreakdown } from './SalesBreakdown'
@@ -16,6 +17,7 @@ export type OrderDetailsOrder = CustomerOrder & {
   note: string | null
   payment_test_mode: boolean | null
   payment_method: 'ONLINE' | 'CASH_ON_DELIVERY'
+  is_new?: boolean
   nova_poshta_ttn: string | null
   nova_poshta_status: string | null
 }
@@ -37,6 +39,7 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose }
   const [returns, setReturns] = useState<Return[]>([])
   const [revision, setRevision] = useState(0)
   const [error, setError] = useState('')
+  const [refundedLocally, setRefundedLocally] = useState(false)
   const idList = orderIds.join(',')
   useEffect(() => {
     const abort = new AbortController()
@@ -62,14 +65,14 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose }
       }).catch(cause => { if (!abort.signal.aborted) setError(cause.message) })
     return () => abort.abort()
   }, [idList, token, revision])
-  const canManageReturns = order.status === 'DELIVERED' && details
+  const canManageReturns = order.status === 'COMPLETED' && details
   return <dialog ref={dialogRef} className="order-drawer" aria-labelledby="order-drawer-title"
     onCancel={onCancel} onClick={onClick}>
     <header className="order-drawer__header">
       <div className="order-drawer__identity">
         <span className="order-drawer__eyebrow">CRM / {t('Orders')}</span>
         <h2 id="order-drawer-title">{t('Order details')}</h2>
-        <div className="order-drawer__meta"><span>#{order.receipt_code}</span>{order.payment_test_mode && <span>{t('Test order')}</span>}<span>{t(order.status)}</span></div>
+        <div className="order-drawer__meta"><span>#{order.receipt_code}</span>{order.is_new && <span className="crm-order__new">{t('New order label')}</span>}{order.payment_test_mode && <span>{t('Test order')}</span>}<span>{t(order.status)}</span></div>
       </div>
       <button type="button" className="btn btn--ghost" onClick={() => closeDrawer()}>{t('Close')}</button>
     </header>
@@ -82,7 +85,7 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose }
           {order.customer_email && <div><dt>{t('Email')}</dt><dd>{order.customer_email}</dd></div>}
           <div><dt>{t('Order date')}</dt><dd><time dateTime={order.created_at}>{formatDate(order.created_at)}</time></dd></div>
           <div><dt>{t('Payment method')}</dt><dd>{t(order.payment_method === 'CASH_ON_DELIVERY' ? 'Payment on delivery' : 'Online payment')}</dd></div>
-          <div><dt>{t('Payment status')}</dt><dd>{t(orderPaymentStatusKey(order))}</dd></div>
+          <div><dt>{t('Payment status')}</dt><dd>{t(refundedLocally ? 'payment_REFUNDED' : orderPaymentStatusKey(order))}</dd></div>
           <div><dt>{t('Total')}</dt><dd><strong>{formatPrice(order.total_price / 100, order.currency)}</strong></dd></div>
         </dl>
       </section>
@@ -119,6 +122,10 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose }
         {returns.length ? <ul className="note-list">{returns.map(item => <li key={item.id}><strong>{formatPrice(item.amount / 100, order.currency)}</strong><p>{item.reason}</p></li>)}</ul> : <p className="muted">{t('No confirmed refunds yet')}</p>}
       </section>
       <OrderActivity key={revision} orderId={order.id} token={token} currency={order.currency} />
+      {order.status.startsWith('CANCELLED') && <CancelledOrderRefunds orderIds={orderIds} token={token} onChange={completedOrderId => {
+        if (completedOrderId === order.id) setRefundedLocally(true)
+        setRevision(value => value + 1)
+      }} />}
     </div>
   </dialog>
 }

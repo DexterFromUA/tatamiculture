@@ -59,7 +59,7 @@ export function dashboardCustomer(order: AnalyticsOrder & { crm_customer_id?: st
 
 export function dashboardMetrics(orders: DashboardOrder[], costs: AnalyticsCost[], refunds: AnalyticsReturn[], rootById: Map<string, string>) {
   const valid = orders.filter(order => !isCancelled(order))
-  const delivered = valid.filter(order => order.status === 'DELIVERED')
+  const delivered = valid.filter(order => order.status === 'COMPLETED')
   const costById = new Map(costs.map(row => [row.order_id, Number(row.cost_amount)]))
   const refundById = new Map<string, number>()
   for (const refund of refunds) refundById.set(refund.order_id, (refundById.get(refund.order_id) ?? 0) + Number(refund.amount))

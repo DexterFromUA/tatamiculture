@@ -16,6 +16,7 @@ yarn dev
 1. Создать проект Supabase и выполнить [bootstrap.sql](supabase/bootstrap.sql). Скрипт создаст схему и единственную запись настроек магазина в `shop_settings`. Каталог заполняется в CRM.
 2. Скопировать `.env.example` в `.env.local` и добавить URL проекта и **anon key**. `service_role` ключ никогда не добавляется в Vite.
 3. Зарегистрировать аккаунт, подставить его **User UID** в [seed-owner.sql](supabase/seed-owner.sql) и выполнить файл в SQL Editor, чтобы назначить владельца CRM.
+4. Привязать проект через `supabase link` и применить миграции после bootstrap командой `supabase db push`.
 
 Цены в базе хранятся в копейках. При заказе с наложенным платежом `create_discounted_store_order` проверяет наличие, берёт текущую цену и атомарно уменьшает остаток. Онлайн-заказ создаётся после подтверждения платежа.
 
@@ -68,7 +69,15 @@ Each new order keeps its mode for webhook verification. Test orders are labeled 
 
 Checkout will then search Nova Poshta cities and require a selected branch or parcel locker. The selected city and branch are saved in the existing delivery fields of the order.
 
-In CRM → Settings, choose the sender and parcel defaults. In CRM → Orders, a manager can issue a TTN for a non-cancelled order. Its number is saved on the order and opens the public tracking page. A Nova Poshta sender/counterparty with the configured sender name and city must already exist in the account associated with `NOVA_POSHTA_API_KEY`.
+In CRM → Settings, choose the sender and parcel defaults. In CRM → Orders, a manager can issue a TTN starting at Preparing for shipment. Its number is saved on the order and opens the public tracking page. A Nova Poshta sender/counterparty with the configured sender name and city must already exist in the account associated with `NOVA_POSHTA_API_KEY`.
+
+After applying the order workflow migrations and deploying the updated tracking function, set the linked project's URL once to enable tracking every two hours:
+
+```sh
+supabase db query --remote --yes "update public.nova_poshta_tracking_schedule set project_url = 'https://PROJECT_REF.supabase.co' where singleton"
+```
+
+Deploy `crm-refund-order` and the updated Monobank and LiqPay webhooks after the refund migration. Automatic refunds use the original online payment. If the provider has not confirmed the result, staff can check the status again from the order card.
 
 ### Тестовый режим LiqPay
 

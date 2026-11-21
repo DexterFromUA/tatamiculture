@@ -42,9 +42,14 @@ type OrderFilter = 'ALL' | 'NO_TTN' | OrderStatus
 
 type InventoryProduct = DashboardInventory
 
-const statuses: OrderStatus[] = ['PENDING', 'PAID', 'IN_PROGRESS', 'READY_FOR_PICKUP', 'DELIVERED', 'CANCELLED_BY_USER', 'CANCELLED_BY_STORE']
+const statuses: OrderStatus[] = ['IN_PROGRESS', 'WAITING_FOR_STOCK', 'PREPARING_SHIPMENT', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED', 'CANCELLED_BY_STORE']
+const shipmentStages: OrderStatus[] = ['PREPARING_SHIPMENT', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED']
 const canCreateTtn = (order: AdminOrder) =>
-  !order.nova_poshta_ttn && !order.nova_poshta_document_ref && !order.status.startsWith('CANCELLED')
+  !order.nova_poshta_ttn && !order.nova_poshta_document_ref &&
+  (shipmentStages.includes(order.status) || (order.payment_test_mode && !order.status.startsWith('CANCELLED')))
+const canCancelWithStock = (order: AdminOrder) => !order.nova_poshta_ttn && !order.nova_poshta_document_ref &&
+  order.payment_status !== 'PAID' && order.payment_status !== 'REFUNDED' &&
+  ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_STOCK', 'PREPARING_SHIPMENT'].includes(order.status)
 
 export function AdminPage() {
   const { store, refreshProducts } = useStore()
@@ -204,7 +209,7 @@ export function AdminPage() {
     const byId = new Map(updated.map(order => [order.id, order]))
     setOrderSelection(current => current.map(order => {
       const update = byId.get(order.id)
-      return update ? { ...order, ...update } : order
+      return update ? { ...order, ...update, is_new: order.is_new && update.status === order.status } : order
     }))
     setOrdersRevision(value => value + 1)
     return true
@@ -359,7 +364,7 @@ export function AdminPage() {
       const restoreStock = bulkAction === 'cancel'
       const status = restoreStock ? 'CANCELLED_BY_STORE' : bulkAction.slice('status:'.length) as OrderStatus
       const eligible = selectedOrders.filter(order => restoreStock
-        ? order.status === 'PENDING' && order.payment_status !== 'PAID'
+        ? canCancelWithStock(order)
         : !order.payment_test_mode)
       const skipped = selectedOrders.filter(order => !eligible.includes(order))
       try {
@@ -537,7 +542,7 @@ export function AdminPage() {
                   <span className="sr-only">{t('Select order')} #{order.receipt_code}</span>
                 </label>
                 <div className="crm-order__identity">
-                  <span className="crm-order__reference"><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => setSelectedOrderId(order.id)}>#{order.receipt_code}</button><span className="crm-order__date"><time dateTime={order.created_at}>{formatDate(order.created_at)} · {new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(new Date(order.created_at))}</time>{order.payment_test_mode && ` · ${t('Test order')}`}{order.member_ids.length > 1 && ` · ${t('Merged orders: {{count}}', { count: order.member_ids.length })}`}</span></span>
+                  <span className="crm-order__reference"><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => setSelectedOrderId(order.id)}>#{order.receipt_code}</button>{order.is_new && <span className="crm-order__new">{t('New order label')}</span>}<span className="crm-order__date"><time dateTime={order.created_at}>{formatDate(order.created_at)} · {new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(new Date(order.created_at))}</time>{order.payment_test_mode && ` · ${t('Test order')}`}{order.member_ids.length > 1 && ` · ${t('Merged orders: {{count}}', { count: order.member_ids.length })}`}</span></span>
                   {note && <p className="crm-order__note"><strong>{t('Note')}</strong> {note}</p>}
                   {order.customer_email && <span className="crm-order__email">{order.customer_email}</span>}
                 </div>
@@ -545,7 +550,8 @@ export function AdminPage() {
                 <div className="crm-order__status"><span>{t('Order status')}</span>
                 <label className="sr-only" htmlFor={`status-${order.id}`}>{t('Order status')}</label>
                 <select id={`status-${order.id}`} value={order.status} disabled={bulkBusy || order.payment_test_mode || Boolean(updatingId)} onChange={(event) => void changeStatus(order.id, event.target.value as OrderStatus)}>
-                  {statuses.map((status) => <option key={status} value={status}>{t(status)}</option>)}
+                  {!statuses.includes(order.status) && <option value={order.status}>{t(order.status)}</option>}
+                  {statuses.filter(status => order.status !== 'CANCELLED_BY_USER' || status !== 'CANCELLED_BY_STORE').map(status => <option key={status} value={status}>{t(status)}</option>)}
                 </select></div>
                 {order.nova_poshta_status ? <p className="crm-order__delivery">{order.nova_poshta_status}</p> : null}
                 <div className="crm-order__actions"><button type="button" className="text-btn" onClick={() => void copyReceiptLink(receiptPath)}>{t('Copy receipt link')}</button>
@@ -555,10 +561,10 @@ export function AdminPage() {
                     <NovaPoshtaTrackingLink className="text-btn" ttn={order.nova_poshta_ttn}>TTN {order.nova_poshta_ttn}</NovaPoshtaTrackingLink>
                     <button type="button" className="text-btn" disabled={bulkBusy || trackingId === order.id} onClick={() => void refreshTracking(order.id)}>{trackingId === order.id ? t('Updating…') : t('Update status')}</button>
                   </span>
-                ) : (
-                  <button type="button" className="text-btn" aria-haspopup="dialog" disabled={bulkBusy || !canCreateTtn(order)} onClick={() => setTtnOrder(order)}>{t('Create TTN')}</button>
+                ) : canCreateTtn(order) && (
+                  <button type="button" className="text-btn" aria-haspopup="dialog" disabled={bulkBusy} onClick={() => setTtnOrder(order)}>{t('Create TTN')}</button>
                 )}
-                {order.status === 'PENDING' && order.payment_status !== 'PAID' ? <button type="button" className="text-btn crm-order__cancel" disabled={bulkBusy || Boolean(updatingId)} onClick={() => void changeStatus(order.id, 'CANCELLED_BY_STORE', true)}>{t(order.payment_test_mode ? 'Cancel test order' : 'Cancel & restore stock')}</button> : null}</div>
+                {canCancelWithStock(order) && <button type="button" className="text-btn crm-order__cancel" disabled={bulkBusy || Boolean(updatingId)} onClick={() => void changeStatus(order.id, 'CANCELLED_BY_STORE', true)}>{t(order.payment_test_mode ? 'Cancel test order' : 'Cancel & restore stock')}</button>}</div>
               </li>
             )
           })}</ul>}

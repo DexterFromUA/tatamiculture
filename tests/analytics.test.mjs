@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { calculateAnalytics } from '../src/lib/analytics.ts'
 
-const order = (id, overrides = {}) => ({ id, user_id: null, customer_phone: '+380686224700', customer_email: '', status: 'DELIVERED', payment_status: 'PAID', total_price: 10000, currency: 'UAH', ...overrides })
+const order = (id, overrides = {}) => ({ id, user_id: null, customer_phone: '+380686224700', customer_email: '', status: 'COMPLETED', payment_status: 'PAID', total_price: 10000, currency: 'UAH', ...overrides })
 test('unknown costs excluded from margin; known zero cost included; returns reduce net revenue', () => {
   const result = calculateAnalytics([order('a'), order('b'), order('c')], [{ order_id: 'a', cost_amount: 6000 }, { order_id: 'c', cost_amount: 0 }], [{ order_id: 'a', amount: 2000 }]).currencies[0]
   assert.equal(result.margin, 12000)
