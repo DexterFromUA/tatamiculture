@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
-import { supabaseRequest } from '../lib/supabase'
+import { SupabaseError, supabaseRequest } from '../lib/supabase'
 
 type Warehouse = { ref: string; name: string }
 type City = Warehouse & { area: string }
@@ -18,6 +18,7 @@ type Settings = {
   width_cm: number
   height_cm: number
   delivery_payer: 'RECIPIENT' | 'SENDER'
+  auto_update_order_status?: boolean
 }
 
 const blank = (storeId: string): Settings => ({
@@ -38,12 +39,14 @@ export function DeliverySettingsPage({ embedded = false }: { embedded?: boolean 
   const { store } = useStore()
   const { token, user } = useAuth()
   const { t } = useTranslation()
+  const automationDescriptionId = useId()
   const [settings, setSettings] = useState<Settings | null>(null)
   const [cities, setCities] = useState<City[] | null>(null)
   const [warehouses, setWarehouses] = useState<Warehouse[] | null>(null)
   const [directoryError, setDirectoryError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
   const storeId = store?.id
   const userId = user?.id
   const cityName = settings?.city_name.trim() ?? ''
@@ -54,10 +57,18 @@ export function DeliverySettingsPage({ embedded = false }: { embedded?: boolean 
     if (!storeId || !token || !userId) return
     const controller = new AbortController()
     const fields = 'store_id,sender_name,sender_phone,city_ref,city_name,warehouse_ref,warehouse_name,length_cm,width_cm,height_cm,delivery_payer'
-    void supabaseRequest<Settings[]>(`/rest/v1/delivery_settings?store_id=eq.${encodeURIComponent(storeId)}&select=${fields}`, {
-      token, signal: controller.signal,
-    }).then(rows => {
-      if (!controller.signal.aborted) setSettings(rows[0] ?? blank(storeId))
+    const load = (select: string) => supabaseRequest<Settings[]>(
+      `/rest/v1/delivery_settings?store_id=eq.${encodeURIComponent(storeId)}&select=${select}`,
+      { token, signal: controller.signal },
+    )
+    void load(`${fields},auto_update_order_status`).then(rows =>
+      rows[0] ?? { ...blank(storeId), auto_update_order_status: true },
+    ).catch(async cause => {
+      if (!(cause instanceof SupabaseError && cause.code === '42703' && cause.message.includes('auto_update_order_status'))) throw cause
+      const rows = await load(fields)
+      return rows[0] ?? blank(storeId)
+    }).then(result => {
+      if (!controller.signal.aborted) setSettings(result)
     }).catch(cause => {
       if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'Could not load settings')
     })
@@ -119,8 +130,10 @@ export function DeliverySettingsPage({ embedded = false }: { embedded?: boolean 
   }
 
   const save = async () => {
-    if (!token) return
+    if (!token || saving) return
     setError(null)
+    setSaved(false)
+    setSaving(true)
     try {
       await supabaseRequest('/rest/v1/delivery_settings?on_conflict=store_id', {
         method: 'POST', token, headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify(settings),
@@ -128,6 +141,8 @@ export function DeliverySettingsPage({ embedded = false }: { embedded?: boolean 
       setSaved(true)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not save settings')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -139,6 +154,17 @@ export function DeliverySettingsPage({ embedded = false }: { embedded?: boolean 
       {error && <p className="error" role="alert">{error}</p>}
       <section className="settings-card">
         <form onSubmit={event => { event.preventDefault(); void save() }}>
+          <div className="delivery-settings__automation">
+            <label className="mode-switch">
+              <input type="checkbox" role="switch" aria-describedby={automationDescriptionId}
+                checked={settings.auto_update_order_status ?? true} disabled={saving || settings.auto_update_order_status === undefined}
+                onChange={event => update({ auto_update_order_status: event.target.checked })} />
+              <span aria-hidden="true" />{t('Update order status automatically')}
+            </label>
+            <small className="muted" id={automationDescriptionId}>{t(settings.auto_update_order_status === undefined
+              ? 'This setting becomes available after the database update.'
+              : 'Use Nova Poshta tracking to update order status. Parcel tracking continues when this setting is off.')}</small>
+          </div>
           <h2>{t('Sender')}</h2>
           <label className="field">
             <span>{t('Sender name or company')}</span>
@@ -189,7 +215,7 @@ export function DeliverySettingsPage({ embedded = false }: { embedded?: boolean 
             ))}
           </fieldset>
           <p className="muted">{t('The declared value is set automatically from the order total when the TTN is created.')}</p>
-          <button type="submit" className="btn">{t('Save settings')}</button>
+          <button type="submit" className="btn" disabled={saving}>{t(saving ? 'Saving…' : 'Save settings')}</button>
           {saved && <p className="success" role="status">{t('Saved')}</p>}
         </form>
       </section>

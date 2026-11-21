@@ -787,6 +787,11 @@ textarea {
 .mode-switch span::after { content: ''; display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--card); transition: transform .15s; }
 .mode-switch input:checked + span { background: var(--accent); }
 .mode-switch input:checked + span::after { transform: translateX(16px); }
+.delivery-settings__automation { display: grid; gap: 6px; padding-bottom: 16px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
+.delivery-settings__automation .mode-switch { white-space: normal; }
+.delivery-settings__automation .mode-switch span { flex-shrink: 0; }
+.delivery-settings__automation .mode-switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 3px; }
+.delivery-settings__automation .mode-switch:has(input:disabled) { opacity: .55; cursor: default; }
 .customers-list { list-style: none; padding: 0; margin: 0; }
 .customers-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 16px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
 .customers-list span { color: var(--muted); font-size: .9rem; }

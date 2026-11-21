@@ -13,6 +13,7 @@ import { fetchAll, orderPaymentStatusKey } from '../lib/crm'
 import { formatDate, formatPrice } from '../lib/format'
 import { OrderActivity } from './OrderActivity'
 import { calculateAnalytics } from '../lib/analytics'
+import { paymentMethods } from '../lib/paymentMethods'
 import { useDrawer } from '../lib/useDrawer'
 import { useStore } from '../context/StoreContext'
 import { getOrderDeliveryActions, type OrderDeliveryActions } from '../lib/ttn'
@@ -31,6 +32,12 @@ type OrderDetails = {
   delivery_city: string | null
   delivery_address: string | null
   order_items: Array<ReturnableOrderItem & { line_total: number }>
+  paymentMethodLabels: string[]
+}
+type OrderDetailsRow = Omit<OrderDetails, 'paymentMethodLabels'> & {
+  id: string
+  payment_method: OrderDetailsOrder['payment_method']
+  payments: { provider: string; status: string } | null
 }
 type Cost = { order_id: string; cost_amount: number }
 type Return = { id: string; order_id: string; amount: number; reason: string }
@@ -60,20 +67,29 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
   const [recoveryMessage, setRecoveryMessage] = useState('')
   const idList = [...new Set([order.id, ...orderIds])].join(',')
   const trackingNumber = deliveryActions?.ttn ?? order.nova_poshta_ttn
+  const paymentMethodLabels = details?.paymentMethodLabels ?? [order.payment_method === 'CASH_ON_DELIVERY' ? 'Payment on delivery' : 'Online payment']
   const refreshDetails = () => {
     setDetailsFailed(false)
     setDetailsRevision(current => current + 1)
   }
   useEffect(() => {
     const abort = new AbortController()
-    const fields = 'id,delivery_city,delivery_address,order_items(id,product_id,variant_id,product_name,variant_name,quantity,unit_price,line_total)'
-    void supabaseRequest<Array<OrderDetails & { id: string }>>(`/rest/v1/orders?id=in.(${idList})&select=${fields}`, { token, signal: abort.signal })
+    const fields = 'id,delivery_city,delivery_address,payment_method,payments(provider,status),order_items(id,product_id,variant_id,product_name,variant_name,quantity,unit_price,line_total)'
+    void supabaseRequest<OrderDetailsRow[]>(`/rest/v1/orders?id=in.(${idList})&select=${fields}`, { token, signal: abort.signal })
       .then(results => {
         if (abort.signal.aborted) return
         const main = results.find(result => result.id === order.id)
+        const methods = results.map(({ payment_method, payments: payment }) => {
+          if (payment_method === 'CASH_ON_DELIVERY') return 'Payment on delivery'
+          if (payment?.status === 'PAID' || payment?.status === 'REFUNDED') {
+            return paymentMethods.find(method => method.id === payment.provider)?.name ?? 'Online payment'
+          }
+          return 'Online payment'
+        })
         setDetails(main ? {
           ...main,
           order_items: results.flatMap(result => result.order_items),
+          paymentMethodLabels: [...new Set(methods)],
         } : null)
         setDetailsFailed(!main)
       })
@@ -132,7 +148,7 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
           <div><dt>{t('Phone')}</dt><dd>{order.customer_phone ? <a href={`tel:${order.customer_phone}`}>{order.customer_phone}</a> : '—'}</dd></div>
           {order.customer_email && <div><dt>{t('Email')}</dt><dd>{order.customer_email}</dd></div>}
           <div><dt>{t('Order date')}</dt><dd><time dateTime={order.created_at}>{formatDate(order.created_at)}</time></dd></div>
-          <div><dt>{t('Payment method')}</dt><dd>{t(order.payment_method === 'CASH_ON_DELIVERY' ? 'Payment on delivery' : 'Online payment')}</dd></div>
+          <div><dt>{t('Payment method')}</dt><dd>{paymentMethodLabels.map(label => t(label)).join(', ')}</dd></div>
           <div><dt>{t('Payment status')}</dt><dd>{t(refundedLocally ? 'payment_REFUNDED' : orderPaymentStatusKey(order))}</dd></div>
           <div><dt>{t('Total')}</dt><dd><strong>{formatPrice(order.total_price / 100, order.currency)}</strong></dd></div>
         </dl>

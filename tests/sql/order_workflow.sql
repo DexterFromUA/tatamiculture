@@ -16,6 +16,8 @@ begin
   insert into auth.users(id, raw_user_meta_data) values (manager, '{}'), (outsider, '{}');
   insert into public.store_members(store_id, user_id, role) values (shop, manager, 'OWNER');
   perform set_config('request.jwt.claim.sub', manager::text, true);
+  insert into public.delivery_settings(store_id) values (shop)
+    on conflict (store_id) do update set auto_update_order_status = excluded.auto_update_order_status;
 
   insert into public.orders (
     store_id, customer_name, customer_phone, customer_email, delivery_city, delivery_address,
@@ -66,9 +68,25 @@ begin
   end if;
   perform public.apply_nova_poshta_tracking(shop, '59000000000001', '103', 'Refused', received_at + interval '3 minutes');
   if (select status from public.orders where id = cod_order.id) <> 'DELIVERED' then raise exception 'Refusal caused an automatic cancellation'; end if;
+
+  update public.delivery_settings set auto_update_order_status = false where store_id = shop;
   perform public.apply_nova_poshta_tracking(shop, '59000000000001', '10', 'Collected with COD', received_at + interval '4 minutes');
+  if not exists (select from public.orders where id = cod_order.id and status = 'DELIVERED' and payment_status = 'PENDING'
+      and nova_poshta_status_code = '10' and nova_poshta_status = 'Collected with COD')
+    or not exists (select from public.order_delivery_events where order_id = cod_order.id and status_code = '10')
+    or not exists (select from public.active_nova_poshta_shipments() where ttn = '59000000000001') then
+    raise exception 'Turning off order automation either changed the order or stopped tracking';
+  end if;
+  perform public.update_admin_orders(array[cod_order.id], 'IN_TRANSIT');
+  if (select status from public.orders where id = cod_order.id) <> 'IN_TRANSIT' then
+    raise exception 'Disabling automation blocked a manual status change';
+  end if;
+
+  update public.delivery_settings set auto_update_order_status = true where store_id = shop;
+  perform public.apply_nova_poshta_tracking(shop, '59000000000001', '10', 'Collected with COD', received_at + interval '5 minutes');
   if not exists (select from public.orders where id = cod_order.id and status = 'COMPLETED' and payment_status = 'PAID')
-    or exists (select from public.active_nova_poshta_shipments() where ttn = '59000000000001') then
+    or exists (select from public.active_nova_poshta_shipments() where ttn = '59000000000001')
+    or (select count(*) from public.order_delivery_events where order_id = cod_order.id and status_code = '10') <> 1 then
     raise exception 'Recipient handover did not complete the order and stop tracking';
   end if;
 
