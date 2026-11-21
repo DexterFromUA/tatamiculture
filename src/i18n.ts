@@ -403,7 +403,6 @@ const uk = {
   'Add to order': 'Додати до замовлення',
   'Product unavailable': 'Товар недоступний',
   'Nova Poshta': 'Нова пошта',
-  'Enter address manually': 'Вказати адресу вручну',
   'Enter a valid customer name and phone number.': 'Введіть ім’я та дійсний номер телефону клієнта.',
   'Enter the city and delivery address.': 'Вкажіть місто й адресу доставки.',
   'The order note is too long.': 'Примітка до замовлення надто довга.',

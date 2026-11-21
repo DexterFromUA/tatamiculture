@@ -33,7 +33,6 @@ export function CreateOrderDrawer({ store, token, onClose, onCreated }: {
   const [variantId, setVariantId] = useState('')
   const [items, setItems] = useState<Array<{ variantId: string; quantity: string }>>([])
   const [customer, setCustomer] = useState({ name: '', phone: '' })
-  const [manualAddress, setManualAddress] = useState(!novaPoshtaEnabled)
   const [location, setLocation] = useState(emptyLocation)
   const [address, setAddress] = useState({ city: '', address: '' })
   const [note, setNote] = useState('')
@@ -81,21 +80,21 @@ export function CreateOrderDrawer({ store, token, onClose, onCreated }: {
       setError('Enter a valid customer name and phone number.')
       return
     }
-    if (!manualAddress && (!location.cityRef || !location.warehouseRef)) {
+    if (novaPoshtaEnabled && (!location.cityRef || !location.warehouseRef)) {
       setError('Choose a city and Nova Poshta branch')
       return
     }
-    if (manualAddress && (!address.city.trim() || !address.address.trim())) {
+    if (!novaPoshtaEnabled && (!address.city.trim() || !address.address.trim())) {
       setError('Enter the city and delivery address.')
       return
     }
-    const delivery = manualAddress ? address : {
+    const delivery = novaPoshtaEnabled ? {
       city: location.cityName,
       address: location.warehouseName,
       cityRef: location.cityRef,
       addressRef: location.warehouseRef,
       serviceType: /поштомат|postomat/i.test(location.warehouseName) ? 'WarehousePostomat' : 'WarehouseWarehouse',
-    }
+    } : address
 
     setSaving(true)
     setError(null)
@@ -189,20 +188,14 @@ export function CreateOrderDrawer({ store, token, onClose, onCreated }: {
 
         <section className="order-drawer__card form">
           <h3>{t('Delivery details')}</h3>
-          {novaPoshtaEnabled && <label className="field"><span>{t('Delivery')}</span>
-            <select value={manualAddress ? 'manual' : 'nova-poshta'} disabled={saving} onChange={event => setManualAddress(event.target.value === 'manual')}>
-              <option value="nova-poshta">{t('Nova Poshta')}</option>
-              <option value="manual">{t('Enter address manually')}</option>
-            </select>
-          </label>}
-          {manualAddress ? <div className="crm-create-order__fields">
+          {novaPoshtaEnabled ? <TtnDispatchFields recipient location={location} onChange={setLocation} disabled={saving} /> : <div className="crm-create-order__fields">
             <label className="field"><span>{t('City')}</span>
               <input required maxLength={200} value={address.city} disabled={saving} onChange={event => setAddress({ ...address, city: event.target.value })} />
             </label>
             <label className="field"><span>{t('Address')}</span>
               <input required maxLength={500} value={address.address} disabled={saving} onChange={event => setAddress({ ...address, address: event.target.value })} />
             </label>
-          </div> : <TtnDispatchFields recipient location={location} onChange={setLocation} disabled={saving} />}
+          </div>}
           <label className="field"><span>{t('Note')}</span>
             <textarea rows={3} maxLength={2000} value={note} disabled={saving} onChange={event => setNote(event.target.value)} />
           </label>
