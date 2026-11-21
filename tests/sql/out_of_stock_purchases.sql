@@ -17,6 +17,7 @@ declare
   placed public.orders;
   attempt public.online_checkouts;
   duplicate uuid;
+  result jsonb;
 begin
   insert into auth.users(id) values (manager);
   insert into public.shop_settings (id, name) values (shop, 'Stock test');
@@ -90,6 +91,28 @@ begin
         and i.is_preorder = (i.variant_id = preorder_variant)) <> 2
      or exists (select from public.product_variants where id in (variant, preorder_variant) and stock_quantity <> 0) then
     raise exception 'Payment confirmation did not preserve the quote and stock balance';
+  end if;
+
+  perform public.update_admin_orders(array[attempt.id], 'WAITING_FOR_STOCK', true);
+  perform public.update_admin_orders(array[attempt.id], 'IN_PROGRESS', true);
+  result := public.update_admin_orders_with_stock_notice(array[attempt.id], 'CANCELLED_BY_STORE', true, false);
+  if result->>'stock_added' <> '4' or (select count(*) from public.product_variants
+    where id in (variant, preorder_variant) and stock_quantity = 2) <> 2 then
+    raise exception 'Cancelling a progressed procurement did not credit exactly four units';
+  end if;
+  result := public.update_admin_orders_with_stock_notice(array[attempt.id], 'CANCELLED_BY_STORE', true, false);
+  if result->>'stock_added' <> '0' then raise exception 'A repeated cancellation duplicated stock'; end if;
+  perform public.update_admin_orders(array[attempt.id], 'PREPARING_SHIPMENT', true);
+  result := public.update_admin_orders_with_stock_notice(array[attempt.id], 'CANCELLED_BY_STORE', true, false);
+  if result->>'stock_added' <> '0' then raise exception 'Reopening an order duplicated stock'; end if;
+
+  -- A direct cancellation of a fresh paid order must leave empty stock untouched.
+  update public.product_variants set stock_quantity = 0, allow_out_of_stock = true where id = variant;
+  attempt := public.prepare_online_checkout('LIQPAY', null, shop, cart, buyer || delivery, false);
+  perform public.confirm_online_checkout('LIQPAY', attempt.provider_order_id, 20000, 'UAH', 'test2', '{}');
+  result := public.update_admin_orders_with_stock_notice(array[attempt.id], 'CANCELLED_BY_STORE', true, false);
+  if result->>'stock_added' <> '0' or (select stock_quantity from public.product_variants where id = variant) <> 0 then
+    raise exception 'An immediate cancellation added stock';
   end if;
 end;
 $$;

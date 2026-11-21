@@ -24,22 +24,20 @@ begin
 
   deferred := public.create_crm_order(shop,gen_random_uuid(),items,customer,destination,'',105050);
   perform public.update_admin_orders(array[deferred.id],'WAITING_FOR_STOCK');
-  begin
-    perform public.update_admin_orders(array[deferred.id],'PREPARING_SHIPMENT');
-    raise exception 'Prepared an order without stock';
-  exception when raise_exception then
-    if sqlerrm <> 'There is not enough stock to prepare the order.' then raise; end if;
-  end;
-  if (select status from public.orders where id = deferred.id) <> 'WAITING_FOR_STOCK' then
-    raise exception 'Failed allocation changed the status';
+  perform public.update_admin_orders(array[deferred.id],'PREPARING_SHIPMENT');
+  if (select status from public.orders where id = deferred.id) <> 'PREPARING_SHIPMENT' then
+    raise exception 'Procurement order could not be prepared without free stock';
   end if;
+  perform public.reserve_order_ttn(deferred.id);
+  perform public.release_order_ttn(deferred.id);
 
   update public.product_variants set stock_quantity = 1 where id = variant;
   perform public.update_admin_orders(array[deferred.id],'PREPARING_SHIPMENT');
-  perform public.update_admin_orders(array[deferred.id],'PREPARING_SHIPMENT');
-  if (select stock_quantity from public.product_variants where id = variant) <> 0 or
-    not coalesce((select stock_deducted from public.order_items where order_id = deferred.id), false) then
-    raise exception 'Preparation did not reserve replenished stock exactly once';
+  perform public.reserve_order_ttn(deferred.id);
+  perform public.release_order_ttn(deferred.id);
+  if (select stock_quantity from public.product_variants where id = variant) <> 1 or
+    (select stock_deducted from public.order_items where order_id = deferred.id) is distinct from false then
+    raise exception 'Shipment preparation deducted free stock for a procurement order';
   end if;
 
   -- Record payment to exercise the same cancellation path as a paid online order.
@@ -48,13 +46,15 @@ begin
   perform public.update_admin_orders(array[deferred.id],'CANCELLED_BY_STORE',true);
   if (select stock_quantity from public.product_variants where id = variant) <> 1 or
     (select payment_status from public.orders where id = deferred.id) <> 'PAID' then
-    raise exception 'Cancelling before shipment did not restore stock exactly once and preserve payment';
+    raise exception 'Cancellation changed free stock or cleared the order payment';
   end if;
 
   shipped := public.create_crm_order(shop,gen_random_uuid(),items,customer,destination,'',105050);
   perform public.update_admin_orders(array[shipped.id],'PREPARING_SHIPMENT');
   update public.orders set nova_poshta_ttn = '59000000000123' where id = shipped.id;
   perform public.update_admin_orders(array[shipped.id],'IN_TRANSIT');
+  perform public.update_admin_orders(array[shipped.id],'PREPARING_SHIPMENT');
+  perform public.unlink_order_ttn(shipped.id, '59000000000123');
   perform public.update_admin_orders(array[shipped.id],'CANCELLED_BY_STORE');
   if (select stock_quantity from public.product_variants where id = variant) <> 0 or
     not (select cancel_stock_pending from public.orders where id = shipped.id) then

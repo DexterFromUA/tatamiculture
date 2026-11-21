@@ -12,7 +12,7 @@ export type RefundOperation = {
   payment_test_mode: boolean | null
 }
 
-export type RefundResult = { status: 'completed' | 'processing' | 'failed'; error?: string }
+export type RefundResult = { status: 'completed' | 'processing' | 'failed'; error?: string; absenceVerified?: true }
 
 export type MonoCancellation = { extRef?: string; status?: string; amount?: number }
 export type MonoInvoice = {
@@ -21,9 +21,11 @@ export type MonoInvoice = {
 type LiqPayInvoice = {
   order_id?: string; amount?: number | string; amount_return?: number | string; currency?: string
   payment_id?: string | number; result?: string; status?: string; wait_amount?: boolean | string
+  wait_reserve_status?: string
 }
 
 const processing: RefundResult = { status: 'processing' }
+const noRefundFound: RefundResult = { status: 'processing', absenceVerified: true }
 const completed: RefundResult = { status: 'completed' }
 const failed = (error: string): RefundResult => ({ status: 'failed', error })
 
@@ -41,6 +43,8 @@ function monoCancellationResult(invoice: MonoInvoice, operation: RefundOperation
   if (cancellation?.status === 'failure') return failed('The payment provider rejected the refund')
   if (cancellation?.status === 'success' && cancellation.amount === operation.amount) return completed
   if (!cancellation && invoice.status === 'reversed' && invoice.finalAmount === 0) return completed
+  if (invoice.status === 'success' && (invoice.finalAmount ?? invoice.amount) === operation.amount &&
+    !invoice.cancelList?.some(item => item.status !== 'failure')) return noRefundFound
   return processing
 }
 
@@ -92,9 +96,11 @@ async function refundLiqPay(operation: RefundOperation, check: boolean): Promise
   if (!invoice) return check ? processing : failed('Could not verify the original payment')
   if (!matchesLiqPayInvoice(invoice, operation)) return check ? processing : failed('The original payment does not match the order')
   if (check) {
-    return invoice.status === 'reversed' && !waitingForLiqPayFunds(invoice) &&
-      (invoice.amount_return == null || Math.round(Number(invoice.amount_return) * 100) === operation.amount)
-      ? completed : processing
+    if (invoice.status === 'reversed' && !waitingForLiqPayFunds(invoice) &&
+      (invoice.amount_return == null || Math.round(Number(invoice.amount_return) * 100) === operation.amount)) return completed
+    if (invoice.result === 'ok' && invoice.status === 'success' && !waitingForLiqPayFunds(invoice) &&
+      !invoice.wait_reserve_status && Number(invoice.amount_return ?? 0) === 0) return noRefundFound
+    return processing
   }
   if (invoice.status !== 'success' || Number(invoice.amount_return ?? 0) !== 0) {
     return failed('The payment has already been refunded or cannot be refunded automatically')

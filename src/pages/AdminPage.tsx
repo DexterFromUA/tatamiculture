@@ -47,7 +47,7 @@ const statuses: OrderStatus[] = ['IN_PROGRESS', 'WAITING_FOR_STOCK', 'PREPARING_
 const shipmentStages: OrderStatus[] = ['PREPARING_SHIPMENT', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED']
 const canCreateTtn = (order: AdminOrder) =>
   !order.nova_poshta_ttn && !order.nova_poshta_document_ref &&
-  (shipmentStages.includes(order.status) || (order.payment_test_mode && !order.status.startsWith('CANCELLED')))
+  shipmentStages.includes(order.status)
 const canCancelWithStock = (order: AdminOrder) => !order.nova_poshta_ttn && !order.nova_poshta_document_ref &&
   order.payment_status !== 'PAID' && order.payment_status !== 'REFUNDED' &&
   ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_STOCK', 'PREPARING_SHIPMENT'].includes(order.status)
@@ -191,8 +191,8 @@ export function AdminPage() {
 
   const updateOrderStatus = async (ids: string[], status: OrderStatus, restoreStock = false) => {
     if (!token) return false
-    const request = (confirmed: boolean) => supabaseRequest<Array<Pick<AdminOrder, 'id' | 'status' | 'payment_status'>>>(
-      '/rest/v1/rpc/update_admin_orders', {
+    const request = (confirmed: boolean) => supabaseRequest<{ orders: Array<Pick<AdminOrder, 'id' | 'status' | 'payment_status'>>; stock_added: number }>(
+      '/rest/v1/rpc/update_admin_orders_with_stock_notice', {
         method: 'POST', token, body: JSON.stringify({
           p_order_ids: ids, p_status: status, p_confirm_paid: confirmed, p_restore_stock: restoreStock,
         }),
@@ -207,7 +207,8 @@ export function AdminPage() {
       return confirmed ? request(true) : null
     })
     if (!updated) return false
-    const byId = new Map(updated.map(order => [order.id, order]))
+    if (updated.stock_added > 0) addToast(t('Added to stock after cancellation: {{quantity}} units.', { quantity: updated.stock_added }))
+    const byId = new Map(updated.orders.map(order => [order.id, order]))
     setOrderSelection(current => current.map(order => {
       const update = byId.get(order.id)
       return update ? { ...order, ...update, is_new: order.is_new && update.status === order.status } : order

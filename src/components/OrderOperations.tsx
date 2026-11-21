@@ -65,12 +65,38 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
   const [deliveryActions, setDeliveryActions] = useState<OrderDeliveryActions | null>(null)
   const [detailsRevision, setDetailsRevision] = useState(0)
   const [recoveryMessage, setRecoveryMessage] = useState('')
+  const [confirmUnlink, setConfirmUnlink] = useState(false)
+  const [unlinking, setUnlinking] = useState(false)
+  const [unlinkError, setUnlinkError] = useState('')
   const idList = [...new Set([order.id, ...orderIds])].join(',')
-  const trackingNumber = deliveryActions?.ttn ?? order.nova_poshta_ttn
+  const trackingNumber = deliveryActions ? deliveryActions.ttn : order.nova_poshta_ttn
   const paymentMethodLabels = details?.paymentMethodLabels ?? [order.payment_method === 'CASH_ON_DELIVERY' ? 'Payment on delivery' : 'Online payment']
   const refreshDetails = () => {
     setDetailsFailed(false)
     setDetailsRevision(current => current + 1)
+  }
+  const onWaybillChanged = (ttn: string | null, message: string) => {
+    setDeliveryActions(current => ({ cancelStockPending: current?.cancelStockPending ?? false, ttn, ttnAttempt: null }))
+    setRecoveryMessage(message)
+    setUnlinkError('')
+    setRevision(value => value + 1)
+    refreshDetails()
+    onChanged()
+  }
+  const unlinkWaybill = async (ttn: string) => {
+    setUnlinking(true)
+    setRecoveryMessage('')
+    setUnlinkError('')
+    try {
+      await supabaseRequest('/rest/v1/rpc/unlink_order_ttn', {
+        method: 'POST', token, body: JSON.stringify({ p_order_id: order.id, p_ttn: ttn }),
+      })
+      onWaybillChanged(null, 'TTN unlinked from the order.')
+    } catch (cause) {
+      setUnlinkError(cause instanceof Error ? cause.message : 'Could not unlink the TTN')
+    } finally {
+      setUnlinking(false)
+    }
   }
   useEffect(() => {
     const abort = new AbortController()
@@ -98,7 +124,7 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
     void getOrderDeliveryActions(order.id, token, abort.signal).then(actions => {
       if (!abort.signal.aborted) setDeliveryActions(actions)
     }).catch(() => {
-      if (!abort.signal.aborted) setDeliveryActions(null)
+      // Keep the last confirmed TTN while a refresh is unavailable.
     })
     return () => abort.abort()
   }, [order.id, token, idList, detailsRevision])
@@ -174,17 +200,25 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
             {trackingNumber && <div><dt>{t('TTN')}</dt><dd>
               <NovaPoshtaTrackingLink ttn={trackingNumber}>{trackingNumber}</NovaPoshtaTrackingLink>
             </dd></div>}
-            {order.nova_poshta_status && <div><dt>{t('Shipment status')}</dt><dd>{order.nova_poshta_status}</dd></div>}
+            {trackingNumber && trackingNumber === order.nova_poshta_ttn && order.nova_poshta_status &&
+              <div><dt>{t('Shipment status')}</dt><dd>{order.nova_poshta_status}</dd></div>}
             {note && <div className="order-drawer__note"><dt>{t('Note')}</dt><dd>{note}</dd></div>}
           </dl>
-          {!trackingNumber && <OrderTtnRecovery
+          {trackingNumber ? <>
+            <OrderActionButton type="button" className="btn btn--ghost" aria-haspopup="dialog"
+              disabledReason={unlinking ? t('The TTN is being unlinked.') : undefined}
+              onClick={() => setConfirmUnlink(true)}>{t('Unlink TTN')}</OrderActionButton>
+            {confirmUnlink && <ConfirmationDialog title={t('Unlink TTN')}
+              message={t('Unlink {{ttn}} from this shipment and stop tracking it here? Manage the shipping document in Nova Poshta.', { ttn: trackingNumber })}
+              confirmLabel={t('Unlink TTN')} onClose={confirmed => {
+                setConfirmUnlink(false)
+                if (confirmed) void unlinkWaybill(trackingNumber)
+              }} />}
+          </> : <OrderTtnRecovery
             key={deliveryActions?.ttnAttempt?.id ?? 'manual'} attempt={deliveryActions?.ttnAttempt} orderId={order.id}
-            token={token} onRefresh={refreshDetails} onResolved={ttn => {
-              setDeliveryActions(current => ({ cancelStockPending: current?.cancelStockPending ?? false, ttn, ttnAttempt: null }))
-              setRecoveryMessage(ttn ? 'TTN linked to the order.' : 'You can now create a new TTN for this order.')
-              refreshDetails()
-              onChanged()
-            }} />}
+            token={token} onRefresh={refreshDetails} onResolved={ttn =>
+              onWaybillChanged(ttn, ttn ? 'TTN linked to the order.' : 'You can now create a new TTN for this order.')} />}
+          {unlinkError && <p className="error" role="alert">{t(unlinkError)}</p>}
           {recoveryMessage && <p role="status">{t(recoveryMessage)}</p>}
         </section>
       </> : detailsFailed ? <section className="order-drawer__card">

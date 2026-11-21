@@ -39,6 +39,21 @@ test('a mismatch in the original payment amount prevents a Monobank refund', asy
   assert.equal(fetch.mock.callCount(), 1)
 })
 
+test('Monobank allows review only when a matching paid invoice shows no active refund', async ({ mock }) => {
+  const fetch = mock.method(globalThis, 'fetch', async (url) => {
+    assert.ok(url.includes('/invoice/status'))
+    return Response.json(monoStatus)
+  })
+  assert.deepEqual(await refundOrderPayment(operation, true), { status: 'processing', absenceVerified: true })
+  fetch.mock.mockImplementation(async () => Response.json({
+    ...monoStatus, cancelList: [{ extRef: operation.id, status: 'processing', amount: 15000 }],
+  }))
+  assert.deepEqual(await refundOrderPayment(operation, true), { status: 'processing' })
+  fetch.mock.mockImplementation(async () => { throw new Error('Timeout') })
+  assert.deepEqual(await refundOrderPayment(operation, true), { status: 'processing' })
+  assert.equal(fetch.mock.callCount(), 3)
+})
+
 test('LiqPay requests the original payment amount and keeps deferred refunds pending', async ({ mock }) => {
   const liqPay = { ...operation, provider: 'LIQPAY', payment_id: '42' }
   const status = { order_id: operation.reference, currency: 'UAH', amount: 150, payment_id: 42 }
@@ -58,4 +73,20 @@ test('LiqPay requests the original payment amount and keeps deferred refunds pen
     return Response.json({ ...status, status: 'reversed', amount_return: 150 })
   })
   assert.equal((await refundOrderPayment(liqPay, true)).status, 'completed')
+})
+
+test('LiqPay pending funds do not qualify for manual review', async ({ mock }) => {
+  const liqPay = { ...operation, provider: 'LIQPAY', payment_id: '42' }
+  let fields = {}
+  mock.method(globalThis, 'fetch', async (_url, options) => {
+    assert.equal(decodeLiqPayData(options.body.get('data')).action, 'status')
+    return Response.json({
+      result: 'ok', order_id: operation.reference, currency: 'UAH', amount: 150, payment_id: 42, status: 'success', ...fields,
+    })
+  })
+  assert.deepEqual(await refundOrderPayment(liqPay, true), { status: 'processing', absenceVerified: true })
+  fields = { wait_amount: true }
+  assert.deepEqual(await refundOrderPayment(liqPay, true), { status: 'processing' })
+  fields = { amount_return: 75 }
+  assert.deepEqual(await refundOrderPayment(liqPay, true), { status: 'processing' })
 })

@@ -94,11 +94,36 @@ begin
   exception when raise_exception then
     if sqlerrm <> 'This TTN is already linked to an order.' then raise; end if;
   end;
-  perform public.attach_verified_order_ttn(manual_order, '59000000000124', manual_carrier_ref);
+  perform set_config('request.jwt.claim.sub', '', true);
+  perform public.settle_order_ttn_as_staff(manual_order, null, 'attached', '59000000000124', manual_carrier_ref, manager);
   if not exists (select from public.orders where id = manual_order and nova_poshta_ttn = '59000000000124'
     and nova_poshta_document_ref = manual_carrier_ref and status = 'IN_PROGRESS')
     or exists (select from public.order_ttn_reservations where order_id = manual_order) then
     raise exception 'Manual attachment failed to save the TTN without an existing attempt';
+  end if;
+  perform set_config('request.jwt.claim.sub', stranger::text, true);
+  begin
+    perform public.unlink_order_ttn(manual_order, '59000000000124');
+    raise exception 'Non-staff unlinked a TTN';
+  exception when insufficient_privilege then null;
+  end;
+  perform set_config('request.jwt.claim.sub', manager::text, true);
+  begin
+    perform public.unlink_order_ttn(manual_order, '59000000000123');
+    raise exception 'A stale TTN request removed its replacement';
+  exception when raise_exception then
+    if sqlerrm <> 'The TTN has changed. Refresh the order and try again.' then raise; end if;
+  end;
+  perform public.unlink_order_ttn(manual_order, '59000000000124');
+  if (public.get_order_delivery_actions(manual_order)->>'ttn') is not null or
+    (select count(*) from public.order_events where order_id = manual_order and author_id = manager
+      and kind in ('ttn_linked', 'ttn_unlinked') and new_value = '59000000000124') <> 2 then
+    raise exception 'Unlink did not clear the TTN or record both actions with their author';
+  end if;
+  perform public.settle_order_ttn_as_staff(manual_order, null, 'attached', '59000000000125', manual_carrier_ref, manager);
+  perform public.apply_nova_poshta_tracking(shop, '59000000000125', '7', 'Delayed request', now() - interval '1 second');
+  if exists (select from public.orders where id = manual_order and nova_poshta_status_code is not null) then
+    raise exception 'A tracking response begun before attaching the replacement was accepted';
   end if;
 end;
 $$;

@@ -9,6 +9,8 @@ declare
   cod_order public.orders;
   reserved_refund jsonb;
   duplicate_refund jsonb;
+  first_attempt uuid;
+  second_attempt uuid;
   outcome text;
   received_at timestamptz := now();
 begin
@@ -40,6 +42,17 @@ begin
     if sqlerrm <> 'Move the order to preparing for shipment first' then raise; end if;
   end;
   perform public.update_admin_orders(array[online_order.id], 'WAITING_FOR_STOCK', true);
+  perform public.attach_verified_order_ttn(online_order.id, '59000000000002', 'early-waybill');
+  perform public.apply_nova_poshta_tracking(shop, '59000000000002', '7', 'Ready to collect', received_at + interval '1 minute');
+  if (select status from public.orders where id = online_order.id) <> 'WAITING_FOR_STOCK' then
+    raise exception 'Early tracking changed a procurement stage';
+  end if;
+  perform public.update_admin_orders(array[online_order.id], 'PREPARING_SHIPMENT', true);
+  perform public.apply_nova_poshta_tracking(shop, '59000000000002', '7', 'Ready to collect', received_at + interval '2 minutes');
+  if (select status from public.orders where id = online_order.id) <> 'DELIVERED' then
+    raise exception 'Starting preparation did not enable tracking for an existing waybill';
+  end if;
+  perform public.unlink_order_ttn(online_order.id, '59000000000002');
   perform public.update_admin_orders(array[online_order.id], 'IN_PROGRESS', true);
   select * into online_order from public.orders where id = online_order.id;
   if online_order.is_new or online_order.payment_status <> 'PAID' then
@@ -84,6 +97,10 @@ begin
 
   update public.delivery_settings set auto_update_order_status = true where store_id = shop;
   perform public.apply_nova_poshta_tracking(shop, '59000000000001', '10', 'Collected with COD', received_at + interval '5 minutes');
+  if (select status from public.orders where id = cod_order.id) <> 'IN_TRANSIT' then
+    raise exception 'Repeating the same carrier event undid the manual status change';
+  end if;
+  perform public.apply_nova_poshta_tracking(shop, '59000000000001', '11', 'Collected', received_at + interval '6 minutes');
   if not exists (select from public.orders where id = cod_order.id and status = 'COMPLETED' and payment_status = 'PAID')
     or exists (select from public.active_nova_poshta_shipments() where ttn = '59000000000001')
     or (select count(*) from public.order_delivery_events where order_id = cod_order.id and status_code = '10') <> 1 then
@@ -111,6 +128,52 @@ begin
     or (select status from public.payments where order_id = online_order.id) <> 'REFUNDED' then
     raise exception 'A confirmed online refund was not recorded exactly once';
   end if;
+
+  insert into public.orders (
+    store_id, customer_name, customer_phone, customer_email, delivery_city, delivery_address,
+    total_price, currency, status, payment_method, payment_status
+  ) values (shop, 'Review', '0991000003', '', 'Київ', '1', 15325, 'UAH', 'CANCELLED_BY_STORE', 'ONLINE', 'PAID')
+  returning * into online_order;
+  insert into public.payments(order_id, provider, provider_order_id, status)
+    values (online_order.id, 'MONOBANK', online_order.id::text, 'PAID');
+  first_attempt := (public.begin_order_cancellation_refund(online_order.id, manager, 'automatic', 15325)->>'id')::uuid;
+  if public.can_review_order_refund(first_attempt)
+    or has_function_privilege('authenticated', 'public.resolve_order_cancellation_refund(uuid,uuid,uuid,text)', 'execute') then
+    raise exception 'A new attempt is already eligible for manual review or can bypass verification';
+  end if;
+  begin
+    perform public.resolve_order_cancellation_refund(online_order.id, first_attempt, manager, 'not_started');
+    raise exception 'A new attempt was unlocked';
+  exception when raise_exception then
+    if sqlerrm <> 'The refund has changed or is still being processed. Check its status again.' then raise; end if;
+  end;
+  update public.order_cancellation_refunds set updated_at = now() - interval '15 minutes' where id = first_attempt;
+  if not public.can_review_order_refund(first_attempt) then
+    raise exception 'An old attempt is not eligible for review';
+  end if;
+  outcome := public.resolve_order_cancellation_refund(online_order.id, first_attempt, manager, 'not_started');
+  if outcome <> 'failed' or
+    exists (select from public.order_returns where order_id = online_order.id) then
+    raise exception 'Confirming an absent refund did not release the lock safely';
+  end if;
+  second_attempt := (public.begin_order_cancellation_refund(online_order.id, manager, 'automatic', 15325)->>'id')::uuid;
+  if second_attempt is null or second_attempt = first_attempt then
+    raise exception 'A retry did not acquire a new attempt ID';
+  end if;
+  update public.order_cancellation_refunds set updated_at = now() - interval '15 minutes' where id = second_attempt;
+  begin
+    perform public.resolve_order_cancellation_refund(online_order.id, first_attempt, manager, 'record_paid');
+    raise exception 'An old attempt confirmed a new refund';
+  exception when raise_exception then
+    if sqlerrm <> 'The refund has changed or is still being processed. Check its status again.' then raise; end if;
+  end;
+  outcome := public.resolve_order_cancellation_refund(online_order.id, second_attempt, manager, 'record_paid');
+  if outcome <> 'completed'
+    or not exists (select from public.order_returns where id = second_attempt and amount = 15325 and author_id = manager)
+    or (select count(*) from public.order_events where order_id = online_order.id and kind = 'refund_review' and author_id = manager) <> 2 then
+    raise exception 'Manual review did not record the refund and its author';
+  end if;
+
   perform public.update_admin_orders(array[cod_order.id], 'CANCELLED_BY_STORE', true);
   if public.begin_order_cancellation_refund(cod_order.id, manager, 'manual', 12000)->>'status' <> 'completed'
     or (select amount from public.order_returns where order_id = cod_order.id) <> 12000 then

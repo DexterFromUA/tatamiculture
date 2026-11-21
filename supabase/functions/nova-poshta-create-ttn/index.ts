@@ -147,19 +147,16 @@ Deno.serve(async (request) => {
         ttn = trackingNumber
         documentRef = document.Ref
       }
-      const shipment = { p_order_id: orderId, p_ttn: ttn, p_document_ref: documentRef }
-      const { error } = requestedAttempt === undefined
-        ? await db.rpc('attach_verified_order_ttn', shipment)
-        : await db.rpc('finish_order_ttn_attempt', {
-          ...shipment, p_attempt_id: requestedAttempt, p_outcome: action === 'attach' ? 'attached' : 'not_created',
-        })
+      const { error } = await db.rpc('settle_order_ttn_as_staff', {
+        p_order_id: orderId, p_attempt_id: requestedAttempt ?? null, p_actor: userData.user.id,
+        p_outcome: action === 'attach' ? 'attached' : 'not_created', p_ttn: ttn, p_document_ref: documentRef,
+      })
       if (error) return json({ error: error.message }, 409)
       return json({ ttn, documentRef })
     }
     if (String(order.status).startsWith('CANCELLED')) throw new Error('A TTN cannot be created for a cancelled order')
     if (!preview && order.nova_poshta_ttn) return json({ ttn: order.nova_poshta_ttn, documentRef: order.nova_poshta_document_ref, existing: true })
-    if (!(order.payment_test_mode ?? order.monobank_test_mode) &&
-      !['PREPARING_SHIPMENT', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(order.status)) {
+    if (!['PREPARING_SHIPMENT', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(order.status)) {
       throw new Error('Move the order to preparing for shipment first')
     }
     if (order.currency !== 'UAH') throw new Error('Nova Poshta TTN requires an order in UAH')
@@ -295,8 +292,8 @@ Deno.serve(async (request) => {
       OptionsSeat: [{ volumetricWidth: String(settings.width_cm), volumetricLength: String(settings.length_cm), volumetricHeight: String(settings.height_cm), weight: weightKg }],
     }))[0]
     if (!document?.IntDocNumber || !document.Ref) throw new Error('Nova Poshta did not return a TTN number')
-    const { error: updateError } = await db.rpc('finish_order_ttn_attempt', {
-      p_order_id: orderId, p_attempt_id: attemptId, p_outcome: 'created',
+    const { error: updateError } = await db.rpc('settle_order_ttn_as_staff', {
+      p_order_id: orderId, p_attempt_id: attemptId, p_outcome: 'created', p_actor: userData.user.id,
       p_ttn: String(document.IntDocNumber), p_document_ref: document.Ref,
     })
     if (updateError) throw new Error(updateError.message)
