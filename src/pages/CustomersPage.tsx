@@ -10,6 +10,7 @@ import { formatPrice } from '../lib/format'
 import type { CrmCustomer } from '../components/CrmCustomerCard'
 
 type CustomerListRow = CrmCustomer & {
+  has_active_discount: boolean
   order_count: number
   totals: Record<string, number>
 }
@@ -80,7 +81,14 @@ export function CustomersPage({ onOpenCustomer, revision }: { onOpenCustomer: (i
       {loading && !data && <p className="muted" role="status">{t('Loading…')}</p>}
       <ul className="customers-list" aria-busy={loading}>{rows.map(customer => <li key={customer.id}>
         <button type="button" className="customer-list-card" aria-haspopup="dialog" onClick={() => onOpenCustomer(customer.id)}>
-          <span className="customer-list-card__identity"><span className="customer-list-card__name"><strong>{customer.name}</strong>{(customer.phone || customer.email) && <small>{customer.phone || customer.email}</small>}</span>{customer.tags.length > 0 && <small>{customer.tags.join(' · ')}</small>}</span>
+          <span className="customer-list-card__identity">
+            <span className="customer-list-card__name">
+              <strong>{customer.name}</strong>
+              {customer.has_active_discount && <span className="customer-list-card__discount">{t('Personal discount')}</span>}
+              {(customer.phone || customer.email) && <small>{customer.phone || customer.email}</small>}
+            </span>
+            {customer.tags.length > 0 && <small>{customer.tags.join(' · ')}</small>}
+          </span>
           <span>{customer.order_count} {t('orders')}</span><strong>{Object.entries(customer.totals)
             .map(([currency, amount]) => formatPrice(amount / 100, currency)).join(' · ') || '—'}</strong>
         </button>
