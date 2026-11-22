@@ -8,6 +8,18 @@ type City = Warehouse & { area: string }
 
 const directory = '/functions/v1/nova-poshta-directory'
 const warehousePageSize = 100
+const pendingWarehousePages = new Map<string, Promise<Warehouse[]>>()
+
+function warehousePage(cityRef: string, page: number) {
+  const key = `${cityRef}:${page}`
+  const pending = pendingWarehousePages.get(key)
+  if (pending) return pending
+  const request = supabaseRequest<Warehouse[]>(directory, {
+    method: 'POST', body: JSON.stringify({ action: 'warehouses', cityRef, page }), signal: AbortSignal.timeout(10000),
+  }).finally(() => pendingWarehousePages.delete(key))
+  pendingWarehousePages.set(key, request)
+  return request
+}
 
 export function TtnDispatchFields({ location, onChange, disabled, recipient = false }: {
   location: DispatchLocation
@@ -21,11 +33,13 @@ export function TtnDispatchFields({ location, onChange, disabled, recipient = fa
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [loadedPage, setLoadedPage] = useState(0)
   const [requestPage, setRequestPage] = useState({ number: 1 })
+  const [branchCity, setBranchCity] = useState('')
   const [hasMore, setHasMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const cityQuery = location.cityName.trim()
   const cityRef = location.cityRef
   const searching = !cityRef && cityQuery.length >= 2
+  const loadBranches = Boolean(cityRef && (!location.warehouseRef || branchCity === cityRef))
 
   useEffect(() => {
     if (!searching) return
@@ -45,13 +59,9 @@ export function TtnDispatchFields({ location, onChange, disabled, recipient = fa
   }, [cityQuery, searching])
 
   useEffect(() => {
-    if (!cityRef) return
+    if (!loadBranches) return
     const controller = new AbortController()
-    void supabaseRequest<Warehouse[]>(directory, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'warehouses', cityRef, page: requestPage.number }),
-      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]),
-    }).then(results => {
+    void warehousePage(cityRef, requestPage.number).then(results => {
       if (controller.signal.aborted) return
       setWarehouses(current => {
         const branches = new Map(current.map(branch => [branch.ref, branch]))
@@ -64,7 +74,7 @@ export function TtnDispatchFields({ location, onChange, disabled, recipient = fa
       if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'Could not load branches')
     })
     return () => controller.abort()
-  }, [cityRef, requestPage])
+  }, [cityRef, loadBranches, requestPage])
 
   const changeCity = (cityName: string, ref = '') => {
     if (cityRef || ref || cityName.trim() !== cityQuery) {
@@ -75,10 +85,11 @@ export function TtnDispatchFields({ location, onChange, disabled, recipient = fa
     setLoadedPage(0)
     setHasMore(false)
     setRequestPage({ number: 1 })
+    setBranchCity(ref)
     onChange({ cityName, cityRef: ref, warehouseRef: '', warehouseName: '' })
   }
 
-  const loadingBranches = Boolean(cityRef && requestPage.number !== loadedPage && !error)
+  const loadingBranches = Boolean(loadBranches && requestPage.number !== loadedPage && !error)
   const showSavedBranch = location.warehouseRef && !warehouses.some(branch => branch.ref === location.warehouseRef)
 
   return <>
@@ -96,7 +107,8 @@ export function TtnDispatchFields({ location, onChange, disabled, recipient = fa
     </div>
     <label className="field">
       <span>{t(recipient ? 'Nova Poshta branch or parcel locker' : 'Dispatch branch')}</span>
-      <select required value={location.warehouseRef} disabled={disabled || !cityRef}
+      <select required value={location.warehouseRef} disabled={disabled || !cityRef} aria-busy={loadingBranches}
+        onFocus={() => setBranchCity(cityRef)} onPointerDown={() => setBranchCity(cityRef)}
         onChange={event => {
           const branch = warehouses.find(item => item.ref === event.target.value)
           if (branch) onChange({ ...location, warehouseRef: branch.ref, warehouseName: branch.name })
@@ -106,6 +118,7 @@ export function TtnDispatchFields({ location, onChange, disabled, recipient = fa
         {showSavedBranch && <option value={location.warehouseRef}>{location.warehouseName || location.warehouseRef}</option>}
         {warehouses.map(branch => <option key={branch.ref} value={branch.ref}>{branch.name}</option>)}
       </select>
+      {showSavedBranch && loadingBranches && <small role="status">{t('Loading branches…')}</small>}
     </label>
     {cityRef && (hasMore || error) && <button type="button" className="text-btn" disabled={disabled || loadingBranches}
       onClick={() => { setError(null); setRequestPage({ number: loadedPage + 1 }) }}>

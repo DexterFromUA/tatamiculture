@@ -79,6 +79,7 @@ Deno.serve(async request => {
     if (memberError) throw memberError
     if (!member) return json({ error: 'You do not have access to this order' }, 403)
     if (!order.nova_poshta_ttn) return json({ error: 'Create a TTN first' }, 400)
+    if (order.nova_poshta_ttn.startsWith('TEST-')) return json({ error: 'This TTN is no longer supported. Unlink it and add a current TTN.' }, 409)
     const { data: settings, error: settingsError } = await db.from('delivery_settings').select('sender_phone').eq('store_id', order.store_id).maybeSingle()
     if (settingsError) throw settingsError
 

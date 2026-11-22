@@ -5,6 +5,7 @@ import { decodeLiqPayData } from '../supabase/functions/_shared/liqpay.ts'
 
 globalThis.Deno = { env: { get: key => ({
   MONOBANK_TOKEN: 'merchant-test-placeholder',
+  MONOBANK_TEST_TOKEN: 'sandbox-test-placeholder',
   LIQPAY_LIVE_PUBLIC_KEY: 'public-placeholder',
   LIQPAY_LIVE_PRIVATE_KEY: 'private-placeholder',
 })[key] } }
@@ -14,6 +15,15 @@ const operation = {
   payment_id: null, payment_test_mode: false, provider: 'MONOBANK',
 }
 const monoStatus = { invoiceId: operation.reference, status: 'success', amount: 15000, ccy: 980 }
+
+test('Monobank refunds use the credentials of the original invoice', async ({ mock }) => {
+  const fetch = mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.equal(options.headers['X-Token'], 'sandbox-test-placeholder')
+    return Response.json(url.includes('/invoice/cancel') ? { status: 'success' } : monoStatus)
+  })
+  assert.equal((await refundOrderPayment({ ...operation, payment_test_mode: true }, false)).status, 'completed')
+  assert.equal(fetch.mock.callCount(), 2)
+})
 
 test('Monobank keeps an uncertain submission pending and checks the same refund without resending', async ({ mock }) => {
   const fetch = mock.method(globalThis, 'fetch', async (url, options) => {

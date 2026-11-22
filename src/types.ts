@@ -120,7 +120,6 @@ export type Order = {
   createdAt: string
   paymentMethod?: 'ONLINE' | 'CASH_ON_DELIVERY'
   reservedInProfile?: boolean
-  paymentTestMode?: boolean
   novaPoshtaTtn?: string
   novaPoshtaStatus?: string
 }

@@ -66,7 +66,7 @@ Deno.serve(async (request) => {
     })
     const invoice = await statusResponse.json() as MonoInvoice
     if (!statusResponse.ok) throw new Error('Monobank status check failed')
-    if (!testMode && (invoice.status === 'reversed' || invoice.cancelList?.length) &&
+    if ((invoice.status === 'reversed' || invoice.cancelList?.length) &&
       await reconcileOrderRefund(client, 'MONOBANK', callback.invoiceId, invoice)) return new Response('OK')
     const paid = invoice.status === 'success'
     const failed = invoice.status === 'failure' || invoice.status === 'expired' || (attempt && invoice.status === 'reversed')

@@ -21,7 +21,6 @@ import { getOrderDeliveryActions, type OrderDeliveryActions } from '../lib/ttn'
 export type MetricOrder = { id: string; user_id: string | null; customer_phone: string; customer_email: string; status: string; payment_status: string; total_price: number; currency: string }
 export type OrderDetailsOrder = CustomerOrder & {
   note: string | null
-  payment_test_mode: boolean | null
   payment_method: 'ONLINE' | 'CASH_ON_DELIVERY'
   is_new?: boolean
   nova_poshta_ttn: string | null
@@ -162,7 +161,7 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
       <div className="order-drawer__identity">
         <span className="order-drawer__eyebrow">CRM / {t('Orders')}</span>
         <h2 id="order-drawer-title">{t('Order details')}</h2>
-        <div className="order-drawer__meta"><span>#{order.receipt_code}</span>{order.is_new && <span className="crm-order__new">{t('New order label')}</span>}{order.payment_test_mode && <span>{t('Test order')}</span>}<span>{t(order.status)}</span></div>
+        <div className="order-drawer__meta"><span>#{order.receipt_code}</span>{order.is_new && <span className="crm-order__new">{t('New order label')}</span>}<span>{t(order.status)}</span></div>
       </div>
       <button type="button" className="btn btn--ghost" onClick={() => closeDrawer()}>{t('Close')}</button>
     </header>

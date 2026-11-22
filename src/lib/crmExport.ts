@@ -7,10 +7,9 @@ type Translate = (key: string) => string
 
 type ExportOrder = Pick<OrderDetailsOrder,
   'id' | 'receipt_code' | 'customer_name' | 'customer_phone' | 'customer_email' | 'note' |
-  'status' | 'payment_status' | 'payment_method' | 'payment_test_mode' | 'created_at' |
+  'status' | 'payment_status' | 'payment_method' | 'created_at' |
   'total_price' | 'currency' | 'nova_poshta_ttn' | 'nova_poshta_status'> & {
   crm_customer_id: string | null
-  monobank_test_mode: boolean | null
   updated_at: string
   delivery_city: string
   delivery_address: string
@@ -25,20 +24,17 @@ type ExportOrder = Pick<OrderDetailsOrder,
   payments: { provider: string; status: string } | null
 }
 
-export type CustomerExportOrder = CrmOrder & Pick<ExportOrder, 'payment_status' | 'payment_method' | 'payment_test_mode' | 'monobank_test_mode'>
+export type CustomerExportOrder = CrmOrder & Pick<ExportOrder, 'payment_status' | 'payment_method'>
 type ExportOrderRef = { id: string; primaryReceipt?: string }
 
 const orderFields = [
   'id', 'receipt_code', 'crm_customer_id', 'customer_name', 'customer_phone', 'customer_email', 'note',
-  'status', 'payment_status', 'payment_method', 'payment_test_mode', 'monobank_test_mode', 'created_at', 'updated_at',
+  'status', 'payment_status', 'payment_method', 'created_at', 'updated_at',
   'total_price', 'currency', 'delivery_city', 'delivery_address', 'delivery_service_type',
   'nova_poshta_ttn', 'nova_poshta_status', 'nova_poshta_ttn_created_at', 'nova_poshta_status_updated_at',
   'payments(provider,status)', 'order_items(product_name,variant_name,quantity,unit_price,line_total,is_preorder)',
   'order_returns(amount)', 'order_financials(cost_amount)',
 ].join(',')
-
-const isTestOrder = (order: Pick<ExportOrder, 'payment_test_mode' | 'monobank_test_mode'>) =>
-  order.payment_test_mode ?? order.monobank_test_mode ?? false
 
 const isCancelled = (order: { status: string }) => order.status.startsWith('CANCELLED')
 
@@ -53,7 +49,7 @@ export async function downloadOrdersCsv(refs: ExportOrderRef[], token: string, t
 
   const headers = [
     'Order number', 'Primary order number', 'Order date', 'Updated at', 'Order status', 'Payment status', 'Payment method',
-    'Payment provider', 'Provider payment status', 'Payment mode', 'Customer ID', 'Name', 'Phone', 'Email', 'Note',
+    'Payment provider', 'Provider payment status', 'Customer ID', 'Name', 'Phone', 'Email', 'Note',
     'City', 'Address', 'Delivery type', 'TTN', 'TTN created at', 'Shipment status', 'Shipment status updated at',
     'Order items', 'Units ordered', 'Preordered units', 'Currency', 'Total', 'Recorded refunds', 'Total after recorded refunds',
     'Order cost', 'Order ID',
@@ -76,7 +72,7 @@ export async function downloadOrdersCsv(refs: ExportOrderRef[], token: string, t
     return [
       order.receipt_code, primaryReceipt, order.created_at, order.updated_at, t(order.status), t(orderPaymentStatusKey(order)), t(method),
       order.payments?.provider, order.payments ? t(`payment_${order.payments.status}`) : '',
-      t(isTestOrder(order) ? 'Test mode' : 'Live mode'), order.crm_customer_id, order.customer_name, order.customer_phone, order.customer_email, order.note,
+      order.crm_customer_id, order.customer_name, order.customer_phone, order.customer_email, order.note,
       order.delivery_city, order.delivery_address, deliveryType && t(deliveryType), order.nova_poshta_ttn, order.nova_poshta_ttn_created_at,
       order.nova_poshta_status, order.nova_poshta_status_updated_at, items, units, preorderUnits,
       order.currency, Number(order.total_price) / 100, refunds / 100, (Number(order.total_price) - refunds) / 100,
@@ -91,7 +87,7 @@ export function downloadCustomersCsv(customers: CrmCustomer[], orders: CustomerE
   const ordersByCustomer = new Map<string, CustomerExportOrder[]>()
   const currencies = new Set([storeCurrency])
   for (const order of orders) {
-    if (!order.crm_customer_id || !customerIds.has(order.crm_customer_id) || isTestOrder(order)) continue
+    if (!order.crm_customer_id || !customerIds.has(order.crm_customer_id)) continue
     const entries = ordersByCustomer.get(order.crm_customer_id) ?? []
     entries.push(order)
     ordersByCustomer.set(order.crm_customer_id, entries)
@@ -100,7 +96,7 @@ export function downloadCustomersCsv(customers: CrmCustomer[], orders: CustomerE
   const currencyList = [...currencies].sort()
   const headers = [
     'Customer ID', 'Name', 'Phone', 'Email', 'Tags', 'Private notes', 'Customer created at',
-    'Live orders', 'Non-cancelled orders', 'Paid orders', 'Delivered orders', 'Cancelled orders',
+    'Orders', 'Non-cancelled orders', 'Paid orders', 'Delivered orders', 'Cancelled orders',
     'First order date', 'Latest order date', 'Latest order number', 'Latest order status', 'Latest payment status',
   ].map(label => t(label))
   for (const currency of currencyList) {

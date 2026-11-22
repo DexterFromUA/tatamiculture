@@ -1,4 +1,4 @@
--- The dashboard sees only its store's non-test attempts, grouped by Kyiv calendar dates.
+-- The dashboard sees its store's payment attempts in both acquiring modes, grouped by Kyiv calendar dates.
 begin;
 -- The production singleton is restored when the fixtures roll back.
 drop index public.shop_settings_single_row_idx;
@@ -25,7 +25,7 @@ begin
   perform set_config('request.jwt.claim.sub',manager::text,true);
   execute 'set local role authenticated';
   stats := public.crm_dashboard_payment_stats(shop,'2026-10-25','2026-10-25','UAH');
-  if stats <> '{"paid":1,"failed":1,"pending":1,"expired":1,"undated":1}'::jsonb then raise exception 'Wrong payment stats: %',stats; end if;
+  if stats <> '{"paid":2,"failed":1,"pending":1,"expired":1,"undated":1}'::jsonb then raise exception 'Wrong payment stats: %',stats; end if;
   begin
     perform public.crm_dashboard_payment_stats(other_shop,'2026-10-25','2026-10-25','UAH');
     raise exception 'Other store exposed';
@@ -39,4 +39,4 @@ begin
 end;
 $$;
 rollback;
-select 'Payment dashboard expiration, dates, currency, test exclusions and access checks passed; fixtures rolled back' as result;
+select 'Payment dashboard expiration, dates, currency, acquiring modes and access checks passed; fixtures rolled back' as result;

@@ -55,9 +55,9 @@ export function AdminDashboard({ active, storeId, currency: storeCurrency, token
   const rootId = (id: string) => rootById.get(id) ?? id
   const currencies = [...new Set([storeCurrency, ...orders.map(order => order.currency)])]
   const alignedOrders = alignMergedOrderDates(orders, rootById)
-  const live = alignedOrders.filter(order => !order.payment_test_mode && order.currency === currency)
-  const current = range ? live.filter(order => inDashboardRange(order, range.from, range.to)) : []
-  const previous = range ? live.filter(order => inDashboardRange(order, range.previousFrom, range.previousTo)) : []
+  const currencyOrders = alignedOrders.filter(order => order.currency === currency)
+  const current = range ? currencyOrders.filter(order => inDashboardRange(order, range.from, range.to)) : []
+  const previous = range ? currencyOrders.filter(order => inDashboardRange(order, range.previousFrom, range.previousTo)) : []
   const costs = data.costs ?? []
   const refunds = data.refunds ?? []
   const metrics = dashboardMetrics(current, costs, refunds, rootById)
@@ -115,14 +115,14 @@ export function AdminDashboard({ active, storeId, currency: storeCurrency, token
   const financeReady = Boolean(data.costs && data.refunds)
   const periodIds = new Set(current.filter(order => !isCancelled(order)).map(order => order.id))
   const deliveredIds = new Set(current.filter(order => order.status === 'COMPLETED').map(order => order.id))
-  const trend = range ? dashboardTrend(live, range) : []
+  const trend = range ? dashboardTrend(currencyOrders, range) : []
   const max = Math.max(1, ...trend.flatMap(bar => [bar.current, bar.previous]))
   const highlighted = trend[Math.min(activeBar ?? trend.length - 1, trend.length - 1)]
-  const currentWork = live.filter(order => !isCancelled(order) && order.status !== 'COMPLETED')
+  const currentWork = currencyOrders.filter(order => !isCancelled(order) && order.status !== 'COMPLETED')
   const awaitingShipment = currentWork.filter(order => ['PENDING', 'PAID', 'IN_PROGRESS', 'WAITING_FOR_STOCK', 'PREPARING_SHIPMENT'].includes(order.status))
   const overdue = awaitingShipment.filter(order => order.payment_status === 'PAID' && Date.now() - Date.parse(order.created_at) >= 86400000)
   const cod = currentWork.filter(order => order.payment_method === 'CASH_ON_DELIVERY' && order.payment_status !== 'PAID' && order.payment_status !== 'REFUNDED')
-  const openReturns = (data.returns ?? []).filter(row => live.some(order => order.id === row.order_id))
+  const openReturns = (data.returns ?? []).filter(row => currencyOrders.some(order => order.id === row.order_id))
   const countRoots = (rows: { id: string }[]) => new Set(rows.map(row => rootId(row.id))).size
   const alerts = [
     { label: 'Paid orders over 24 hours old', rows: overdue },
@@ -130,8 +130,8 @@ export function AdminDashboard({ active, storeId, currency: storeCurrency, token
     { label: 'Ready for pickup', rows: currentWork.filter(order => order.status === 'DELIVERED') },
   ]
   const attention = [...new Set([...overdue, ...awaitingShipment].map(order => rootId(order.id)))].slice(0, 4)
-    .flatMap(id => { const order = live.find(order => order.id === id); return order ? [order] : [] })
-  const allDeliveredIds = new Set(alignedOrders.filter(order => !order.payment_test_mode && order.status === 'COMPLETED' && range && inDashboardRange(order, range.from, range.to)).map(order => order.id))
+    .flatMap(id => { const order = currencyOrders.find(order => order.id === id); return order ? [order] : [] })
+  const allDeliveredIds = new Set(alignedOrders.filter(order => order.status === 'COMPLETED' && range && inDashboardRange(order, range.from, range.to)).map(order => order.id))
   const soldVariants = new Set((data.sales ?? []).filter(row => allDeliveredIds.has(row.order_id)).map(row => row.variant_id))
   const demandCounts = new Map<string, number>()
   for (const row of data.demand ?? []) demandCounts.set(row.variant_id, (demandCounts.get(row.variant_id) ?? 0) + 1)
@@ -159,7 +159,7 @@ export function AdminDashboard({ active, storeId, currency: storeCurrency, token
     return rankBy === 'units' ? b.units - a.units : b.revenue - a.revenue
   }).slice(0, 5)
   const customerOrders = new Map<string, Set<string>>()
-  for (const order of live.filter(order => !isCancelled(order))) {
+  for (const order of currencyOrders.filter(order => !isCancelled(order))) {
     const key = dashboardCustomer(order)
     if (key) customerOrders.set(key, new Set([...(customerOrders.get(key) ?? []), rootId(order.id)]))
   }

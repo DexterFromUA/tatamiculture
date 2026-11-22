@@ -1,11 +1,14 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { invalidTtnRecipientName, parseTtnRecipientName } from '../_shared/ttn-recipient.ts'
+import { NovaPoshtaRateLimit, novaPoshtaRateLimit } from '../_shared/nova-poshta-rate-limit.ts'
 
 type NovaData = Record<string, unknown>
 class NovaPostRejection extends Error {}
 
-const cors = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, apikey, content-type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' }
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: cors })
+const cors = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, apikey, content-type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Expose-Headers': 'Retry-After' }
+const json = (body: unknown, status = 200, retryAfter?: number) => new Response(JSON.stringify(body), {
+  status, headers: retryAfter === undefined ? cors : { ...cors, 'Retry-After': String(retryAfter) },
+})
 const isDirectoryRef = (value: unknown): value is string =>
   typeof value === 'string' && /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i.test(value)
 
@@ -20,9 +23,14 @@ async function novaPost(apiKey: string, modelName: string, calledMethod: string,
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ apiKey, modelName, calledMethod, methodProperties }), signal,
     })
-    const result = await response.json() as { success?: boolean; data?: NovaData[]; errors?: string[]; warnings?: string[] }
-    if (response.ok && result.success === false) throw new NovaPostRejection(result.errors?.join(', ') || result.warnings?.join(', ') || 'Nova Poshta request failed')
-    if (!response.ok || !result.success) throw new Error(result.errors?.join(', ') || result.warnings?.join(', ') || 'Nova Poshta request failed')
+    const result = await response.json().catch(() => null) as { success?: boolean; data?: NovaData[]; errors?: string[]; warnings?: string[]; message?: string } | null
+    const message = (Array.isArray(result?.errors) && result.errors.join(', ')) ||
+      (Array.isArray(result?.warnings) && result.warnings.join(', ')) || result?.message || ''
+    const rejected = response.ok && result?.success === false
+    const limit = novaPoshtaRateLimit(response, message, rejected)
+    if (limit) throw limit
+    if (rejected) throw new NovaPostRejection(message || 'Nova Poshta request failed')
+    if (!response.ok || !result?.success) throw new Error(message || 'Nova Poshta request failed')
     return result.data ?? []
   } catch (error) {
     if (signal.aborted) throw new Error('Nova Poshta did not respond in time.', { cause: error })
@@ -35,7 +43,25 @@ function senderPhone(value: unknown) {
   return /^0\d{9}$/.test(digits) ? `38${digits}` : digits
 }
 
-async function resolveSender(apiKey: string, cityRef: string, name: string, phone: string) {
+type SenderMatch = { senderRef: unknown; contactRef: unknown; name: string }
+const senderLookups = new Map<string, { result: Promise<SenderMatch>; expiresAt: number }>()
+
+function resolveSender(apiKey: string, cityRef: string, name: string, phone: string) {
+  const key = JSON.stringify([apiKey, cityRef, name, phone])
+  const current = senderLookups.get(key)
+  if (current && current.expiresAt > Date.now()) return current.result
+  senderLookups.delete(key)
+  const result = findSender(apiKey, cityRef, name, phone).catch(error => {
+    if (senderLookups.get(key)?.result === result) senderLookups.delete(key)
+    throw error
+  })
+  senderLookups.set(key, { result, expiresAt: Date.now() + 5 * 60_000 })
+  const oldestKey = senderLookups.keys().next().value
+  if (senderLookups.size > 32 && oldestKey !== undefined) senderLookups.delete(oldestKey)
+  return result
+}
+
+async function findSender(apiKey: string, cityRef: string, name: string, phone: string): Promise<SenderMatch> {
   // The Sender directory can omit valid counterparties when FindByString is sent.
   const senders = (await novaPost(apiKey, 'Counterparty', 'getCounterparties', {
     CounterpartyProperty: 'Sender', City: cityRef, Page: '1', Limit: '20',
@@ -45,13 +71,17 @@ async function resolveSender(apiKey: string, cityRef: string, name: string, phon
   const normalizeName = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
   const nameMatches = senders.filter(sender => normalizeName(sender.Description) === normalizeName(name))
   const candidates = nameMatches.length ? nameMatches : senders
-  const matches = (await Promise.all(candidates.map(async sender => {
+  const readContacts = async (sender: NovaData) => {
     const contacts = await novaPost(apiKey, 'Counterparty', 'getCounterpartyContactPersons', { Ref: sender.Ref, Page: '1' })
     return contacts.filter(contact => typeof contact.Ref === 'string' && contact.Ref &&
       [contact.Phones, contact.Phone].some(value =>
         String(value ?? '').split(/[,;/]/).some(number => senderPhone(number) === phone),
       )).map(contact => ({ senderRef: sender.Ref, contactRef: contact.Ref, name: normalizeName(contact.Description) }))
-  }))).flat()
+  }
+  const matches: SenderMatch[] = []
+  for (let start = 0; start < candidates.length; start += 3) {
+    matches.push(...(await Promise.all(candidates.slice(start, start + 3).map(readContacts))).flat())
+  }
   if (matches.length === 1) return matches[0]
   const namedContacts = matches.filter(contact => contact.name === normalizeName(name))
   if (namedContacts.length === 1) return namedContacts[0]
@@ -304,7 +334,10 @@ Deno.serve(async (request) => {
     attemptId = null
     return json({ ttn: document.IntDocNumber, documentRef: document.Ref, existing: false })
   } catch (error) {
-    documentRejected = error instanceof NovaPostRejection
+    documentRejected = error instanceof NovaPostRejection || (error instanceof NovaPoshtaRateLimit && error.rejected)
+    if (error instanceof NovaPoshtaRateLimit && (!documentAttempted || documentRejected)) {
+      return json({ error: error.message }, 429, error.retryAfter)
+    }
     const message = error instanceof Error ? error.message : 'TTN could not be created'
     return json({ error: documentAttempted && !documentRejected ? 'Check the Nova Poshta account and resolve this TTN in the order card.' : message }, 400)
   } finally {

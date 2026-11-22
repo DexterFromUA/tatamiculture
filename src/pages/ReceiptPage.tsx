@@ -98,7 +98,7 @@ export function ReceiptPage() {
   return (
     <section className="receipt-page">
       <header className="receipt-hero">
-        <p className="eyebrow">{t('Receipt')} · {order.receiptCode}{order.paymentTestMode && ` · ${t('Test order')}`}</p>
+        <p className="eyebrow">{t('Receipt')} · {order.receiptCode}</p>
         <h1>{t('Thank you, {{name}}', { name: order.customerName })}</h1>
         <p>{formatDate(order.createdAt)}</p>
         {ownOrder && order.paymentMethod === 'ONLINE' && order.status === 'PENDING'

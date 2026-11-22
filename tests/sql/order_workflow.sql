@@ -13,6 +13,11 @@ declare
   second_attempt uuid;
   outcome text;
   received_at timestamptz := now();
+  test_order public.orders;
+  test_stage public.order_status;
+  checkout public.online_checkouts;
+  product uuid;
+  variant uuid;
 begin
   select id into shop from public.shop_settings;
   insert into auth.users(id, raw_user_meta_data) values (manager, '{}'), (outsider, '{}');
@@ -178,6 +183,64 @@ begin
   if public.begin_order_cancellation_refund(cod_order.id, manager, 'manual', 12000)->>'status' <> 'completed'
     or (select amount from public.order_returns where order_id = cod_order.id) <> 12000 then
     raise exception 'A confirmed manual refund was not recorded';
+  end if;
+
+  insert into public.orders (
+    store_id, customer_name, customer_phone, customer_email, delivery_city, delivery_address,
+    total_price, currency, status, payment_method, payment_status, payment_test_mode, monobank_test_mode
+  ) values (shop, 'Test payment', '0991000004', '', 'Київ', '1',
+    10000, 'UAH', 'IN_PROGRESS', 'ONLINE', 'PAID', true, true)
+  returning * into test_order;
+  foreach test_stage in array array[
+    'WAITING_FOR_STOCK', 'PREPARING_SHIPMENT', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED',
+    'CANCELLED_BY_STORE', 'IN_PROGRESS'
+  ]::public.order_status[] loop
+    perform public.correct_admin_order_status(array[test_order.id], test_stage, true, false, null, null);
+    if not exists (select from public.orders where id = test_order.id and status = test_stage
+      and payment_status = 'PAID' and payment_test_mode) then
+      raise exception 'Test order could not change to % while retaining its test payment', test_stage;
+    end if;
+  end loop;
+
+  insert into public.store_payment_methods(store_id, monobank, payment_test_mode) values (shop, true, true)
+    on conflict (store_id) do update set monobank = true, payment_test_mode = true;
+  insert into public.products(store_id, name) values (shop, 'Order item') returning id into product;
+  insert into public.product_variants(product_id, name, price, stock_quantity)
+    values (product, 'M', 10000, 2) returning id into variant;
+  checkout := public.prepare_online_checkout('MONOBANK', manager, shop,
+    jsonb_build_array(jsonb_build_object('variantId', variant, 'quantity', 1)),
+    '{"name":"Customer Name","phone":"+380990002222","city":"Київ","address":"1","email":""}', true);
+  update public.online_checkouts set provider_order_id = checkout.id::text where id = checkout.id;
+  perform public.confirm_online_checkout('MONOBANK', checkout.id::text, 10000, 'UAH', null, '{}');
+  perform public.confirm_online_checkout('MONOBANK', checkout.id::text, 10000, 'UAH', null, '{}');
+  if (select stock_quantity from public.product_variants where id = variant) <> 1
+    or not exists (select from public.orders where id = checkout.id and is_new and crm_customer_id is not null)
+    or not exists (select from public.order_items where order_id = checkout.id and stock_deducted) then
+    raise exception 'Checkout credentials changed stock reservation, CRM association or the new-order label';
+  end if;
+
+  perform public.correct_admin_order_status(array[checkout.id], 'PREPARING_SHIPMENT', true, false, null, null);
+  first_attempt := public.begin_order_ttn_attempt(checkout.id);
+  perform public.finish_order_ttn_attempt(checkout.id, first_attempt, 'created', '59000000009123', 'document-ref');
+  if not exists (select from public.active_nova_poshta_shipments() where ttn = '59000000009123') then
+    raise exception 'The order was skipped by the carrier tracking schedule';
+  end if;
+  perform public.apply_nova_poshta_tracking(shop, '59000000009123', '7', 'Ready for pickup', clock_timestamp());
+  if (select status from public.orders where id = checkout.id) <> 'DELIVERED' then
+    raise exception 'The acquiring mode blocked carrier-controlled order advancement';
+  end if;
+  perform public.correct_admin_order_status(array[checkout.id], 'CANCELLED_BY_STORE', true, false, null, null);
+  if public.get_order_delivery_actions(checkout.id)->>'cancelStockPending' <> 'true' then
+    raise exception 'The acquiring mode hid stock restoration for a dispatched parcel';
+  end if;
+  perform public.confirm_cancelled_order_stock_return(checkout.id);
+  if (select stock_quantity from public.product_variants where id = variant) <> 2 then
+    raise exception 'The acquiring mode prevented the reserved stock from being restored';
+  end if;
+  reserved_refund := public.begin_order_cancellation_refund(checkout.id, manager, 'automatic', 10000);
+  if reserved_refund->>'status' <> 'processing' or reserved_refund->>'payment_test_mode' <> 'true'
+    or public.pending_order_cancellation_refund('MONOBANK', checkout.id::text)->>'id' is distinct from reserved_refund->>'id' then
+    raise exception 'Refund dispatch did not retain the credentials of the original invoice';
   end if;
 end;
 $$;

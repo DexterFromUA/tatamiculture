@@ -50,7 +50,7 @@ export function CustomersPage({ onOpenCustomer, revision }: { onOpenCustomer: (i
       const orders: CustomerExportOrder[] = []
       for (let offset = 0; offset < customers.length; offset += 50) {
         const ids = customers.slice(offset, offset + 50).map(customer => customer.id).join(',')
-        const fields = 'id,crm_customer_id,user_id,receipt_code,total_price,currency,status,payment_status,payment_method,payment_test_mode,monobank_test_mode,created_at'
+        const fields = 'id,crm_customer_id,user_id,receipt_code,total_price,currency,status,payment_status,payment_method,created_at'
         const batch = await fetchAll<CustomerExportOrder>(`/rest/v1/orders?store_id=eq.${store.id}&crm_customer_id=in.(${ids})&select=${fields}&order=created_at.desc,id`, token)
         orders.push(...batch)
       }

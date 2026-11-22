@@ -49,7 +49,7 @@ function monoCancellationResult(invoice: MonoInvoice, operation: RefundOperation
 }
 
 async function refundMonobank(operation: RefundOperation, check: boolean): Promise<RefundResult> {
-  const token = monobankToken(false)
+  const token = monobankToken(operation.payment_test_mode === true)
   if (!token) return check ? processing : failed('The payment provider is not configured')
   const invoice = await fetch(`${monobankApi}/invoice/status?invoiceId=${encodeURIComponent(operation.reference)}`, {
     headers: { 'X-Token': token }, signal: AbortSignal.timeout(8000),
@@ -138,7 +138,7 @@ export async function reconcileOrderRefund(db: SupabaseClient, provider: string,
 export async function refundOrderPayment(operation: RefundOperation, check: boolean): Promise<RefundResult> {
   try {
     if (operation.provider === 'MONOBANK') return await refundMonobank(operation, check)
-    if (operation.provider === 'LIQPAY') return await refundLiqPay(operation, check)
+    if (operation.provider === 'LIQPAY' && operation.payment_test_mode !== true) return await refundLiqPay(operation, check)
     return check ? processing : failed('Automatic refund is unavailable for this order')
   } catch {
     // A timeout or malformed response may have occurred after money movement.

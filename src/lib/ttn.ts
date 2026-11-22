@@ -1,4 +1,4 @@
-import { supabaseRequest } from './supabase'
+import { SupabaseError, supabaseRequest } from './supabase'
 
 export const defaultParcelDescription = 'речі від tatami.culture'
 
@@ -15,6 +15,11 @@ export type TtnPreview = {
 export type TtnShipment = { ttn: string; documentRef: string; existing?: boolean }
 export type TtnAttempt = { id: string; state: 'creating' | 'review' }
 export type OrderDeliveryActions = { cancelStockPending: boolean; ttn: string | null; ttnAttempt: TtnAttempt | null }
+
+function ttnRequestError(error: unknown) {
+  return error instanceof SupabaseError && error.status === 429 && /^(too many requests\.?|supabase request failed)$/i.test(error.message)
+    ? new Error('Too many requests. Wait a minute and try again.', { cause: error }) : error
+}
 
 export function getOrderDeliveryActions(orderId: string, token: string, signal: AbortSignal) {
   return supabaseRequest<OrderDeliveryActions>('/rest/v1/rpc/get_order_delivery_actions', {
@@ -38,7 +43,7 @@ export async function getTtnPreview(orderId: string, token: string, signal?: Abo
     })
   } catch (error) {
     if (timeout.aborted && !signal?.aborted) throw new Error('Checking the shipment details timed out. Try again.', { cause: error })
-    throw error
+    throw ttnRequestError(error)
   }
 }
 
@@ -60,6 +65,6 @@ export async function createTtn(token: string, details: {
     })
   } catch (error) {
     if (signal.aborted) throw new Error('TTN creation timed out. Check the order and Nova Poshta before retrying.', { cause: error })
-    throw error
+    throw ttnRequestError(error)
   }
 }

@@ -1,6 +1,6 @@
 import { PaymentReviewList } from '../components/PaymentReviewList'
 import { CenteredDialog } from '../components/CenteredDialog'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CustomerPanel, type CustomerPanelTarget } from '../components/CustomerPanel'
 import { CreateTtnDrawer } from '../components/CreateTtnDrawer'
 import { CreateOrderDrawer } from '../components/CreateOrderDrawer'
@@ -115,7 +115,7 @@ export function AdminPage() {
   useEffect(() => {
     if (!storeId || !token || !member || section !== 'overview') return
     const abort = new AbortController()
-    const fields = 'id,user_id,crm_customer_id,customer_discount_amount,receipt_code,customer_name,customer_email,customer_phone,payment_test_mode,total_price,currency,status,payment_status,created_at,nova_poshta_ttn,nova_poshta_document_ref,payment_method'
+    const fields = 'id,user_id,crm_customer_id,customer_discount_amount,receipt_code,customer_name,customer_email,customer_phone,total_price,currency,status,payment_status,created_at,nova_poshta_ttn,nova_poshta_document_ref,payment_method'
     void Promise.all([
       fetchAll<DashboardOrder>(`/rest/v1/orders?store_id=eq.${storeId}&select=${fields}&order=created_at.desc,id.desc`, token, abort.signal),
       fetchAll<InventoryProduct>(`/rest/v1/products?store_id=eq.${storeId}&select=id,name,is_active,created_at,product_variants(*)&order=position.asc,id.asc`, token, abort.signal),
@@ -142,7 +142,6 @@ export function AdminPage() {
     return () => { abort.abort(); window.removeEventListener('focus', checkAccess); window.clearInterval(timer) }
   }, [store, token, user])
 
-  const liveOrders = useMemo(() => dashboardOrders.filter(order => !order.payment_test_mode), [dashboardOrders])
   const orderFilters = {
     p_store_id: storeId, p_search: search.trim(), p_status: orderFilter,
     p_from: fromDate || null, p_to: toDate || null,
@@ -200,11 +199,10 @@ export function AdminPage() {
     if (!token) return false
     let source: string | null = null
     let received: string | null = null
-    let confirmed = false
     const request = () => supabaseRequest<{ orders: Array<Pick<AdminOrder, 'id' | 'status' | 'payment_status'>>; stock_added: number }>(
       '/rest/v1/rpc/correct_admin_order_status', {
         method: 'POST', token, body: JSON.stringify({
-          p_order_ids: ids, p_status: status, p_confirm_paid: confirmed, p_restore_stock: restoreStock, p_source: source, p_received: received,
+          p_order_ids: ids, p_status: status, p_confirm_paid: true, p_restore_stock: restoreStock, p_source: source, p_received: received,
         }),
       },
     )
@@ -214,11 +212,7 @@ export function AdminPage() {
         updated = await request()
       } catch (cause) {
         if (!(cause instanceof SupabaseError)) throw cause
-        if (cause.code === 'PT409' && !confirmed) {
-          confirmed = await confirmAction({ title: t('Payment recorded'),
-            message: t('There is a payment record for at least one of these orders. Change the status to {{status}} anyway?', { status: t(status) }) })
-          if (!confirmed) return false
-        } else if (cause.message === 'Confirm COD collection' && !received) {
+        if (cause.message === 'Confirm COD collection' && !received) {
           received = await choose('Was the COD payment received for the selected completed orders?', [['yes','Payment received'],['no','Still awaiting payment']])
           if (!received) return false
         } else if (cause.message === 'Choose stock for reopened orders' && !source) {
@@ -387,18 +381,14 @@ export function AdminPage() {
     if (bulkAction.startsWith('status:') || bulkAction === 'cancel') {
       const restoreStock = bulkAction === 'cancel'
       const status = restoreStock ? 'CANCELLED_BY_STORE' : bulkAction.slice('status:'.length) as OrderStatus
-      const eligible = selectedOrders.filter(order => restoreStock
-        ? canCancelWithStock(order)
-        : !order.payment_test_mode)
+      const eligible = restoreStock ? selectedOrders.filter(canCancelWithStock) : selectedOrders
       const skipped = selectedOrders.filter(order => !eligible.includes(order))
       try {
         if (eligible.length && !await updateOrderStatus(eligible.map(order => order.id), status, restoreStock)) return
         setOrderSelection(skipped)
         setBulkAction('')
         if (skipped.length) {
-          const message = t(restoreStock
-            ? 'Only pending unpaid orders can be cancelled with stock restoration'
-            : 'Test order status cannot be changed')
+          const message = t('Only pending unpaid orders can be cancelled with stock restoration')
           setError(skipped.map(order => `#${order.receipt_code}: ${message}`).join(' · '))
         }
         if (eligible.length) addToast(t('Orders updated: {{count}}', { count: eligible.length }))
@@ -468,7 +458,7 @@ export function AdminPage() {
         </div>}
       </div>}
       {token && <div hidden={section !== 'overview'}><AdminDashboard active={section === 'overview'}
-        storeId={store.id} currency={store.currency} token={token} orders={liveOrders} inventory={inventory}
+        storeId={store.id} currency={store.currency} token={token} orders={dashboardOrders} inventory={inventory}
         mergeMembers={mergeMembers} revision={ordersRevision} onRefresh={() => setOrdersRevision(value => value + 1)}
         onOpenOrders={ids => {
           setDashboardOrderIds([...new Set(ids)])
@@ -567,20 +557,20 @@ export function AdminPage() {
                   <span className="sr-only">{t('Select order')} #{order.receipt_code}</span>
                 </label>
                 <div className="crm-order__identity">
-                  <span className="crm-order__reference"><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => setSelectedOrderId(order.id)}>#{order.receipt_code}</button>{order.is_new && <span className="crm-order__new">{t('New order label')}</span>}<span className="crm-order__date"><time dateTime={order.created_at}>{formatDate(order.created_at)} · {new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(new Date(order.created_at))}</time>{order.payment_test_mode && ` · ${t('Test order')}`}{order.member_ids.length > 1 && ` · ${t('Merged orders: {{count}}', { count: order.member_ids.length })}`}</span></span>
+                  <span className="crm-order__reference"><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => setSelectedOrderId(order.id)}>#{order.receipt_code}</button>{order.is_new && <span className="crm-order__new">{t('New order label')}</span>}<span className="crm-order__date"><time dateTime={order.created_at}>{formatDate(order.created_at)} · {new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(new Date(order.created_at))}</time>{order.member_ids.length > 1 && ` · ${t('Merged orders: {{count}}', { count: order.member_ids.length })}`}</span></span>
                   {note && <p className="crm-order__note"><strong>{t('Note')}</strong> {note}</p>}
                   {order.customer_email && <span className="crm-order__email">{order.customer_email}</span>}
                 </div>
                 <div className="crm-order__amount"><strong>{formatPrice(Number(order.total_price) / 100, order.currency)}</strong><span>{order.payment_method === 'CASH_ON_DELIVERY' ? t('Payment on delivery') : t('Online payment')}</span></div>
                 <div className="crm-order__status"><span>{t('Order status')}</span>
                 <label className="sr-only" htmlFor={`status-${order.id}`}>{t('Order status')}</label>
-                <select id={`status-${order.id}`} value={order.status} disabled={bulkBusy || order.payment_test_mode || Boolean(updatingId)} onChange={(event) => void changeStatus(order.id, event.target.value as OrderStatus)}>
+                <select id={`status-${order.id}`} value={order.status} disabled={bulkBusy || Boolean(updatingId)} onChange={(event) => void changeStatus(order.id, event.target.value as OrderStatus)}>
                   {!statuses.includes(order.status) && <option value={order.status}>{t(order.status)}</option>}
                   {statuses.filter(status => order.status !== 'CANCELLED_BY_USER' || status !== 'CANCELLED_BY_STORE').map(status => <option key={status} value={status}>{t(status)}</option>)}
                 </select></div>
                 {order.nova_poshta_status ? <p className="crm-order__delivery">{order.nova_poshta_status}</p> : null}
                 <div className="crm-order__actions"><button type="button" className="text-btn" onClick={() => void copyReceiptLink(receiptPath)}>{t('Copy receipt link')}</button>
-                {!order.payment_test_mode && <button type="button" className="text-btn" aria-haspopup="dialog" title={t('Open customer card')} onClick={() => setSelectedCustomer({ kind: 'order', id: order.id })}>{t('Customer')}</button>}
+                <button type="button" className="text-btn" aria-haspopup="dialog" title={t('Open customer card')} onClick={() => setSelectedCustomer({ kind: 'order', id: order.id })}>{t('Customer')}</button>
                 {order.nova_poshta_ttn ? (
                   <span className="ttn-actions">
                     <NovaPoshtaTrackingLink className="text-btn" ttn={order.nova_poshta_ttn}>TTN {order.nova_poshta_ttn}</NovaPoshtaTrackingLink>
@@ -593,7 +583,7 @@ export function AdminPage() {
                     disabledReason={bulkBusy ? t('A bulk order action is running.') : undefined}
                     onClick={() => setTtnOrder(order)}>{t('Create TTN')}</OrderActionButton>
                 )}
-                {canCancelWithStock(order) && <button type="button" className="text-btn crm-order__cancel" disabled={bulkBusy || Boolean(updatingId)} onClick={() => void changeStatus(order.id, 'CANCELLED_BY_STORE', true)}>{t(order.payment_test_mode ? 'Cancel test order' : 'Cancel & restore stock')}</button>}</div>
+                {canCancelWithStock(order) && <button type="button" className="text-btn crm-order__cancel" disabled={bulkBusy || Boolean(updatingId)} onClick={() => void changeStatus(order.id, 'CANCELLED_BY_STORE', true)}>{t('Cancel & restore stock')}</button>}</div>
               </li>
             )
           })}</ul>}

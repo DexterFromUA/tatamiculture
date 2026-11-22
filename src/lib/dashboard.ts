@@ -6,7 +6,6 @@ export type DashboardOrder = AnalyticsOrder & {
   crm_customer_id: string | null
   receipt_code: string
   payment_method: 'ONLINE' | 'CASH_ON_DELIVERY'
-  payment_test_mode: boolean | null
   nova_poshta_ttn: string | null
   nova_poshta_document_ref: string | null
   customer_discount_amount: number
