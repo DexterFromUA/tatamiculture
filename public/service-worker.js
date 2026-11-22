@@ -88,8 +88,8 @@ self.addEventListener('push', event => {
   try { data = event.data?.json() } catch {}
   const id = typeof data?.id === 'string' ? data.id : undefined
   event.waitUntil(Promise.all([
-    self.registration.showNotification('tatami.culture', {
-      body: typeof data?.body === 'string' ? data.body : 'У вас нове сповіщення.',
+    self.registration.showNotification(typeof data?.title === 'string' && data.title ? data.title : 'Нове сповіщення', {
+      body: typeof data?.message === 'string' ? data.message : typeof data?.body === 'string' ? data.body : '',
       icon: offlineIcon,
       tag: id,
       data: { path: data?.path },
@@ -106,11 +106,14 @@ self.addEventListener('notificationclick', event => {
   event.notification.close()
   event.waitUntil((async () => {
     const path = event.notification.data?.path
-    const target = new URL(typeof path === 'string' && /^\/(receipt|product)\/[a-z\d_-]+$/i.test(path) ? path : '/account', self.location.origin)
+    const allowedPath = typeof path === 'string' && (path === '/checkout'
+      || /^\/account#order-[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i.test(path)
+      || /^\/(receipt|product)\/[a-z\d_-]+$/i.test(path))
+    const target = new URL(allowedPath ? path : '/account', self.location.origin)
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
     const existing = windows.find(client => client.url === target.href) ?? windows[0]
     if (existing) {
-      const client = existing.url === target.href ? existing : await existing.navigate(target.href).catch(() => null)
+      const client = await existing.navigate(target.href).catch(() => null)
       if (client) {
         await client.focus()
         await updateBadge()

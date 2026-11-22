@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useCart } from '../context/CartContext'
 import { useStore } from '../context/StoreContext'
@@ -17,6 +17,7 @@ export function AccountPage() {
   const { store, refreshProducts } = useStore()
   const { customerDiscount } = useCart()
   const navigate = useNavigate()
+  const { hash } = useLocation()
   const [orders, setOrders] = useState<Order[]>([])
   const [ordersLoading, setOrdersLoading] = useState(true)
   const [ordersError, setOrdersError] = useState<string | null>(null)
@@ -51,6 +52,12 @@ export function AccountPage() {
       window.removeEventListener('pageshow', reload)
     }
   }, [store, token, userId, refresh])
+
+  useEffect(() => {
+    if (!ordersLoading && /^#order-[a-f\d-]+$/i.test(hash)) {
+      document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'center' })
+    }
+  }, [hash, ordersLoading])
 
   const updateReservation = async (order: Order, type: 'pay' | 'cancel') => {
     if (!token || action) return
@@ -120,7 +127,7 @@ export function AccountPage() {
                     && (order.paymentStatus === 'PENDING' || order.paymentStatus === 'FAILED')
                   const activeAction = action?.id === order.id ? action.type : null
                   return (
-                    <li key={order.id} className="order-row">
+                    <li key={order.id} id={`order-${order.id}`} className="order-row">
                       <div>
                         <Link to={`/receipt/${order.receiptCode}`}>{order.receiptCode}</Link>
                         <p className="muted">{formatDate(order.createdAt)} · {t(reserved ? 'Unpaid · Reserved' : order.status)}</p>

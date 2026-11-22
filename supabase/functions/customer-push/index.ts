@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import webPush from 'npm:web-push@3.6.7'
+import { notificationCopy } from './copy.ts'
 
 type Delivery = {
   id: string
@@ -12,12 +13,6 @@ type Delivery = {
   path: string
 }
 
-const bodies: Record<string, Record<Delivery['language'], string>> = {
-  status: { uk: 'Статус вашого замовлення оновлено.', en: 'Your order status has changed.' },
-  payment_status: { uk: 'Статус оплати оновлено.', en: 'Your payment status has changed.' },
-  return: { uk: 'Є оновлення щодо повернення.', en: 'There is an update on your return.' },
-  restock: { uk: 'Товар, на який ви чекали, знову в наявності.', en: 'An item you were waiting for is back in stock.' },
-}
 const configHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
@@ -52,9 +47,14 @@ Deno.serve(async request => {
           await db.from('customer_push_subscriptions').delete().eq('id', delivery.subscription_id)
           return
         }
+        const { title, body } = notificationCopy(delivery.kind, delivery.language)
         await webPush.sendNotification(
           { endpoint: delivery.endpoint, keys: { p256dh: delivery.p256dh, auth: delivery.auth_secret } },
-          JSON.stringify({ id: delivery.id, body: (bodies[delivery.kind] ?? bodies.status)[delivery.language], path: delivery.path }),
+          JSON.stringify({
+            id: delivery.id, title, message: body, path: delivery.path,
+            // Older workers only display the body, so keep the event in it.
+            body: `${title}. ${body}`,
+          }),
           { TTL: 3600, timeout: 7000, vapidDetails: { subject, publicKey, privateKey } },
         )
         sent++

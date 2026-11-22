@@ -4,7 +4,17 @@ const cors = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin'
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: cors })
 
 type Shipment = { store_id: string; ttn: string; sender_phone: string }
-type Tracking = { Number?: string | number; Status?: string; StatusCode?: string | number }
+type Tracking = { Number?: string | number; Status?: string; StatusCode?: string | number; DatePayedKeeping?: string }
+
+function paidStorageFrom(value: unknown) {
+  if (typeof value !== 'string') return null
+  const iso = /^(20\d{2})-(\d{2})-(\d{2})(?:$|[ T])/.exec(value.trim())
+  const localized = /^(\d{2})\.(\d{2})\.(20\d{2})(?:$|\s)/.exec(value.trim())
+  const day = iso ? iso[0].slice(0, 10) : localized ? `${localized[3]}-${localized[2]}-${localized[1]}` : null
+  if (!day) return null
+  const date = new Date(`${day}T00:00:00Z`)
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === day ? day : null
+}
 
 async function trackShipments(db: SupabaseClient, key: string, shipments: Shipment[]) {
   const checkedAt = new Date().toISOString()
@@ -24,9 +34,10 @@ async function trackShipments(db: SupabaseClient, key: string, shipments: Shipme
     const tracking = byNumber.get(shipment.ttn) ?? (shipments.length === 1 && !result.data?.[0]?.Number ? result.data?.[0] : undefined)
     if (!tracking?.Status) throw new Error('Nova Poshta returned no status for this TTN')
     const code = String(tracking.StatusCode ?? '')
-    const { data: changed, error } = await db.rpc('apply_nova_poshta_tracking', {
+    const { data: changed, error } = await db.rpc('apply_nova_poshta_tracking_with_storage', {
       p_store_id: shipment.store_id, p_ttn: shipment.ttn,
       p_status: tracking.Status, p_code: code, p_checked_at: checkedAt,
+      p_paid_storage_from: paidStorageFrom(tracking.DatePayedKeeping),
     })
     if (error) throw error
     return { status: tracking.Status, code, changed }

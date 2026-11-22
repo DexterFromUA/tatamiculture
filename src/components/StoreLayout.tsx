@@ -14,6 +14,7 @@ import { LoadingIndicator } from './LoadingIndicator'
 import { useStorefrontCatalog } from '../hooks/useStorefrontCatalog'
 import type { CatalogFilters } from '../lib/storefrontCatalog'
 import { isStandalone, pwaLayoutPreview } from '../lib/pwa'
+import { PushNotificationsPrompt } from './PushNotificationsPrompt'
 
 const tabIcons = {
   shop: 'M3 10 5 4h14l2 6M3 10v2a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0v-2H3m2 5v5h14v-5',
@@ -33,7 +34,7 @@ export type CatalogNavigation = {
 export function StoreLayout() {
   const { store, catalogRevision, loading, notFound, loadFailed, retryStore } = useStore()
   const { count } = useCart()
-  const { isAuthenticated, token, user } = useAuth()
+  const { isAuthenticated, token, user, initializing, restoreFailed } = useAuth()
   const { t, i18n } = useTranslation()
   const { pathname, key } = useLocation()
   const isHome = pathname === '/'
@@ -189,6 +190,7 @@ export function StoreLayout() {
 
   return (
     <div className={standalone ? 'shell shell--standalone' : 'shell'}>
+      {standalone && isHome && !initializing && !restoreFailed && <PushNotificationsPrompt token={token} />}
       <header className={`topbar${isHome ? ' topbar--scroll' : ''}${isHome && !scrollState.headerVisible ? ' topbar--hidden' : ''}`} inert={isHome && !scrollState.headerVisible}>
         <NavLink to="/" className="brand">
           <img className="brand__mark" src="/tatami-mark-transparent.png" alt="" />
