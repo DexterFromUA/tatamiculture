@@ -69,6 +69,19 @@
       const reload = () => location.reload()
       retry.addEventListener('click', reload)
       window.addEventListener('online', reload)
+      if (matchMedia('(display-mode: standalone)').matches || navigator.standalone === true) {
+        const clearBadge = () => {
+          if (document.visibilityState !== 'visible') return
+          navigator.serviceWorker?.controller?.postMessage({ type: 'clear-app-badge' })
+          void navigator.clearAppBadge?.().catch(() => {})
+        }
+        document.addEventListener('visibilitychange', clearBadge)
+        window.addEventListener('pageshow', clearBadge)
+        navigator.serviceWorker?.addEventListener('message', event => {
+          if (event.data?.type === 'push-received') clearBadge()
+        })
+        clearBadge()
+      }
     </script>
   </body>
 </html>

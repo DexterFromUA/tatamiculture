@@ -1,0 +1,15 @@
+{
+  "id": "/",
+  "name": "tatami.culture",
+  "short_name": "Tatami",
+  "lang": "uk",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#1a1a1a",
+  "theme_color": "#f6f1e8",
+  "icons": [
+    { "src": "/pwa-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/pwa-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

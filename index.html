@@ -4,11 +4,70 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/jpeg" href="/tatami-mark.jpg" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#f6f1e8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#161411" media="(prefers-color-scheme: dark)" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>tatami.culture</title>
+    <style>
+      #startup:not([hidden]) { position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; justify-items: center; gap: 12px;
+        padding: 24px; text-align: center; background: #1a1a1a; color: #f3eee6; font: 16px/1.45 system-ui, sans-serif; }
+      #startup > img { width: clamp(128px, 42vw, 176px); height: auto; }
+      #startup p { max-width: 30ch; margin: 0; }
+      #startup button { min-height: 44px; padding: 8px 16px; color: inherit; background: transparent; border: 1px solid; font: inherit; cursor: pointer; }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <div id="startup" role="status" hidden>
+      <img src="/apple-touch-icon.png" width="176" height="176" alt="tatami.culture" />
+      <p hidden></p>
+      <button type="button" hidden>Спробувати ще раз</button>
+    </div>
+    <script>
+      const previewSplash = '%DEV%' === 'true' && new URLSearchParams(location.search).get('pwa-preview') === 'splash'
+      if (previewSplash) {
+        document.getElementById('startup').hidden = false
+      } else if (matchMedia('(display-mode: standalone)').matches || navigator.standalone === true) {
+        const startup = document.getElementById('startup')
+        startup.hidden = false
+        if (document.visibilityState === 'visible') {
+          navigator.serviceWorker?.controller?.postMessage({ type: 'clear-app-badge' })
+          void navigator.clearAppBadge?.().catch(() => {})
+        }
+        const retryStartup = startup.querySelector('button')
+        const showStartupError = () => {
+          if (startup.hidden) return
+          let english = false
+          try { english = localStorage.getItem('tatami-language') === 'en' } catch {}
+          const message = startup.querySelector('p')
+          message.lang = retryStartup.lang = english ? 'en' : 'uk'
+          message.textContent = navigator.onLine
+            ? (english ? 'Could not open the store.' : 'Не вдалося відкрити магазин.')
+            : (english ? 'No internet connection.' : 'Немає інтернет-з’єднання.')
+          message.hidden = retryStartup.hidden = false
+          retryStartup.textContent = english ? 'Try again' : 'Спробувати ще раз'
+        }
+        const retryWhenOnline = () => { if (!retryStartup.hidden) location.reload() }
+        const onScriptError = event => {
+          if (event.target instanceof HTMLScriptElement || event.target === window) showStartupError()
+        }
+        retryStartup.addEventListener('click', () => location.reload())
+        window.addEventListener('online', retryWhenOnline)
+        window.addEventListener('offline', showStartupError)
+        window.addEventListener('error', onScriptError, true)
+        const startupTimeout = setTimeout(showStartupError, 12000)
+        if (!navigator.onLine) showStartupError()
+        window.addEventListener('tatami-app-ready', () => {
+          clearTimeout(startupTimeout)
+          window.removeEventListener('online', retryWhenOnline)
+          window.removeEventListener('offline', showStartupError)
+          window.removeEventListener('error', onScriptError, true)
+          startup.remove()
+        }, { once: true })
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

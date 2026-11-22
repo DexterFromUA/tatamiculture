@@ -2304,6 +2304,26 @@ input[type="date"] { color-scheme: light; }
 }
 
 .registration-agreement { display: grid; gap: 8px; margin: 20px 0; }
+.account-push { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.account-push h3, .account-push p { margin: 0 0 8px; }
+.account-push .btn { margin-bottom: 8px; }
+.shell--standalone { --app-tab-height: 60px; padding-bottom: calc(var(--app-tab-height) + env(safe-area-inset-bottom)); }
+.shell--standalone .topbar { flex-direction: row; align-items: center; gap: 8px; padding-top: calc(16px + env(safe-area-inset-top)); padding-bottom: 16px; }
+.shell--standalone .topbar > .brand { max-width: none; min-width: 0; font-size: clamp(1.15rem, 5vw, 1.65rem); }
+.shell--standalone .topbar .nav { width: auto; flex: none; flex-wrap: nowrap; gap: 8px; }
+.shell--standalone .topbar .theme-switch-anchor { position: relative; inset: auto; }
+.shell--standalone .back-to-top { bottom: calc(var(--app-tab-height) + env(safe-area-inset-bottom) + 12px); }
+.app-tabs { position: fixed; inset: auto 0 0; z-index: 20; border-top: 1px solid var(--line);
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); background: var(--card); }
+.app-tabs__inner { display: flex; max-width: 520px; min-height: var(--app-tab-height); margin-inline: auto; }
+.app-tabs__link { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; min-width: 0; padding: 4px; color: var(--muted); text-decoration: none; font-size: .72rem; }
+.app-tabs__link.active { color: var(--accent); font-weight: 700; }
+.app-tabs__link:focus-visible { outline-offset: -3px; }
+.app-tabs__icon { position: relative; display: grid; place-items: center; width: 44px; height: 28px; border-radius: 999px; }
+.app-tabs__link.active .app-tabs__icon { background: color-mix(in srgb, var(--accent) 11%, var(--card)); }
+.app-tabs__count { position: absolute; top: -2px; left: calc(50% + 7px); min-width: 16px; padding: 0 3px;
+  border-radius: 999px; background: var(--accent); color: var(--card); text-align: center; font-size: .65rem; font-weight: 700; }
 .agreement-checkbox { display: flex; align-items: flex-start; gap: 10px; font-size: .85rem; line-height: 1.6; cursor: pointer; }
 .agreement-checkbox input { flex: 0 0 18px; width: 18px; height: 18px; margin: 4px 0 0; padding: 0; accent-color: var(--accent); cursor: pointer; }
 .registration-agreement small { padding-left: 28px; }

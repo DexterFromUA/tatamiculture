@@ -13,6 +13,14 @@ import { useStorefrontTheme } from '../hooks/useStorefrontTheme'
 import { LoadingIndicator } from './LoadingIndicator'
 import { useStorefrontCatalog } from '../hooks/useStorefrontCatalog'
 import type { CatalogFilters } from '../lib/storefrontCatalog'
+import { isStandalone, pwaLayoutPreview } from '../lib/pwa'
+
+const tabIcons = {
+  shop: 'M3 10 5 4h14l2 6M3 10v2a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0v-2H3m2 5v5h14v-5',
+  cart: 'M4 8h16l1 12H3L4 8Zm5 2V6a3 3 0 0 1 6 0v4',
+  crm: 'M4 20V4h16v16H4Zm4-4v-3m4 3V8m4 8v-5',
+  account: 'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-2a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v2',
+}
 
 export type CatalogNavigation = {
   filters: CatalogFilters
@@ -36,12 +44,26 @@ export function StoreLayout() {
     category: '', subcategory: '', search: '', size: '', sort: 'recently-updated',
   })
   const [scrollState, setScrollState] = useState({ headerVisible: true, showTopButton: false })
+  const [standalone, setStandalone] = useState(() => isStandalone() || pwaLayoutPreview)
   const storeId = store?.id
   const { mode, theme, showThemeSwitch, selectTheme } = useStorefrontTheme(storeId)
   const catalog = useStorefrontCatalog(storeId, filters, catalogRevision, isHome)
   const userId = user?.id
   const [crmAccess, setCrmAccess] = useState<{ storeId: string; userId: string; token: string } | null>(null)
   const [contacts, setContacts] = useState<StorefrontContacts | null>(null)
+
+  useEffect(() => {
+    const mode = window.matchMedia('(display-mode: standalone)')
+    const update = () => setStandalone(isStandalone() || pwaLayoutPreview)
+    mode.addEventListener('change', update)
+    return () => mode.removeEventListener('change', update)
+  }, [])
+
+  useEffect(() => {
+    if (standalone && !loading && !(loadFailed && !navigator.onLine)) {
+      window.dispatchEvent(new Event('tatami-app-ready'))
+    }
+  }, [standalone, loading, loadFailed])
 
   useLayoutEffect(() => {
     const previousRestoration = window.history.scrollRestoration
@@ -156,15 +178,24 @@ export function StoreLayout() {
 
   const nextLanguage = i18n.language === 'uk' ? 'en' : 'uk'
   const nextLanguageName = nextLanguage === 'en' ? 'English' : 'Українська'
+  const tabs: { to: string; icon: keyof typeof tabIcons; label: string; active?: boolean }[] = [
+    { to: '/', icon: 'shop', label: t('Shop'), active: pathname.startsWith('/product/') },
+    { to: '/cart', icon: 'cart', label: t('Cart'), active: pathname === '/checkout' },
+  ]
+  if (canOpenCrm) tabs.push({ to: '/admin', icon: 'crm', label: 'CRM' })
+  tabs.push(isAuthenticated
+    ? { to: '/account', icon: 'account', label: t('Account'), active: pathname === '/orders' }
+    : { to: '/login', icon: 'account', label: t('Sign in'), active: pathname === '/register' })
 
   return (
-    <div className="shell">
+    <div className={standalone ? 'shell shell--standalone' : 'shell'}>
       <header className={`topbar${isHome ? ' topbar--scroll' : ''}${isHome && !scrollState.headerVisible ? ' topbar--hidden' : ''}`} inert={isHome && !scrollState.headerVisible}>
         <NavLink to="/" className="brand">
           <img className="brand__mark" src="/tatami-mark-transparent.png" alt="" />
           {store.name}
         </NavLink>
         <nav className="nav">
+          {!standalone && <>
           <NavLink to="/" end>
             {t('Shop')}
           </NavLink>
@@ -177,6 +208,7 @@ export function StoreLayout() {
           ) : (
             <NavLink to="/login">{t('Sign in')}</NavLink>
           )}
+          </>}
           <button type="button" className="text-btn nav__language" lang={nextLanguage} aria-label={nextLanguageName} onClick={() => void i18n.changeLanguage(nextLanguage)}>
             {nextLanguage === 'en' ? 'EN' : 'UA'}
           </button>
@@ -197,6 +229,18 @@ export function StoreLayout() {
           {contacts?.email && <a href={`mailto:${contacts.email}`}><span>Email</span><strong>{contacts.email}</strong> ↗</a>}
         </div>
       </footer>
+      {standalone && <nav className="app-tabs" aria-label={t('Store navigation')}>
+        <div className="app-tabs__inner">
+          {tabs.map(tab => <NavLink key={tab.icon} to={tab.to} end={tab.to === '/'}
+            className={({ isActive }) => isActive || tab.active ? 'app-tabs__link active' : 'app-tabs__link'}>
+            <span className="app-tabs__icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={tabIcons[tab.icon]} /></svg>
+              {tab.icon === 'cart' && count > 0 && <span className="app-tabs__count">{count > 99 ? '99+' : count}</span>}
+            </span>
+            <span>{tab.label}</span>
+          </NavLink>)}
+        </div>
+      </nav>}
     </div>
   )
 }

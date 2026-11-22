@@ -41,3 +41,7 @@ verify_jwt = false
 [functions.reconcile-payments]
 # Requests require the scheduler credential verified by the function.
 verify_jwt = false
+
+[functions.customer-push]
+# GET returns the public VAPID key. POST requires the scheduler credential.
+verify_jwt = false

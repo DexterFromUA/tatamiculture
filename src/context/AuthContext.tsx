@@ -3,6 +3,8 @@ import { api } from '../lib/api'
 import { authSessionExpiredEvent, authSessionKey, clearAuthSession, previousSessionToken, readAuthSession, sameAuthSession, saveAuthSession } from '../lib/authSession'
 import { supabaseConfigured, SupabaseError } from '../lib/supabase'
 import type { AuthSession, User } from '../types'
+import { disableCustomerPush } from '../lib/customerPush'
+import { isStandalone } from '../lib/pwa'
 
 type AuthContextValue = {
   user: User | null
@@ -92,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const logout = useCallback(() => {
+    if (isStandalone()) void disableCustomerPush(readAuthSession()?.token).catch(() => {})
     clearAuthSession()
     setRestoreFailed(false)
     setToken(null)

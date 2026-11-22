@@ -8,6 +8,7 @@ import { api } from '../lib/api'
 import type { Order } from '../types'
 import { useTranslation } from 'react-i18next'
 import { Notifications } from '../components/Notifications'
+import { PushNotificationsSetting } from '../components/PushNotificationsSetting'
 import { manageReservedOrder } from '../lib/payments'
 
 export function AccountPage() {
@@ -105,6 +106,7 @@ export function AccountPage() {
               }).format(customerDiscount.percent / 100)}</strong></dd>
             </div>}
           </dl>
+          {token && <PushNotificationsSetting key={user.id} token={token} />}
         </aside>
         <section className="account-orders account-card">
           <div className="account-orders__head"><div><p className="eyebrow">{t('Your purchases')}</p><h2>{t('Order history')}</h2></div><span className="account-orders__count">{ownOrders.length}</span></div>
