@@ -3,6 +3,7 @@ do $$
 declare
   manager uuid := gen_random_uuid();
   outsider uuid := gen_random_uuid();
+  account uuid := gen_random_uuid();
   shop uuid := gen_random_uuid();
   product uuid := gen_random_uuid();
   variant uuid := gen_random_uuid();
@@ -12,15 +13,22 @@ declare
   items jsonb;
   placed public.orders;
   retried public.orders;
+  same_customer_order public.orders;
+  registered_customer uuid;
+  legacy_phone_card uuid;
 begin
   if has_function_privilege('anon', 'public.create_crm_order(uuid,uuid,jsonb,jsonb,jsonb,text,integer)', 'execute')
     or not has_function_privilege('authenticated', 'public.create_crm_order(uuid,uuid,jsonb,jsonb,jsonb,text,integer)', 'execute') then
     raise exception 'Unexpected CRM order permissions';
   end if;
+  if has_function_privilege('anon', 'public.crm_identity(uuid,text,text,text,text)', 'execute')
+    or has_function_privilege('authenticated', 'public.crm_identity(uuid,text,text,text,text)', 'execute') then
+    raise exception 'CRM identity writes must run through authorized entry points';
+  end if;
 
   begin
     drop index public.shop_settings_single_row_idx; -- Allow isolated fixtures until rollback.
-    insert into auth.users(id) values (manager), (outsider);
+    insert into auth.users(id) values (manager), (outsider), (account);
     insert into public.shop_settings (id, name) values (shop, 'CRM order test');
     insert into public.store_members(store_id, user_id, role) values (shop, manager, 'OWNER');
     insert into public.store_payment_methods(store_id, cash_on_delivery) values (shop, false);
@@ -69,6 +77,38 @@ begin
       raise exception 'Unexpectedly created an order without stock';
     exception when sqlstate 'PT409' then null;
     end;
+
+    if public.crm_customer_phone_confirmed(shop, placed.crm_customer_id) then
+      raise exception 'Unverified guest phone was marked confirmed';
+    end if;
+    update auth.users set phone = '380990002222', phone_confirmed_at = now() where id = account;
+    update public.profiles set name = 'Registered customer' where id = account;
+    insert into public.store_customers (store_id, user_id) values (shop, account);
+    select customer_id into strict registered_customer from public.crm_customer_keys
+    where store_id = shop and key = 'user:' || account::text;
+
+    if registered_customer is distinct from placed.crm_customer_id then
+      raise exception 'Registration with the same verified phone created another CRM card';
+    end if;
+    legacy_phone_card := public.crm_identity(shop, 'phone:0990002222', 'Legacy card', '099 000 22 22', '');
+    if not public.crm_customer_phone_confirmed(shop, legacy_phone_card)
+      or not exists (
+        select from public.list_crm_customers(shop) c where c.id = legacy_phone_card and c.phone_confirmed
+      ) then
+      raise exception 'The same verified phone was treated differently on a legacy card';
+    end if;
+
+    update public.product_variants set stock_quantity = 2 where id = variant;
+    same_customer_order := public.create_crm_order(
+      shop, gen_random_uuid(), items, buyer || '{"name":"Different spelling"}', delivery, '', 17000
+    );
+    if same_customer_order.crm_customer_id is distinct from registered_customer
+      or same_customer_order.user_id is not null
+      or same_customer_order.customer_name is distinct from 'Different spelling'
+      or (select name from public.crm_customers where id = registered_customer) is distinct from placed.customer_name
+      or (select count(*) from public.crm_customers where store_id = shop) <> 2 then
+      raise exception 'Manual order did not reuse the registered profile by phone';
+    end if;
 
     raise sqlstate 'PT999';
   exception when sqlstate 'PT999' then null;
