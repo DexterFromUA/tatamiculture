@@ -1354,16 +1354,23 @@ textarea {
 .crm-order__email { display: block; margin-top: 4px; }
 .crm-page .crm-order__identity span, .crm-page .crm-order__amount span, .crm-page .crm-order__status > span { color: var(--muted); font-size: .75rem; overflow-wrap: anywhere; }
 .crm-page .crm-order__reference { font-weight: 700; letter-spacing: .04em; }
-.crm-order__new {
-  display: inline-block;
-  margin-inline-start: .4em;
-  padding: .14em .55em;
-  border: 1px solid currentColor;
-  border-radius: 99px;
+.crm-page .crm-order__identity .crm-order__new {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-inline-start: 8px;
+  padding: 3px 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--card));
   color: var(--accent);
-  font-size: .74em;
+  font-size: .68rem;
+  font-weight: 700;
   letter-spacing: 0;
+  line-height: 1.3;
+  vertical-align: middle;
 }
+.crm-order__new::before { content: ''; width: 6px; height: 6px; flex: none; border-radius: 50%; background: currentColor; }
 .crm-page .crm-order__date { display: inline; }
 .crm-order__date::before { content: ' · '; }
 .crm-page .admin-list .crm-order { cursor: pointer; }

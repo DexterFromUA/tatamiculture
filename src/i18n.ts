@@ -710,6 +710,7 @@ const uk = {
   WAITING_FOR_STOCK: 'Очікує надходження', PREPARING_SHIPMENT: 'Готується до відправлення', IN_TRANSIT: 'Прямує до одержувача',
   DELIVERED: 'Доставлено', COMPLETED: 'Завершено', CANCELLED_BY_USER: 'Скасовано', CANCELLED_BY_STORE: 'Скасовано',
   'New order label': 'Новий',
+  'New orders': 'Нові замовлення',
   'Payment refund': 'Повернення коштів',
   'Refund payment': 'Повернути кошти',
   'Refund in progress': 'Повернення в обробці',

@@ -41,7 +41,7 @@ type AdminOrder = OrderDetailsOrder & DashboardOrder & {
 }
 type OrderListRow = AdminOrder & { member_ids: string[] }
 
-type OrderFilter = 'ALL' | 'NO_TTN' | OrderStatus
+type OrderFilter = 'ALL' | 'NEW' | 'NO_TTN' | OrderStatus
 
 type InventoryProduct = DashboardInventory
 
@@ -480,6 +480,7 @@ export function AdminPage() {
             </label>
             <select value={orderFilter} onChange={(event) => { setOrderFilter(event.target.value as OrderFilter); setPage(1) }}>
               <option value="ALL">{t('All statuses')}</option>
+              <option value="NEW">{t('New orders')}</option>
               <option value="NO_TTN">{t('Without TTN')}</option>
               {statuses.map((status) => <option key={status} value={status}>{t(status)}</option>)}
             </select>
