@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { bannerImages, type Banner, type BannerImage } from '../lib/banner'
 import { LocalImagePreview } from './LocalImagePreview'
+import { ToggleSwitch } from './ToggleSwitch'
 import { removeBannerImage, SupabaseError, supabaseRequest, uploadBannerImage } from '../lib/supabase'
 
 const empty = (id: string): Banner => ({
@@ -74,8 +75,8 @@ export function BannerSettings() {
   return <section className="settings-card banner-settings">
     {error && <p className="error" role="alert">{t(error)}</p>}
     {banner && <>
-      <label className="check banner-settings__visibility">
-        <input className="crm-checkbox" type="checkbox" checked={banner.enabled} disabled={busy} onChange={event => {
+      <label className="switch-field banner-settings__visibility">
+        <ToggleSwitch checked={banner.enabled} disabled={busy} onChange={event => {
           setBanner({ ...banner, enabled: event.target.checked })
           setSaved(false)
         }} />

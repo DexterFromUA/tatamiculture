@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { getPaymentSettings, paymentMethods, savePaymentSettings, setPaymentTestMode, type PaymentMethodSettings } from '../lib/paymentMethods'
 import { SettingsSectionHeading } from './SettingsSectionHeading'
+import { ToggleSwitch } from './ToggleSwitch'
 
 export function PaymentSettings({ heading }: { heading: { number: string; title: string } }) {
   const { t } = useTranslation()
@@ -68,10 +69,10 @@ export function PaymentSettings({ heading }: { heading: { number: string; title:
 
   return <>
     <SettingsSectionHeading {...heading} action={saved && (
-      <label className="mode-switch">
-        <input type="checkbox" role="switch" aria-label={t('Live mode')} checked={testMode === false}
+      <label className="switch-field">
+        <ToggleSwitch aria-label={t('Live mode')} checked={testMode === false}
           disabled={busy || modeBusy || !token} onChange={event => void changeMode(event.target.checked)} />
-        <span aria-hidden="true" />{t(testMode === null ? 'Provider defaults' : testMode ? 'Test mode' : 'Live mode')}
+        {t(testMode === null ? 'Provider defaults' : testMode ? 'Test mode' : 'Live mode')}
       </label>
     )} />
     <section className="settings-card payment-settings">
@@ -88,7 +89,7 @@ export function PaymentSettings({ heading }: { heading: { number: string; title:
         <div className="payment-settings__list">
           {paymentMethods.map(({ field, name, description, configured }) => <label key={field} className="payment-settings__row">
             <span><strong>{t(name)}</strong><small className="muted">{t(configured ? description : 'Integration is disabled in this deployment.')}</small></span>
-            <input type="checkbox" role="switch" aria-label={t(name)} checked={draft[field]} disabled={busy || modeBusy} onChange={event => {
+            <ToggleSwitch aria-label={t(name)} checked={draft[field]} disabled={busy || modeBusy} onChange={event => {
               setDraft({ ...draft, [field]: event.target.checked })
               setConfirmed(false)
             }} />

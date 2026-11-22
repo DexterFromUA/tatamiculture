@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { getThemeSettings, themeSettingsChanged, type ThemeMode, type ThemeSettings as Settings } from '../lib/storefrontTheme'
 import { supabaseRequest } from '../lib/supabase'
+import { ToggleSwitch } from './ToggleSwitch'
 
 export function ThemeSettings() {
   const { t } = useTranslation()
@@ -46,7 +47,13 @@ export function ThemeSettings() {
     <header className="banner-settings__header"><h2>{t('Storefront theme')}</h2><p className="muted">{t('Choose the default appearance and let visitors switch themes.')}</p></header>
     {error && <p className="error" role="alert">{error}</p>}
     {draft && <form className="form" onSubmit={event => void save(event)}>
-      <label className="field field--checkbox"><input type="checkbox" checked={draft.show_theme_switch} onChange={event => { setDraft({ ...draft, show_theme_switch: event.target.checked }); setSaved(false) }} /><span>{t('Show theme switch next to language')}</span></label>
+      <label className="field switch-field">
+        <ToggleSwitch checked={draft.show_theme_switch} disabled={busy} onChange={event => {
+          setDraft({ ...draft, show_theme_switch: event.target.checked })
+          setSaved(false)
+        }} />
+        {t('Show theme switch next to language')}
+      </label>
       <label className="field"><span>{t('Default theme')}</span><select value={draft.default_theme} onChange={event => { setDraft({ ...draft, default_theme: event.target.value as ThemeMode }); setSaved(false) }}>
         <option value="system">{t('System theme')}</option><option value="light">{t('Light theme')}</option><option value="dark">{t('Dark theme')}</option>
       </select></label>

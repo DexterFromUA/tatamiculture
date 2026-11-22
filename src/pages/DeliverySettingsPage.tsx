@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { SupabaseError, supabaseRequest } from '../lib/supabase'
+import { ToggleSwitch } from '../components/ToggleSwitch'
 
 type Warehouse = { ref: string; name: string }
 type City = Warehouse & { area: string }
@@ -163,11 +164,11 @@ export function DeliverySettingsPage({ embedded = false }: { embedded?: boolean 
       <section className="settings-card">
         <form onSubmit={event => { event.preventDefault(); void save() }}>
           <div className="delivery-settings__automation">
-            <label className="mode-switch">
-              <input type="checkbox" role="switch" aria-describedby={automationDescriptionId}
+            <label className="switch-field">
+              <ToggleSwitch aria-describedby={automationDescriptionId}
                 checked={settings.auto_update_order_status ?? true} disabled={saving || settings.auto_update_order_status === undefined}
                 onChange={event => update({ auto_update_order_status: event.target.checked })} />
-              <span aria-hidden="true" />{t('Update order status automatically')}
+              {t('Update order status automatically')}
             </label>
             <small className="muted" id={automationDescriptionId}>{t(settings.auto_update_order_status === undefined
               ? 'This setting becomes available after the database update.'

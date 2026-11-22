@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { supabaseRequest } from '../lib/supabase'
+import { ToggleSwitch } from './ToggleSwitch'
 
 type SmsProvider = 'kyivstar' | 'twilio' | 'smsclub'
 type SmsSettings = {
@@ -99,12 +100,9 @@ export function SmsProviderSettings() {
           <h3 id={notificationsLabel}>{t('SMS notifications')}</h3>
           <p id={notificationsDescription} className="muted">{t('Show the “Notify me when available” button for out-of-stock variants.')}</p>
         </div>
-        <label className="mode-switch">
-          <input type="checkbox" role="switch" aria-labelledby={notificationsLabel} aria-describedby={notificationsDescription}
-            checked={store?.smsNotificationsEnabled ?? false} disabled={!store || !token || notificationsStatus === 'saving'}
-            onChange={event => void switchNotifications(event.target.checked)} />
-          <span aria-hidden="true" />
-        </label>
+        <ToggleSwitch aria-labelledby={notificationsLabel} aria-describedby={notificationsDescription}
+          checked={store?.smsNotificationsEnabled ?? false} disabled={!store || !token || notificationsStatus === 'saving'}
+          onChange={event => void switchNotifications(event.target.checked)} />
       </div>
       {notificationsStatus === 'saving' && <p className="muted" role="status">{t('Saving…')}</p>}
       {notificationsStatus === 'saved' && <p className="success" role="status">{t('Saved')}</p>}

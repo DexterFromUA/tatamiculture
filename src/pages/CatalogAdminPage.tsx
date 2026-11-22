@@ -3,6 +3,7 @@ import { CatalogCostInput } from '../components/CatalogCostInput'
 import { VariantCostEditor } from '../components/VariantCostEditor'
 import { StockAdjustment } from '../components/StockAdjustment'
 import { ConfirmationDialog } from '../components/ConfirmationDialog'
+import { ToggleSwitch } from '../components/ToggleSwitch'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
@@ -123,7 +124,7 @@ function CatalogDiscountFields({ percent, stacking, variant = false, disabled, o
         onChange={event => onPercentChange(event.target.value)} />
       {variant && <small>{t('Leave blank to use the product discount. Enter 0 for no size discount.')}</small>}
     </label>
-    <label className="check"><input type="checkbox" checked={!inherits && stacking} disabled={disabled || inherits}
+    <label className="check switch-field"><ToggleSwitch checked={!inherits && stacking} disabled={disabled || inherits}
       onChange={event => onStackingChange(event.target.checked)} />{t('Combine with personal discount')}</label>
   </div>
 }
@@ -1090,8 +1091,14 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
           <section className="product-workspace__section product-workspace__visibility">
           <div className="product-workspace__section-heading"><span>05</span><h3>{t('Visibility')}</h3></div>
           <div className="product-workspace__visibility-options">
-          <label className="check"><input type="checkbox" checked={draft.isActive} onChange={(event) => setDraft({ ...draft, isActive: event.target.checked })} /> {t('Published in storefront')}</label>
-          <label className="check"><input type="checkbox" checked={draft.isNew} onChange={event => setDraft({ ...draft, isNew: event.target.checked })} /> {t('Mark as new')}</label>
+            <label className="check switch-field">
+              <ToggleSwitch checked={draft.isActive} onChange={event => setDraft({ ...draft, isActive: event.target.checked })} />
+              {t('Published in storefront')}
+            </label>
+            <label className="check switch-field">
+              <ToggleSwitch checked={draft.isNew} onChange={event => setDraft({ ...draft, isNew: event.target.checked })} />
+              {t('Mark as new')}
+            </label>
           </div>
           </section>
           <div className="variant-editor product-workspace__section"><div className="product-editor__head"><div className="product-workspace__section-heading"><span>06</span><h3>{t('Sizes and stock')}</h3></div><button type="button" className="text-btn" onClick={() => setDraft({ ...draft, variants: [...draft.variants, blankVariant()] })}>{t('Add size')}</button></div>
@@ -1112,12 +1119,12 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
                       : item),
                   })} />
                 <div className="variant-editor__availability">
-                  <label className="check">
-                    <input type="checkbox" checked={variant.is_preorder} onChange={event => updateVariant(index, 'is_preorder', event.target.checked)} />
+                  <label className="check switch-field">
+                    <ToggleSwitch checked={variant.is_preorder} onChange={event => updateVariant(index, 'is_preorder', event.target.checked)} />
                     <span>{t('Pre-order')}</span>
                   </label>
-                  <label className="check">
-                    <input type="checkbox" checked={variant.allow_out_of_stock} disabled={saving}
+                  <label className="check switch-field">
+                    <ToggleSwitch checked={variant.allow_out_of_stock} disabled={saving}
                       onChange={event => updateVariant(index, 'allow_out_of_stock', event.target.checked)} />
                     <span>{t('Allow purchase when out of stock')}</span>
                   </label>
