@@ -65,6 +65,12 @@ begin
   end if;
   perform public.update_admin_orders(array[cod_order.id], 'PREPARING_SHIPMENT');
   perform public.reserve_order_ttn(cod_order.id);
+  begin
+    update public.orders set status = 'COMPLETED' where id = cod_order.id;
+    raise exception 'Order completed while TTN creation was in progress';
+  exception when raise_exception then
+    if sqlerrm <> 'TTN creation is in progress for one of these orders' then raise; end if;
+  end;
   perform public.release_order_ttn(cod_order.id);
   update public.orders set nova_poshta_ttn = '59000000000001' where id = cod_order.id;
 
@@ -111,6 +117,12 @@ begin
     or (select count(*) from public.order_delivery_events where order_id = cod_order.id and status_code = '10') <> 1 then
     raise exception 'Recipient handover did not complete the order and stop tracking';
   end if;
+  begin
+    perform public.unlink_order_ttn(cod_order.id, '59000000000001');
+    raise exception 'TTN unlinked from a completed order';
+  exception when sqlstate 'PT409' then
+    if sqlerrm <> 'The TTN of a completed order cannot be unlinked.' then raise; end if;
+  end;
 
   insert into public.payments(order_id, provider, provider_order_id, status)
     values (online_order.id, 'MONOBANK', online_order.id::text, 'PAID');
@@ -207,9 +219,19 @@ begin
   insert into public.products(store_id, name) values (shop, 'Order item') returning id into product;
   insert into public.product_variants(product_id, name, price, stock_quantity)
     values (product, 'M', 10000, 2) returning id into variant;
+  begin
+    perform public.prepare_online_checkout('MONOBANK', manager, shop,
+      jsonb_build_array(jsonb_build_object('variantId', variant, 'quantity', 1)),
+      '{"name":"Customer Name","phone":"+38067123456","city":"Київ","address":"1","email":""}', true);
+    raise exception 'Online checkout accepted an invalid phone';
+  exception when invalid_parameter_value then null;
+  end;
   checkout := public.prepare_online_checkout('MONOBANK', manager, shop,
     jsonb_build_array(jsonb_build_object('variantId', variant, 'quantity', 1)),
-    '{"name":"Customer Name","phone":"+380990002222","city":"Київ","address":"1","email":""}', true);
+    '{"name":"Customer Name","phone":"099 000 22 22","city":"Київ","address":"1","email":""}', true);
+  if checkout.checkout->>'phone' is distinct from '+380990002222' then
+    raise exception 'Online checkout stored an unnormalized phone';
+  end if;
   update public.online_checkouts set provider_order_id = checkout.id::text where id = checkout.id;
   perform public.confirm_online_checkout('MONOBANK', checkout.id::text, 10000, 'UAH', null, '{}');
   perform public.confirm_online_checkout('MONOBANK', checkout.id::text, 10000, 'UAH', null, '{}');

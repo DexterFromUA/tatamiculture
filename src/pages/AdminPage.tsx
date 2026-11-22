@@ -46,7 +46,7 @@ type OrderFilter = 'ALL' | 'NO_TTN' | OrderStatus
 type InventoryProduct = DashboardInventory
 
 const statuses: OrderStatus[] = ['IN_PROGRESS', 'WAITING_FOR_STOCK', 'PREPARING_SHIPMENT', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED', 'CANCELLED_BY_STORE']
-const shipmentStages: OrderStatus[] = ['PREPARING_SHIPMENT', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED']
+const shipmentStages: OrderStatus[] = ['PREPARING_SHIPMENT', 'IN_TRANSIT', 'DELIVERED']
 const canCreateTtn = (order: AdminOrder) =>
   !order.nova_poshta_ttn && !order.nova_poshta_document_ref &&
   shipmentStages.includes(order.status)
@@ -271,7 +271,7 @@ export function AdminPage() {
     let refreshOrders = false
     const ready: Array<{ order: AdminOrder; weightGrams: number; declaredValueMinor: number; codMinor: number }> = []
     const issues: string[] = []
-    const skippedMessage = () => t('TTN skipped for {{count}} orders that already have a TTN or are cancelled', { count: skipped })
+    const skippedMessage = () => t('TTN creation skipped for {{count}} orders', { count: skipped })
     const issue = (order: AdminOrder, cause: unknown) =>
       `#${order.receipt_code}: ${t(cause instanceof Error ? cause.message : 'Could not create TTN')}`
     try {
@@ -544,7 +544,7 @@ export function AdminPage() {
             const note = order.note?.trim()
             return (
               <li key={order.id} className={`crm-order${selectedOrderIds.has(order.id) ? ' crm-order--selected' : ''}`} onClick={event => {
-                if (event.target instanceof Element && event.target.closest('a, button, input, select, textarea, label')) return
+                if (event.target instanceof Element && event.target.closest('a, button, input, select, textarea, label, .crm-order__ttn')) return
                 setSelectedOrderId(order.id)
               }}>
                 <label className="order-select">
@@ -571,14 +571,17 @@ export function AdminPage() {
                 {order.nova_poshta_status ? <p className="crm-order__delivery">{order.nova_poshta_status}</p> : null}
                 <div className="crm-order__actions"><button type="button" className="text-btn" onClick={() => void copyReceiptLink(receiptPath)}>{t('Copy receipt link')}</button>
                 <button type="button" className="text-btn" aria-haspopup="dialog" title={t('Open customer card')} onClick={() => setSelectedCustomer({ kind: 'order', id: order.id })}>{t('Customer')}</button>
-                {order.nova_poshta_ttn ? (
+                {order.status === 'COMPLETED' && order.nova_poshta_ttn &&
+                  <span className="crm-order__ttn">{t('TTN')} {order.nova_poshta_ttn}</span>}
+                {order.status !== 'COMPLETED' && order.nova_poshta_ttn && (
                   <span className="ttn-actions">
                     <NovaPoshtaTrackingLink className="text-btn" ttn={order.nova_poshta_ttn}>TTN {order.nova_poshta_ttn}</NovaPoshtaTrackingLink>
                     <OrderActionButton type="button" className="text-btn"
                       disabledReason={trackingId === order.id ? t('Tracking status is being updated.') : bulkBusy ? t('A bulk order action is running.') : undefined}
                       onClick={() => void refreshTracking(order.id)}>{trackingId === order.id ? t('Updating…') : t('Update status')}</OrderActionButton>
                   </span>
-                ) : canCreateTtn(order) && (
+                )}
+                {canCreateTtn(order) && (
                   <OrderActionButton type="button" className="text-btn" aria-haspopup="dialog"
                     disabledReason={bulkBusy ? t('A bulk order action is running.') : undefined}
                     onClick={() => setTtnOrder(order)}>{t('Create TTN')}</OrderActionButton>

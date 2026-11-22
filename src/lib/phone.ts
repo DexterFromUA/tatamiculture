@@ -11,6 +11,12 @@ export function normalizeUkrainianPhone(input: string): string | null {
   return phone && /^\+380[1-9]\d{8}$/.test(phone) ? phone : null
 }
 
+export function normalizeCheckoutPhone(input: string): string | null {
+  const phone = normalizePhone(input)
+  if (!phone?.startsWith('+380')) return phone
+  return /^\+380(?:3[1-8]|4[13-8]|5[0-7]|6[1-9]|7[3-9]|8[1-59]|9[1-9])\d{7}$/.test(phone) ? phone : null
+}
+
 // Keep the country prefix while accepting local-number pastes and phone autofill.
 export function ukrainianPhoneInput(input: string): string {
   const digits = input.replace(/\D/g, '')

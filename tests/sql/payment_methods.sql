@@ -23,7 +23,7 @@ begin
   execute 'set local role authenticated';
   insert into public.store_payment_methods(store_id, cash_on_delivery, monobank) values (shop, false, false);
   begin
-    perform public.create_discounted_store_order(shop, cart, 'Test', 'test@example.invalid', '000', 'City', 'Address');
+    perform public.create_discounted_store_order(shop, cart, 'Test', 'test@example.invalid', '+380671234567', 'City', 'Address');
     raise exception 'Disabled cash on delivery accepted';
   exception when sqlstate 'PT409' then null;
   end;
@@ -59,7 +59,7 @@ begin
   perform set_config('request.jwt.claim.sub', manager::text, true);
   execute 'set local role authenticated';
   update public.store_payment_methods set cash_on_delivery = true, liqpay = false where store_id = shop;
-  placed := public.create_discounted_store_order(shop, cart, 'Test', 'test@example.invalid', '000', 'City', 'Address');
+  placed := public.create_discounted_store_order(shop, cart, 'Test', 'test@example.invalid', '+380671234567', 'City', 'Address');
   if placed.payment_method is distinct from 'CASH_ON_DELIVERY' then raise exception 'Re-enabled cash on delivery failed'; end if;
   execute 'reset role';
   execute 'set local role service_role';

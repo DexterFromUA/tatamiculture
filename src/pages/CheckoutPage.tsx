@@ -17,6 +17,9 @@ import type { CheckoutInput } from '../types'
 import { useTranslation } from 'react-i18next'
 import { LoadingIndicator } from '../components/LoadingIndicator'
 import { AgreementCheckbox } from '../components/AgreementCheckbox'
+import { normalizeCheckoutPhone } from '../lib/phone'
+
+const invalidPhone = 'Enter a valid phone number, for example +380 67 123 45 67.'
 
 export function CheckoutPage() {
   const { user, initializing } = useAuth()
@@ -48,6 +51,7 @@ function CheckoutForm() {
   const selectedMethod = availableMethods.find(method => method.id === preferredProvider) ?? availableMethods[0]
   const provider = selectedMethod?.id
   const [error, setError] = useState<string | null>(null)
+  const [phoneInvalid, setPhoneInvalid] = useState(false)
   const [cityRef, setCityRef] = useState<string | null>(null)
   const [addressRef, setAddressRef] = useState<string | null>(null)
   const [deliveryServiceType, setDeliveryServiceType] = useState<'WarehouseWarehouse' | 'WarehousePostomat'>('WarehouseWarehouse')
@@ -171,11 +175,17 @@ function CheckoutForm() {
     event.preventDefault()
     if (termsRequired) return
     if ((!provider && total > 0) || submitting || loadingProducts || unavailableItems || customerDiscount.loading || customerDiscount.error) return
+    const phone = normalizeCheckoutPhone(form.phone)
+    if (!phone) {
+      setPhoneInvalid(true)
+      document.getElementById('checkout-phone')?.focus()
+      return
+    }
     setError(null)
     setSubmitting(true)
     try {
       if (novaPoshtaEnabled && (!cityRef || !addressRef || !form.address)) throw new Error(t('Choose a city and Nova Poshta branch'))
-      const checkout = { ...form, customerAccountId: user?.id, expectedDiscountPercent: customerDiscount.percent, expectedTotal: Math.round(total * 100),
+      const checkout = { ...form, phone, customerAccountId: user?.id, expectedDiscountPercent: customerDiscount.percent, expectedTotal: Math.round(total * 100),
         ...(novaPoshtaEnabled && { cityRef: cityRef ?? undefined, addressRef: addressRef ?? undefined, deliveryServiceType }) }
       if (total > 0 && (provider === 'MONOBANK' || provider === 'LIQPAY')) {
         try {
@@ -191,6 +201,10 @@ function CheckoutForm() {
           }
         } catch (err) {
           const message = err instanceof Error ? err.message : 'Could not open payment'
+          if (message === invalidPhone) {
+            setPhoneInvalid(true)
+            return
+          }
           if (message === unavailableQuantity || message === 'Cart prices changed. Review your cart and try again.') refreshProducts()
           addToast(t(message))
           navigate('/cart', { replace: true })
@@ -204,6 +218,10 @@ function CheckoutForm() {
       navigate(`/receipt/${order.receiptCode}`)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Checkout failed'
+      if (message === invalidPhone) {
+        setPhoneInvalid(true)
+        return
+      }
       window.dispatchEvent(new Event('tatami:cod-uncertain'))
       customerDiscount.retry()
       if (message === unavailableQuantity || message === 'Cart prices changed. Review your cart and try again.') refreshProducts()
@@ -260,10 +278,14 @@ function CheckoutForm() {
           <span id="checkout-name-label">{t('First and last name')}</span>
           <input autoComplete="name" aria-labelledby="checkout-name-label" required value={form.name} onChange={setField('name')} />
         </label>
-        <label className="field">
-          <span>{t('Phone')}</span>
-          <input type="tel" autoComplete="tel" required value={form.phone} onChange={setField('phone')} />
-        </label>
+        <div className="field">
+          <label htmlFor="checkout-phone">{t('Phone')}</label>
+          <input id="checkout-phone" type="tel" autoComplete="tel" placeholder="+380 67 123 45 67" required value={form.phone}
+            aria-invalid={phoneInvalid || undefined} aria-describedby={phoneInvalid ? 'checkout-phone-error' : undefined}
+            onChange={event => { setField('phone')(event); setPhoneInvalid(false) }}
+            onBlur={() => { if (form.phone) setPhoneInvalid(!normalizeCheckoutPhone(form.phone)) }} />
+          {phoneInvalid && <small id="checkout-phone-error" role="alert" className="error">{t(invalidPhone)}</small>}
+        </div>
         </div>
         <div className="field">
           <label htmlFor="checkout-city">{t('City')}</label>

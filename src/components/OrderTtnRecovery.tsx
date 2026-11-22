@@ -3,10 +3,11 @@ import { useTranslation } from 'react-i18next'
 import { resolveTtnAttempt, type TtnAttempt } from '../lib/ttn'
 import { ConfirmationDialog } from './ConfirmationDialog'
 
-export function OrderTtnRecovery({ attempt, orderId, token, onResolved, onRefresh }: {
+export function OrderTtnRecovery({ attempt, orderId, token, canCreateNewTtn, onResolved, onRefresh }: {
   attempt?: TtnAttempt | null
   orderId: string
   token: string
+  canCreateNewTtn: boolean
   onResolved: (ttn: string | null) => void
   onRefresh: () => void
 }) {
@@ -65,7 +66,7 @@ export function OrderTtnRecovery({ attempt, orderId, token, onResolved, onRefres
     </form> : <div className="actions">
       <button type="button" className="btn btn--ghost" disabled={busy} aria-describedby={busy ? busyHintId : undefined}
         onClick={() => { setMode('attach'); setError('') }}>
-        {t(attempt ? 'Link existing TTN' : 'Add TTN')}
+        {t(attempt || !canCreateNewTtn ? 'Link existing TTN' : 'Add TTN')}
       </button>
       {attempt && <button type="button" className="btn btn--ghost" disabled={busy} aria-describedby={busy ? busyHintId : undefined}
         onClick={() => { setMode('not_created'); setError('') }}>
@@ -75,7 +76,9 @@ export function OrderTtnRecovery({ attempt, orderId, token, onResolved, onRefres
     {busy && <p id={busyHintId} className="order-action__hint" role="status">{t('A TTN request is being processed.')}</p>}
     {mode === 'not_created' && <ConfirmationDialog
       title={t('Confirm TTN was not created')}
-      message={t('Confirm that you checked Nova Poshta and found no TTN for this order. This will allow a new creation attempt.')}
+      message={t(canCreateNewTtn
+        ? 'Confirm that you checked Nova Poshta and found no TTN for this order. This will allow a new creation attempt.'
+        : 'Confirm that you checked Nova Poshta and found no TTN for this order.')}
       confirmLabel={t('Confirm')}
       onClose={confirmed => {
         setMode(null)

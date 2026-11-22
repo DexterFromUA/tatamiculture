@@ -6,6 +6,8 @@ import { SupabaseError, supabaseRequest } from '../lib/supabase'
 
 type Warehouse = { ref: string; name: string }
 type City = Warehouse & { area: string }
+const defaultTrackingInterval = 120
+
 type Settings = {
   store_id: string
   sender_name: string
@@ -19,6 +21,7 @@ type Settings = {
   height_cm: number
   delivery_payer: 'RECIPIENT' | 'SENDER'
   auto_update_order_status?: boolean
+  nova_poshta_tracking_interval_minutes?: number | ''
 }
 
 const blank = (storeId: string): Settings => ({
@@ -61,9 +64,14 @@ export function DeliverySettingsPage({ embedded = false }: { embedded?: boolean 
       `/rest/v1/delivery_settings?store_id=eq.${encodeURIComponent(storeId)}&select=${select}`,
       { token, signal: controller.signal },
     )
-    void load(`${fields},auto_update_order_status`).then(rows =>
-      rows[0] ?? { ...blank(storeId), auto_update_order_status: true },
+    const automationFields = `${fields},auto_update_order_status`
+    void load(`${automationFields},nova_poshta_tracking_interval_minutes`).then((rows): Settings =>
+      rows[0] ?? { ...blank(storeId), auto_update_order_status: true, nova_poshta_tracking_interval_minutes: defaultTrackingInterval },
     ).catch(async cause => {
+      if (!(cause instanceof SupabaseError && cause.code === '42703' && cause.message.includes('nova_poshta_tracking_interval_minutes'))) throw cause
+      const rows = await load(automationFields)
+      return rows[0] ?? { ...blank(storeId), auto_update_order_status: true }
+    }).catch(async cause => {
       if (!(cause instanceof SupabaseError && cause.code === '42703' && cause.message.includes('auto_update_order_status'))) throw cause
       const rows = await load(fields)
       return rows[0] ?? blank(storeId)
@@ -164,6 +172,17 @@ export function DeliverySettingsPage({ embedded = false }: { embedded?: boolean 
             <small className="muted" id={automationDescriptionId}>{t(settings.auto_update_order_status === undefined
               ? 'This setting becomes available after the database update.'
               : 'Use Nova Poshta tracking to update order status. Parcel tracking continues when this setting is off.')}</small>
+            <label className="field delivery-settings__interval">
+              <span>{t('Parcel tracking interval, min')}</span>
+              <input type="number" inputMode="numeric" required min="1" max="2147483647" step="1"
+                value={settings.nova_poshta_tracking_interval_minutes ?? ''}
+                disabled={saving || settings.nova_poshta_tracking_interval_minutes === undefined}
+                onChange={event => update({
+                  nova_poshta_tracking_interval_minutes: event.target.value === '' ? '' : event.target.valueAsNumber,
+                })} />
+              {settings.nova_poshta_tracking_interval_minutes === undefined && settings.auto_update_order_status !== undefined &&
+                <small className="muted">{t('This setting becomes available after the database update.')}</small>}
+            </label>
           </div>
           <h2>{t('Sender')}</h2>
           <label className="field">

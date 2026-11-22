@@ -68,6 +68,7 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
   const [unlinking, setUnlinking] = useState(false)
   const [unlinkError, setUnlinkError] = useState('')
   const idList = [...new Set([order.id, ...orderIds])].join(',')
+  const completed = order.status === 'COMPLETED'
   const trackingNumber = deliveryActions ? deliveryActions.ttn : order.nova_poshta_ttn
   const paymentMethodLabels = details?.paymentMethodLabels ?? [order.payment_method === 'CASH_ON_DELIVERY' ? 'Payment on delivery' : 'Online payment']
   const refreshDetails = () => {
@@ -138,7 +139,7 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
       }).catch(cause => { if (!abort.signal.aborted) setError(cause.message) })
     return () => abort.abort()
   }, [idList, token, revision])
-  const canManageReturns = order.status === 'COMPLETED' && details
+  const canManageReturns = completed && details
   const restoreStock = async () => {
     setRestocking(true)
     setRestockError('')
@@ -196,14 +197,14 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
           <dl className="order-drawer__details">
             <div><dt>{t('City')}</dt><dd>{details.delivery_city || '—'}</dd></div>
             <div><dt>{t('Address')}</dt><dd>{details.delivery_address || '—'}</dd></div>
-            {trackingNumber && <div><dt>{t('TTN')}</dt><dd>
+            {trackingNumber && !completed && <div><dt>{t('TTN')}</dt><dd>
               <NovaPoshtaTrackingLink ttn={trackingNumber}>{trackingNumber}</NovaPoshtaTrackingLink>
             </dd></div>}
             {trackingNumber && trackingNumber === order.nova_poshta_ttn && order.nova_poshta_status &&
               <div><dt>{t('Shipment status')}</dt><dd>{order.nova_poshta_status}</dd></div>}
             {note && <div className="order-drawer__note"><dt>{t('Note')}</dt><dd>{note}</dd></div>}
           </dl>
-          {trackingNumber ? <>
+          {trackingNumber && !completed && <>
             <OrderActionButton type="button" className="btn btn--ghost" aria-haspopup="dialog"
               disabledReason={unlinking ? t('The TTN is being unlinked.') : undefined}
               onClick={() => setConfirmUnlink(true)}>{t('Unlink TTN')}</OrderActionButton>
@@ -213,10 +214,12 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
                 setConfirmUnlink(false)
                 if (confirmed) void unlinkWaybill(trackingNumber)
               }} />}
-          </> : <OrderTtnRecovery
+          </>}
+          {!trackingNumber && <OrderTtnRecovery
             key={deliveryActions?.ttnAttempt?.id ?? 'manual'} attempt={deliveryActions?.ttnAttempt} orderId={order.id}
-            token={token} onRefresh={refreshDetails} onResolved={ttn =>
-              onWaybillChanged(ttn, ttn ? 'TTN linked to the order.' : 'You can now create a new TTN for this order.')} />}
+            token={token} canCreateNewTtn={!completed} onRefresh={refreshDetails}
+            onResolved={ttn => onWaybillChanged(ttn, ttn ? 'TTN linked to the order.'
+              : completed ? 'The TTN attempt was closed.' : 'You can now create a new TTN for this order.')} />}
           {unlinkError && <p className="error" role="alert">{t(unlinkError)}</p>}
           {recoveryMessage && <p role="status">{t(recoveryMessage)}</p>}
         </section>
@@ -252,6 +255,11 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
         if (completedOrderId === order.id) setRefundedLocally(true)
         setRevision(value => value + 1)
       }} />}
+      {completed && trackingNumber && <section className="order-drawer__card">
+        <dl className="order-drawer__details">
+          <div><dt>{t('TTN')}</dt><dd>{trackingNumber}</dd></div>
+        </dl>
+      </section>}
     </div>
   </dialog>
 }

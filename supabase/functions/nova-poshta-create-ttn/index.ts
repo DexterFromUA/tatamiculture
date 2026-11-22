@@ -187,12 +187,14 @@ Deno.serve(async (request) => {
     }
     if (String(order.status).startsWith('CANCELLED')) throw new Error('A TTN cannot be created for a cancelled order')
     if (!preview && order.nova_poshta_ttn) return json({ ttn: order.nova_poshta_ttn, documentRef: order.nova_poshta_document_ref, existing: true })
-    if (!['PREPARING_SHIPMENT', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(order.status)) {
+    if (order.status === 'COMPLETED') return json({ error: 'A TTN cannot be created for a completed order.' }, 409)
+    if (!['PREPARING_SHIPMENT', 'IN_TRANSIT', 'DELIVERED'].includes(order.status)) {
       throw new Error('Move the order to preparing for shipment first')
     }
     if (order.currency !== 'UAH') throw new Error('Nova Poshta TTN requires an order in UAH')
     if (!preview) {
       const { data, error } = await db.rpc('begin_order_ttn_attempt', { p_order_id: orderId })
+      if (error?.code === 'PT409') return json({ error: error.message }, 409)
       if (error) throw new Error('TTN creation is already in progress or the order was merged. Refresh the page.')
       reservedOrder = orderId
       attemptId = data as string

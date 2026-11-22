@@ -11,11 +11,19 @@ begin
   insert into public.products(store_id,name,weight_grams) values(shop,'Audit',300) returning id into product;
   insert into public.product_variants(product_id,name,price,stock_quantity) values(product,'M',10000,2) returning id into v;
   payload:=jsonb_build_object('p_store_id',shop,'p_items',jsonb_build_array(jsonb_build_object('variantId',v,'quantity',1)),
-    'p_customer_name','Buyer','p_customer_email','','p_customer_phone','+380990000001',
+    'p_customer_name','Buyer','p_customer_email','','p_customer_phone','099 000 00 01',
     'p_delivery_city','City','p_delivery_address','Branch','p_note','','p_expected_total',10000);
+  begin
+    perform public.place_cod_order(request_id,payload || '{"p_customer_phone":"+380123456789"}');
+    raise exception 'Accepted an invalid checkout phone';
+  exception when invalid_parameter_value then null;
+  end;
   a:=public.place_cod_order(request_id,payload);
   b:=public.place_cod_order(request_id,payload);
-  if a.id<>b.id or (select stock_quantity from public.product_variants where id=v)<>1 then raise exception 'Duplicate checkout'; end if;
+  if a.id<>b.id or a.customer_phone is distinct from '+380990000001'
+    or (select stock_quantity from public.product_variants where id=v)<>1 then
+    raise exception 'Duplicate checkout or unnormalized phone';
+  end if;
   b:=public.place_cod_order(gen_random_uuid(),payload);
   perform public.update_admin_orders(array[a.id],'PREPARING_SHIPMENT');
   perform public.update_admin_orders(array[b.id],'CANCELLED_BY_STORE');
@@ -37,7 +45,15 @@ begin
   perform public.correct_admin_order_status(array[b.id],'PREPARING_SHIPMENT',false,false,'supplier',null);
   if (select stock_quantity from public.product_variants where id=v)<>1 then raise exception 'Procurement took stock'; end if;
   perform public.update_admin_orders(array[a.id],'COMPLETED');
+  begin
+    perform public.begin_order_ttn_attempt(a.id);
+    raise exception 'A new TTN was accepted for a completed order';
+  exception when sqlstate 'PT409' then
+    if sqlerrm <> 'A TTN cannot be created for a completed order.' then raise; end if;
+  end;
   perform public.correct_admin_order_status(array[a.id],'PREPARING_SHIPMENT',true,false,null,'no');
+  perform public.reserve_order_ttn(a.id);
+  perform public.release_order_ttn(a.id);
   select * into shipping from public.merged_order_shipping(a.id);
   if shipping.cod_minor <> 10000 then raise exception 'COD missing after correction'; end if;
   perform public.merge_orders(array[a.id,b.id],a.id);

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useCart } from '../context/CartContext'
 import { useStore } from '../context/StoreContext'
 import { formatDate, formatPrice } from '../lib/format'
 import { api } from '../lib/api'
@@ -13,6 +14,7 @@ export function AccountPage() {
   const { user, token, logout } = useAuth()
   const userId = user?.id
   const { store, refreshProducts } = useStore()
+  const { customerDiscount } = useCart()
   const navigate = useNavigate()
   const [orders, setOrders] = useState<Order[]>([])
   const [ordersLoading, setOrdersLoading] = useState(true)
@@ -20,7 +22,7 @@ export function AccountPage() {
   const [action, setAction] = useState<{ id: string; type: 'pay' | 'cancel' } | null>(null)
   const [actionError, setActionError] = useState<{ id: string; message: string } | null>(null)
   const [refresh, setRefresh] = useState(0)
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   useEffect(() => {
     let cancelled = false
@@ -95,6 +97,12 @@ export function AccountPage() {
             {lastDelivery && <div>
               <dt>{t('Last delivery address')}</dt>
               <dd>{lastDelivery.deliveryAddress}</dd>
+            </div>}
+            {customerDiscount.percent > 0 && <div>
+              <dt>{t('Personal discount')}</dt>
+              <dd><strong>{new Intl.NumberFormat(i18n.resolvedLanguage, {
+                style: 'percent', maximumFractionDigits: 2,
+              }).format(customerDiscount.percent / 100)}</strong></dd>
             </div>}
           </dl>
         </aside>

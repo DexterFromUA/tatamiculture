@@ -792,6 +792,7 @@ textarea {
 .delivery-settings__automation .mode-switch span { flex-shrink: 0; }
 .delivery-settings__automation .mode-switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 3px; }
 .delivery-settings__automation .mode-switch:has(input:disabled) { opacity: .55; cursor: default; }
+.delivery-settings__interval { width: min(100%, 300px); margin: 8px 0 0; }
 .customers-list { list-style: none; padding: 0; margin: 0; }
 .customers-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 16px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
 .customers-list span { color: var(--muted); font-size: .9rem; }
@@ -1375,6 +1376,7 @@ textarea {
 .crm-order__actions .text-btn { padding: 0; color: var(--accent); font-size: .8rem; text-decoration: none; }
 .crm-order__actions .text-btn:hover { text-decoration: underline; }
 .crm-order__actions .ttn-actions { display: flex; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 10px; }
+.crm-order__ttn { color: var(--muted); font-size: .8rem; cursor: text; }
 .crm-order__actions .crm-order__cancel { margin-left: auto; color: var(--danger); }
 .crm-page .catalog-admin__list { display: grid; gap: 10px; border: 0; background: transparent; }
 .crm-page .catalog-admin__list li { flex-wrap: wrap; gap: 14px 20px; padding: 18px; border: 1px solid var(--crm-border); background: var(--card); }
