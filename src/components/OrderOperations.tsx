@@ -3,6 +3,7 @@ import { ConfirmationDialog } from './ConfirmationDialog'
 import { NovaPoshtaTrackingLink } from './NovaPoshtaTrackingLink'
 import { OrderActionButton } from './OrderActionButton'
 import { OrderTtnRecovery } from './OrderTtnRecovery'
+import { SplitOrderDialog, type SplitOrderResult } from './SplitOrderDialog'
 import type { CustomerOrder } from './CustomerPanel'
 import { SalesBreakdown } from './SalesBreakdown'
 import { useEffect, useState } from 'react'
@@ -31,21 +32,29 @@ type OrderDetails = {
   delivery_address: string | null
   order_items: Array<ReturnableOrderItem & { line_total: number }>
   paymentMethodLabels: string[]
+  shipment_was_dispatched: boolean
+  nova_poshta_document_ref: string | null
+  splitOrigin: OrderPaymentRecord | null
 }
-type OrderDetailsRow = Omit<OrderDetails, 'paymentMethodLabels'> & {
+type OrderPaymentRecord = {
   id: string
-  payment_method: OrderDetailsOrder['payment_method']
+  receipt_code: string
   payments: { provider: string; status: string } | null
+}
+type OrderDetailsRow = Omit<OrderDetails, 'paymentMethodLabels' | 'splitOrigin'> & OrderPaymentRecord & {
+  payment_method: OrderDetailsOrder['payment_method']
+  split_origin_id: string | null
 }
 type Cost = { order_id: string; cost_amount: number }
 type Return = { id: string; order_id: string; amount: number; reason: string }
 
-export function OrderOperations({ order, orderIds = [order.id], token, onClose, onChanged }: {
+export function OrderOperations({ order, orderIds = [order.id], token, onClose, onChanged, onOpenOrder }: {
   order: OrderDetailsOrder
   orderIds?: string[]
   token: string
   onClose: () => void
   onChanged: () => void
+  onOpenOrder: (id: string) => void
 }) {
   const { t } = useTranslation()
   const { refreshProducts } = useStore()
@@ -65,9 +74,20 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
   const [confirmUnlink, setConfirmUnlink] = useState(false)
   const [unlinking, setUnlinking] = useState(false)
   const [unlinkError, setUnlinkError] = useState('')
+  const [splitOpen, setSplitOpen] = useState(false)
+  const [splitResult, setSplitResult] = useState<SplitOrderResult | null>(null)
   const idList = [...new Set([order.id, ...orderIds])].join(',')
   const completed = order.status === 'COMPLETED'
   const trackingNumber = deliveryActions ? deliveryActions.ttn : order.nova_poshta_ttn
+  const itemCount = details?.order_items.reduce((sum, item) => sum + item.quantity, 0) ?? 0
+  const splitBlocked = itemCount < 2 ? 'At least two items are needed to split an order.'
+    : orderIds.length > 1 ? 'Combined shipments cannot be split into separate orders here.'
+    : details?.shipment_was_dispatched || !['IN_PROGRESS', 'WAITING_FOR_STOCK', 'PREPARING_SHIPMENT'].includes(order.status) ? 'Only orders that have not been shipped can be split.'
+    : trackingNumber || details?.nova_poshta_document_ref ? 'Unlink the TTN before splitting the order.'
+    : deliveryActions?.ttnAttempt ? 'Resolve the TTN attempt before splitting the order.'
+    : order.payment_status !== 'PAID' && (order.payment_method !== 'CASH_ON_DELIVERY' || order.payment_status !== 'PENDING') ? 'Only paid orders and unpaid cash-on-delivery orders can be split.'
+    : returns.length ? 'An order with a return or refund cannot be split.' : undefined
+  const splitOrigin = details?.splitOrigin
   const paymentMethodLabels = details?.paymentMethodLabels ?? [order.payment_method === 'CASH_ON_DELIVERY' ? 'Payment on delivery' : 'Online payment']
   const refreshDetails = () => {
     setDetailsFailed(false)
@@ -98,13 +118,24 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
   }
   useEffect(() => {
     const abort = new AbortController()
-    const fields = 'id,delivery_city,delivery_address,payment_method,payments(provider,status),order_items(id,product_id,variant_id,product_name,variant_name,quantity,unit_price,line_total)'
+    const paymentFields = 'id,receipt_code,payments(provider,status)'
+    const fields = `${paymentFields},delivery_city,delivery_address,payment_method,nova_poshta_document_ref,shipment_was_dispatched,split_origin_id,order_items(id,product_id,variant_id,product_name,variant_name,quantity,unit_price,line_total)`
     void supabaseRequest<OrderDetailsRow[]>(`/rest/v1/orders?id=in.(${idList})&select=${fields}`, { token, signal: abort.signal })
-      .then(results => {
+      .then(async results => {
+        const paymentByOrder = new Map<string, OrderPaymentRecord>(results.map(result => [result.id, result]))
+        const missingOrigins = [...new Set(results.flatMap(result =>
+          result.split_origin_id && !paymentByOrder.has(result.split_origin_id) ? [result.split_origin_id] : []))]
+        if (missingOrigins.length) {
+          const origins = await supabaseRequest<OrderPaymentRecord[]>(
+            `/rest/v1/orders?id=in.(${missingOrigins.join(',')})&select=${paymentFields}`, { token, signal: abort.signal },
+          ).catch(() => [])
+          for (const origin of origins) paymentByOrder.set(origin.id, origin)
+        }
         if (abort.signal.aborted) return
         const main = results.find(result => result.id === order.id)
-        const methods = results.map(({ payment_method, payments: payment }) => {
+        const methods = results.map(({ payment_method, payments, split_origin_id }) => {
           if (payment_method === 'CASH_ON_DELIVERY') return 'Payment on delivery'
+          const payment = payments ?? (split_origin_id ? paymentByOrder.get(split_origin_id)?.payments : null)
           if (payment?.status === 'PAID' || payment?.status === 'REFUNDED') {
             return paymentMethods.find(method => method.id === payment.provider)?.name ?? 'Online payment'
           }
@@ -114,6 +145,7 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
           ...main,
           order_items: results.flatMap(result => result.order_items),
           paymentMethodLabels: [...new Set(methods)],
+          splitOrigin: main.split_origin_id ? paymentByOrder.get(main.split_origin_id) ?? null : null,
         } : null)
         setDetailsFailed(!main)
       })
@@ -154,7 +186,7 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
       setRestocking(false)
     }
   }
-  return <dialog ref={dialogRef} className="order-drawer" aria-labelledby="order-drawer-title"
+  return <><dialog ref={dialogRef} className="order-drawer" aria-labelledby="order-drawer-title"
     onCancel={onCancel} onClick={onClick}>
     <header className="order-drawer__header">
       <div className="order-drawer__identity">
@@ -175,6 +207,10 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
           <div><dt>{t('Payment method')}</dt><dd>{paymentMethodLabels.map(label => t(label)).join(', ')}</dd></div>
           <div><dt>{t('Payment status')}</dt><dd>{t(orderPaymentStatusKey(order))}</dd></div>
           <div><dt>{t('Total')}</dt><dd><strong>{formatPrice(order.total_price / 100, order.currency)}</strong></dd></div>
+          {splitOrigin && splitOrigin.id !== order.id && <div>
+            <dt>{t('Original order')}</dt>
+            <dd><button type="button" className="text-btn" onClick={() => onOpenOrder(splitOrigin.id)}>#{splitOrigin.receipt_code}</button></dd>
+          </div>}
         </dl>
       </section>
       {details ? <>
@@ -189,6 +225,19 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
               <strong>{formatPrice(item.line_total / 100, order.currency)}</strong>
             </li>)}
           </ul> : <p className="muted">{t('No items in this order')}</p>}
+          <div className="order-drawer__split-actions">
+            <OrderActionButton type="button" className="order-drawer__compact-button" aria-haspopup="dialog"
+              disabledReason={splitBlocked && t(splitBlocked)} onClick={() => setSplitOpen(true)}>
+              <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M3 10h5m0 0 3-3m-3 3 3 3M13 3h4v5h-4zM13 12h4v5h-4z" />
+              </svg>
+              {t('Split order')}
+            </OrderActionButton>
+          </div>
+          {splitResult && <div className="order-drawer__split-result">
+            <span role="status">{t('Separate order #{{code}} created.', { code: splitResult.receipt_code })}</span>
+            <button type="button" className="text-btn" onClick={() => onOpenOrder(splitResult.order_id)}>{t('Open separate order')}</button>
+          </div>}
         </section>
         <section className="order-drawer__card">
           <h3>{t('Delivery')}</h3>
@@ -256,6 +305,16 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
       </section>}
     </div>
   </dialog>
+  {splitOpen && details && <SplitOrderDialog orderId={order.id} items={details.order_items} total={order.total_price}
+    currency={order.currency} paid={order.payment_status === 'PAID'} token={token} onClose={() => setSplitOpen(false)}
+    onSplit={result => {
+      setSplitResult(result)
+      setSplitOpen(false)
+      setRevision(value => value + 1)
+      refreshDetails()
+      onChanged()
+    }} />}
+  </>
 }
 
 export function FinancialAnalytics({ orders, storeId, token }: { orders: MetricOrder[]; storeId: string; token: string }) {

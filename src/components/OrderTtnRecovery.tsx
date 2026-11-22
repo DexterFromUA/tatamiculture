@@ -63,9 +63,12 @@ export function OrderTtnRecovery({ attempt, orderId, token, canCreateNewTtn, onR
         <button className="btn btn--ghost" type="button" disabled={busy} onClick={() => { setMode(null); setError('') }}>{t('Cancel')}</button>
         <button className="btn" type="submit" disabled={busy} aria-describedby={busy ? busyHintId : undefined}>{t('Link existing TTN')}</button>
       </div>
-    </form> : <div className="actions">
-      <button type="button" className="btn btn--ghost" disabled={busy} aria-describedby={busy ? busyHintId : undefined}
+    </form> : <div className="actions order-ttn-recovery__actions">
+      <button type="button" className="order-drawer__compact-button" disabled={busy} aria-describedby={busy ? busyHintId : undefined}
         onClick={() => { setMode('attach'); setError('') }}>
+        <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M10 4v12M4 10h12" />
+        </svg>
         {t(attempt || !canCreateNewTtn ? 'Link existing TTN' : 'Add TTN')}
       </button>
       {attempt && <button type="button" className="btn btn--ghost" disabled={busy} aria-describedby={busy ? busyHintId : undefined}

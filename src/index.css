@@ -1695,6 +1695,26 @@ input[type="date"] { color-scheme: light; }
 }
 .confirmation-dialog__details li + li { margin-top: 8px; }
 .confirmation-dialog__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.split-order-dialog { width: min(560px, calc(100% - 32px)); }
+.split-order-dialog__items { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--line); }
+.split-order-dialog__items li { display: grid; grid-template-columns: minmax(0, 1fr) 76px; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.split-order-dialog__items strong { overflow-wrap: anywhere; }
+.split-order-dialog__items small { display: block; margin-top: 3px; color: var(--muted); }
+.split-order-dialog__quantity input { width: 100%; min-height: 42px; text-align: center; }
+.split-order-dialog__totals { display: grid; gap: 6px; margin: 16px 0; }
+.split-order-dialog__totals div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.split-order-dialog__totals dd { margin: 0; font-weight: 700; white-space: nowrap; }
+.confirmation-dialog .split-order-dialog__note { font-size: .85rem; margin: 0 0 16px; }
+.order-drawer__split-actions { margin-top: 14px; }
+.order-drawer__compact-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-height: 36px; max-width: 100%; padding: 7px 11px; border: 1px solid var(--line); border-radius: 4px;
+  background: var(--card); color: var(--ink); font: 600 .8rem/1.25 var(--ui); cursor: pointer; }
+.order-drawer__compact-button:not(:disabled):hover { border-color: var(--accent); color: var(--accent); }
+.order-drawer__compact-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.order-drawer__compact-button:disabled { opacity: .5; cursor: not-allowed; }
+.order-drawer__compact-button svg { flex: none; }
+.order-ttn-recovery__actions { align-items: center; margin-top: 14px; }
+.order-drawer__split-result { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; }
 .refund-methods { display: grid; gap: 10px; margin: 0 0 24px; padding: 0; border: 0; }
 .refund-method { display: flex; align-items: flex-start; gap: 12px; padding: 14px; border: 1px solid var(--line); cursor: pointer; }
 .refund-method:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--card)); }

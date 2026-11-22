@@ -637,6 +637,7 @@ export function AdminPage() {
         confirmation.resolve(confirmed)
       }} />}
       {selectedOrder && token && <OrderOperations key={selectedOrder.id} order={selectedOrder} orderIds={selectedOrder.member_ids} token={token}
+        onOpenOrder={setSelectedOrderId}
         onChanged={() => setOrdersRevision(value => value + 1)}
         onClose={() => { setSelectedOrderId(null); setOrdersRevision(value => value + 1) }} />}
       {mergeOpen && token && <MergeOrdersDrawer orders={selectedOrders} busy={bulkBusy} error={mergeError} onClose={() => setMergeOpen(false)} onMerge={targetId => {
