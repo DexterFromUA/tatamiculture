@@ -1385,6 +1385,8 @@ textarea {
 .crm-order__actions .ttn-actions { display: flex; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 10px; }
 .crm-order__ttn { color: var(--muted); font-size: .8rem; cursor: text; }
 .crm-order__actions .crm-order__cancel { margin-left: auto; color: var(--danger); }
+.crm-order__refund { margin-left: auto; }
+.crm-order__refund .actions { align-items: center; justify-content: flex-end; margin-top: 0; }
 .crm-page .catalog-admin__list { display: grid; gap: 10px; border: 0; background: transparent; }
 .crm-page .catalog-admin__list li { flex-wrap: wrap; gap: 14px 20px; padding: 18px; border: 1px solid var(--crm-border); background: var(--card); }
 .crm-page .catalog-admin__list li:last-child { border-bottom: 1px solid var(--crm-border); }
@@ -1440,6 +1442,7 @@ textarea {
   .crm-order__actions .text-btn { display: inline-flex; align-items: center; min-height: 36px; max-width: 100%; text-align: left; overflow-wrap: anywhere; }
   .crm-order__actions .ttn-actions { display: contents; }
   .crm-order__actions .crm-order__cancel { margin-left: 0; }
+  .crm-order__refund { margin-left: auto; }
   .crm-page .customers-list li { grid-template-columns: 1fr; gap: 5px; }
   .customer-list-card { grid-template-columns: minmax(0, 1fr); gap: 5px; }
   .customers-toolbar > select { flex: 1 1 100%; }
@@ -1633,6 +1636,12 @@ input[type="date"] { color-scheme: light; }
 }
 .confirmation-dialog__details li + li { margin-top: 8px; }
 .confirmation-dialog__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.refund-methods { display: grid; gap: 10px; margin: 0 0 24px; padding: 0; border: 0; }
+.refund-method { display: flex; align-items: flex-start; gap: 12px; padding: 14px; border: 1px solid var(--line); cursor: pointer; }
+.refund-method:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--card)); }
+.refund-method input { flex: none; margin: 4px 0 0; accent-color: var(--accent); }
+.refund-method span { display: grid; gap: 3px; }
+.refund-method small { color: var(--muted); line-height: 1.4; }
 
 .crm-order-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .order-import-dialog { width: min(640px, calc(100% - 32px)); }

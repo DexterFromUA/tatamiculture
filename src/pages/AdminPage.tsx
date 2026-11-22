@@ -11,6 +11,7 @@ import { MergeOrdersDrawer } from '../components/MergeOrdersDrawer'
 import { ConfirmationDialog, type ConfirmationDialogContent } from '../components/ConfirmationDialog'
 import { NovaPoshtaTrackingLink } from '../components/NovaPoshtaTrackingLink'
 import { OrderActionButton } from '../components/OrderActionButton'
+import { CancelledOrderRefunds } from '../components/CancelledOrderRefunds'
 import { AdminDashboard } from '../components/AdminDashboard'
 import type { DashboardOrder, DashboardInventory } from '../lib/dashboard'
 import { AdminTabs } from '../components/AdminTabs'
@@ -197,6 +198,9 @@ export function AdminPage() {
 
   const updateOrderStatus = async (ids: string[], status: OrderStatus, restoreStock = false) => {
     if (!token) return false
+    if (status === 'CANCELLED_BY_STORE' && !await confirmAction({
+      title: t('Cancel order'), message: t('Are you sure you want to cancel the selected orders?'), confirmLabel: t('Cancel order'),
+    })) return false
     let source: string | null = null
     let received: string | null = null
     const request = () => supabaseRequest<{ orders: Array<Pick<AdminOrder, 'id' | 'status' | 'payment_status'>>; stock_added: number }>(
@@ -587,6 +591,7 @@ export function AdminPage() {
                     disabledReason={bulkBusy ? t('A bulk order action is running.') : undefined}
                     onClick={() => setTtnOrder(order)}>{t('Create TTN')}</OrderActionButton>
                 )}
+                {order.status.startsWith('CANCELLED') && token && <CancelledOrderRefunds orderIds={order.member_ids} token={token} compact onChange={() => setOrdersRevision(value => value + 1)} />}
                 {canCancelWithStock(order) && <button type="button" className="text-btn crm-order__cancel" disabled={bulkBusy || Boolean(updatingId)} onClick={() => void changeStatus(order.id, 'CANCELLED_BY_STORE', true)}>{t('Cancel & restore stock')}</button>}</div>
               </li>
             )

@@ -17,18 +17,20 @@ type Refund = {
 }
 type Method = 'automatic' | 'manual' | 'check' | 'review'
 type Resolution = 'record_paid' | 'not_started'
-type Selection = { refund: Refund; step: 'confirm' | 'method' | 'manual' } |
+type Selection = { refund: Refund; step: 'confirm' | 'method' } |
   { refund: Refund; step: 'review'; attemptId: string; resolution: Resolution }
 
-export function CancelledOrderRefunds({ orderIds, token, onChange }: {
+export function CancelledOrderRefunds({ orderIds, token, onChange, compact = false }: {
   orderIds: string[]
   token: string
   onChange: (completedOrderId?: string) => void
+  compact?: boolean
 }) {
   const { t } = useTranslation()
   const titleId = useId()
   const [refunds, setRefunds] = useState<Refund[]>([])
   const [selection, setSelection] = useState<Selection | null>(null)
+  const [refundMethod, setRefundMethod] = useState<'automatic' | 'manual' | ''>('')
   const [reviewableAttempts, setReviewableAttempts] = useState<Record<string, string | undefined>>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -68,25 +70,25 @@ export function CancelledOrderRefunds({ orderIds, token, onChange }: {
 
   const selectedAmount = selection && formatPrice(selection.refund.amount / 100, selection.refund.currency)
   if (!refunds.length && !error) return null
-  return <section className="order-drawer__card">
-    <h3>{t('Payment refund')}</h3>
+  return <section className={compact ? 'crm-order__refund' : 'order-drawer__card'} onClick={event => event.stopPropagation()}>
+    {!compact && <h3>{t('Payment refund')}</h3>}
     {error && <p className="error" role="alert">{t(error)}</p>}
     {refunds.map(refund => {
       const attemptId = reviewableAttempts[refund.order_id]
-      const disabledReason = refund.status === 'completed' ? 'This refund has already been recorded.'
-        : refund.status === 'processing' ? 'The refund is pending confirmation. Use Check refund status.'
+      const disabledReason = refund.status === 'processing' ? 'The refund is pending confirmation. Use Check refund status.'
         : refund.amount <= 0 ? 'There is no amount left to refund.'
         : busy ? 'A refund request is being processed.' : undefined
 
       return <div key={refund.order_id} className="order-refund">
         <div className="actions">
           {orderIds.length > 1 && <span>#{refund.receipt_code}</span>}
-          <strong>{formatPrice(refund.amount / 100, refund.currency)}</strong>
-          <OrderActionButton type="button" className="btn btn--ghost" aria-haspopup="dialog"
+          {!compact && <strong>{formatPrice(refund.amount / 100, refund.currency)}</strong>}
+          {refund.status === 'completed' ? <button type="button" className={compact ? 'text-btn' : 'btn btn--ghost'} disabled>{t('Refund paid')}</button> :
+          <OrderActionButton type="button" className={compact ? 'text-btn' : 'btn btn--ghost'} aria-haspopup="dialog"
             disabledReason={disabledReason && t(disabledReason)}
-            onClick={() => { setError(''); setSelection({ refund, step: 'confirm' }) }}>
-            {t(refund.status === 'completed' ? 'Refund paid' : refund.status === 'processing' ? 'Refund in progress' : 'Refund payment')}
-          </OrderActionButton>
+            onClick={() => { setError(''); setRefundMethod(''); setSelection({ refund, step: 'confirm' }) }}>
+            {t(refund.status === 'processing' ? 'Refund in progress' : 'Refund payment')}
+          </OrderActionButton>}
           {refund.status === 'processing' && <OrderActionButton type="button" className="text-btn"
             disabledReason={busy ? t('A refund request is being processed.') : undefined}
             onClick={() => void run(refund, 'check')}>{t('Check refund status')}</OrderActionButton>}
@@ -114,22 +116,29 @@ export function CancelledOrderRefunds({ orderIds, token, onChange }: {
       confirmLabel={t('Continue')} onClose={confirmed => setSelection(confirmed ? { ...selection, step: 'method' } : null)} />}
     {selection?.step === 'method' && <CenteredDialog aria-labelledby={titleId} onClose={value => {
       if (value === 'automatic') void run(selection.refund, 'automatic')
-      else setSelection(value === 'manual' ? { ...selection, step: 'manual' } : null)
+      else if (value === 'manual') void run(selection.refund, 'manual')
+      else setSelection(null)
     }}>
       <h2 id={titleId}>{t('Refund method')}</h2>
-      <p>{selectedAmount}</p>
-      <form method="dialog" className="confirmation-dialog__actions">
-        <button type="submit" value="cancel" className="btn btn--ghost" autoFocus>{t('Cancel')}</button>
-        {selection.refund.automatic_available && <button type="submit" value="automatic" className="btn">{t('Automatic refund')}</button>}
-        <button type="submit" value="manual" className="btn btn--ghost">{t('Manual refund')}</button>
+      <p>{t('Choose how to refund {{amount}}.', { amount: selectedAmount })}</p>
+      <form method="dialog">
+        <fieldset className="refund-methods">
+          <legend className="sr-only">{t('Refund method')}</legend>
+          {selection.refund.automatic_available && <label className="refund-method">
+            <input type="radio" name="refund-method" value="automatic" checked={refundMethod === 'automatic'} onChange={() => setRefundMethod('automatic')} />
+            <span><strong>{t('Automatic refund')}</strong><small>{t('Send the refund through the payment provider.')}</small></span>
+          </label>}
+          <label className="refund-method">
+            <input type="radio" name="refund-method" value="manual" checked={refundMethod === 'manual'} onChange={() => setRefundMethod('manual')} />
+            <span><strong>{t('Manual refund')}</strong><small>{t('After transferring the money yourself, continue to record the refund as paid.')}</small></span>
+          </label>
+        </fieldset>
+        <div className="confirmation-dialog__actions">
+          <button type="submit" value="cancel" className="btn btn--ghost">{t('Cancel')}</button>
+          <button type="submit" value={refundMethod} className="btn" disabled={!refundMethod}>{t('Continue')}</button>
+        </div>
       </form>
     </CenteredDialog>}
-    {selection?.step === 'manual' && <ConfirmationDialog title={t('Manual refund')}
-      message={t('Record this refund only after transferring {{amount}} to the customer.', { amount: selectedAmount })}
-      confirmLabel={t('Refund paid')} onClose={confirmed => {
-        if (confirmed) void run(selection.refund, 'manual')
-        else setSelection(null)
-      }} />}
     {selection?.step === 'review' && <ConfirmationDialog
       title={t(selection.resolution === 'record_paid' ? 'Record refund as paid' : 'Confirm refund did not start')}
       message={selection.resolution === 'record_paid'

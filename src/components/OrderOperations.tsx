@@ -1,5 +1,4 @@
 import { ItemReturns, type ReturnableOrderItem } from './ItemReturns'
-import { CancelledOrderRefunds } from './CancelledOrderRefunds'
 import { ConfirmationDialog } from './ConfirmationDialog'
 import { NovaPoshtaTrackingLink } from './NovaPoshtaTrackingLink'
 import { OrderActionButton } from './OrderActionButton'
@@ -57,7 +56,6 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
   const [returns, setReturns] = useState<Return[]>([])
   const [revision, setRevision] = useState(0)
   const [error, setError] = useState('')
-  const [refundedLocally, setRefundedLocally] = useState(false)
   const [confirmRestock, setConfirmRestock] = useState(false)
   const [restocking, setRestocking] = useState(false)
   const [restockError, setRestockError] = useState('')
@@ -175,7 +173,7 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
           {order.customer_email && <div><dt>{t('Email')}</dt><dd>{order.customer_email}</dd></div>}
           <div><dt>{t('Order date')}</dt><dd><time dateTime={order.created_at}>{formatDate(order.created_at)}</time></dd></div>
           <div><dt>{t('Payment method')}</dt><dd>{paymentMethodLabels.map(label => t(label)).join(', ')}</dd></div>
-          <div><dt>{t('Payment status')}</dt><dd>{t(refundedLocally ? 'payment_REFUNDED' : orderPaymentStatusKey(order))}</dd></div>
+          <div><dt>{t('Payment status')}</dt><dd>{t(orderPaymentStatusKey(order))}</dd></div>
           <div><dt>{t('Total')}</dt><dd><strong>{formatPrice(order.total_price / 100, order.currency)}</strong></dd></div>
         </dl>
       </section>
@@ -251,10 +249,6 @@ export function OrderOperations({ order, orderIds = [order.id], token, onClose, 
         {returns.length ? <ul className="note-list">{returns.map(item => <li key={item.id}><strong>{formatPrice(item.amount / 100, order.currency)}</strong><p>{item.reason}</p></li>)}</ul> : <p className="muted">{t('No confirmed refunds yet')}</p>}
       </section>
       <OrderActivity key={revision} orderId={order.id} token={token} currency={order.currency} />
-      {order.status.startsWith('CANCELLED') && <CancelledOrderRefunds orderIds={orderIds} token={token} onChange={completedOrderId => {
-        if (completedOrderId === order.id) setRefundedLocally(true)
-        setRevision(value => value + 1)
-      }} />}
       {completed && trackingNumber && <section className="order-drawer__card">
         <dl className="order-drawer__details">
           <div><dt>{t('TTN')}</dt><dd>{trackingNumber}</dd></div>
