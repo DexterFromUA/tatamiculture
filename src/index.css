@@ -1027,19 +1027,82 @@ textarea {
 
 .toast-stack {
   position: fixed;
-  right: 16px;
-  bottom: 16px;
+  inset-block-start: max(20px, calc(env(safe-area-inset-top) + 12px));
+  inset-inline-end: max(20px, calc(env(safe-area-inset-right) + 12px));
+  width: min(340px, calc(100% - 40px));
   display: grid;
   gap: 8px;
-  z-index: 20;
+  z-index: 30;
+  pointer-events: none;
 }
 
 .toast {
-  background: var(--ink);
-  color: var(--paper);
-  padding: 10px 14px;
-  box-shadow: var(--shadow);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 50px;
+  align-items: stretch;
+  min-height: 52px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-inline-start: 3px solid var(--accent);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 16%);
+  pointer-events: auto;
+  animation: toast-enter-side .26s cubic-bezier(.2, .7, .2, 1) both;
 }
+
+.toast__message {
+  align-self: center;
+  margin: 0;
+  padding: 12px 14px;
+  overflow-wrap: anywhere;
+  font-size: .9rem;
+  font-weight: 600;
+}
+
+.toast__close {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-inline-start: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: 1.5rem/1 var(--ui);
+  cursor: pointer;
+}
+
+.toast__close:hover, .toast__close:active {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 7%, var(--card));
+}
+
+.toast__close:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+
+@keyframes toast-enter-side {
+  from { transform: translateX(calc(100% + 24px)); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes toast-enter-top {
+  from { transform: translateY(calc(-100% - 16px)); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@media (max-width: 700px), (hover: none) and (pointer: coarse) {
+  .toast-stack {
+    inset-block-start: max(12px, calc(env(safe-area-inset-top) + 8px));
+    inset-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right));
+    width: auto;
+    max-width: 420px;
+    margin-inline: auto;
+  }
+  .toast { animation-name: toast-enter-top; }
+}
+
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
 
 .sr-only {
   position: absolute;

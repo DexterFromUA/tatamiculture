@@ -502,6 +502,7 @@ const uk = {
   'Ships in 1–5 business days': 'Відправлення протягом 1–5 робочих днів',
   'Add to cart': 'Додати до кошика', 'View cart': 'Переглянути кошик', Sale: 'Знижка',
   'Added to cart': 'Додано до кошика', 'Previous image': 'Попереднє зображення', 'Next image': 'Наступне зображення', 'pre-order': 'передзамовлення',
+  'Dismiss notification': 'Закрити сповіщення',
   'Page not found': 'Сторінку не знайдено', 'Loading…': 'Завантаження…',
   'Secure checkout': 'Безпечне оформлення', 'Delivery details': 'Дані для доставки',
   'Last delivery address': 'Остання адреса доставки',
