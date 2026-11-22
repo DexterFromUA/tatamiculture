@@ -887,7 +887,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
             </div>
           </div>
         </div>}
-        <ul ref={productList} className="catalog-admin__list">
+        <ul ref={productList} className={`catalog-admin__list${!showStock ? ' catalog-admin__list--products' : ''}`}>
           {!showStock ? pageProducts.map(product => {
             const unavailable = product.product_variants.filter(variant => variant.stock_quantity === 0).length
             return <li key={product.id} className={selected.includes(product.id) ? 'catalog-admin__selected' : undefined}>
@@ -1140,7 +1140,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
             {draft.id && <button type="button" className="text-btn product-editor__delete product-workspace__footer-delete" disabled={saving || categoryBusy} onClick={() => requestProductDeletion(draft.id!)}>
               {t(deleting ? 'Deleting…' : 'Delete product')}
             </button>}
-            <button type="button" className="btn" disabled={saving || categoryBusy} onClick={() => void save()}>{t(saving && !deleting ? 'Saving…' : 'Save product')}</button>
+            <button type="button" className="btn product-workspace__save" disabled={saving || categoryBusy} onClick={() => void save()}>{t(saving && !deleting ? 'Saving…' : 'Save product')}</button>
             <button type="button" className="btn btn--ghost" disabled={saving || categoryBusy} onClick={closeEditor}>{t('Cancel')}</button>
           </div>
         </section>}

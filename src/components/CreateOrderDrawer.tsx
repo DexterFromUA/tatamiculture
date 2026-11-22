@@ -150,7 +150,7 @@ export function CreateOrderDrawer({ store, token, onClose, onCreated }: {
               </select>
             </label>
           </div>
-          <button type="button" className="btn btn--ghost" disabled={saving || !selectedVariant} onClick={() => {
+          <button type="button" className="btn btn--ghost crm-create-order__add-item" disabled={saving || !selectedVariant} onClick={() => {
             if (!selectedVariant) return
             setItems(current => [...current, { variantId: selectedVariant.id, quantity: '1' }])
             setVariantId('')
@@ -207,7 +207,7 @@ export function CreateOrderDrawer({ store, token, onClose, onCreated }: {
             <div><span>{t('Total')}</span><strong>{currency(total)}</strong></div>
           </div>
           {error && <p className="error" role="alert">{t(error)}</p>}
-          <button type="submit" className="btn" disabled={saving || !lines.length || lines.some(line => !line.valid)}>
+          <button type="submit" className="btn crm-create-order__submit" disabled={saving || !lines.length || lines.some(line => !line.valid)}>
             {t(saving ? 'Saving…' : 'Create order')}
           </button>
         </section>
