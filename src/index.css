@@ -1546,7 +1546,7 @@ textarea {
 .settings-workspace__content [hidden] { display: none; }
 .settings-workspace__heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 22px 24px; margin-bottom: 12px; border: 1px solid var(--crm-border); background: var(--card); }
 .settings-workspace__heading h2 { margin: 0; font-size: 1.4rem; }
-.settings-workspace__storefront { display: grid; gap: 12px; }
+.settings-workspace__storefront, .settings-workspace__notifications { display: grid; gap: 12px; }
 .settings-workspace .banner-settings { max-width: none; margin: 0; padding: clamp(22px, 3vw, 32px); }
 .banner-settings__header { padding-bottom: 20px; border-bottom: 1px solid var(--crm-border); }
 .banner-settings__header h2 { margin: 0 0 8px; font-size: 1.4rem; }
@@ -1573,6 +1573,14 @@ textarea {
 .sms-provider-settings__notification-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .sms-provider-settings__notification-row h3 { margin: 0 0 6px; font-size: 1rem; }
 .sms-provider-settings__notification-row p { margin: 0; font-size: .85rem; }
+.staff-push-settings h3 { margin: 0 0 6px; font-size: 1rem; }
+.staff-push-settings > p { margin: 0 0 12px; font-size: .85rem; }
+.staff-push-settings__list { display: grid; list-style: none; padding: 0; margin: 0; }
+.staff-push-settings__row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-top: 1px solid var(--crm-border); }
+.staff-push-settings__row:last-child { padding-bottom: 0; }
+.staff-push-settings__row > .toggle-switch { flex-shrink: 0; }
+.staff-push-settings__identity { display: grid; justify-items: start; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
+.staff-push-settings__identity .text-btn { padding: 0; font-size: .8rem; }
 .payment-settings { padding: clamp(22px, 3vw, 32px); }
 .payment-settings__list { display: grid; }
 .payment-settings__row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; cursor: pointer; }

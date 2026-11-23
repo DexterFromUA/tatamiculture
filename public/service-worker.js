@@ -109,7 +109,7 @@ self.addEventListener('notificationclick', event => {
   event.waitUntil((async () => {
     const path = event.notification.data?.path
     const allowedPath = typeof path === 'string' && (path === '/checkout'
-      || /^\/account#order-[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i.test(path)
+      || /^\/(account|admin)#order-[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i.test(path)
       || /^\/(receipt|product)\/[a-z\d_-]+$/i.test(path))
     const target = new URL(allowedPath ? path : '/account', self.location.origin)
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })

@@ -1,6 +1,7 @@
 import { PaymentReviewList } from '../components/PaymentReviewList'
 import { CenteredDialog } from '../components/CenteredDialog'
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { CustomerPanel, type CustomerPanelTarget } from '../components/CustomerPanel'
 import { CustomerNotificationDrawer } from '../components/CustomerNotificationDrawer'
 import { CreateTtnDrawer } from '../components/CreateTtnDrawer'
@@ -57,6 +58,7 @@ const canCancelWithStock = (order: AdminOrder) => !order.nova_poshta_ttn && !ord
   ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_STOCK', 'PREPARING_SHIPMENT'].includes(order.status)
 
 export function AdminPage() {
+  const { hash, key: locationKey } = useLocation()
   const { store, refreshProducts } = useStore()
   const { token, user } = useAuth()
   const { addToast } = useToast()
@@ -103,6 +105,13 @@ export function AdminPage() {
   const [bulkAction, setBulkAction] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
   const { t } = useTranslation()
+
+  useEffect(() => {
+    const orderId = /^#order-([a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12})$/i.exec(hash)?.[1]
+    if (!orderId) return
+    setSection('orders')
+    setSelectedOrderId(orderId)
+  }, [hash, locationKey])
 
   useEffect(() => {
     if (!storeId || !token || !userId || !supabaseConfigured) return
@@ -479,7 +488,7 @@ export function AdminPage() {
         onOpenCatalog={query => { setCatalogSearch(query ?? ''); setCatalogFilter('stock'); setSection('catalogue') }}
         onOpenCustomers={() => setSection('customers')}
       /></div>}
-      {section === 'customers' ? <CustomersPage revision={customerRevision} onOpenCustomer={id => setSelectedCustomer({ kind: 'customer', id })} /> : section === 'catalogue' ? <CatalogAdminPage key={`${catalogFilter}:${catalogSearch}`} embedded initialFilter={catalogFilter} initialSearch={catalogSearch} /> : section === 'settings' ? <SettingsWorkspace /> : section === 'orders' ? <>
+      {section === 'customers' ? <CustomersPage revision={customerRevision} onOpenCustomer={id => setSelectedCustomer({ kind: 'customer', id })} /> : section === 'catalogue' ? <CatalogAdminPage key={`${catalogFilter}:${catalogSearch}`} embedded initialFilter={catalogFilter} initialSearch={catalogSearch} /> : section === 'settings' ? <SettingsWorkspace canManageStaffNotifications={canBroadcast} /> : section === 'orders' ? <>
       {store && token && <PaymentReviewList storeId={store.id} token={token} revision={ordersRevision} />}
       <div className="crm-grid crm-grid--orders">
         <section className="crm-panel">

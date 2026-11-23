@@ -96,6 +96,11 @@ function discountCopy(kind: string, language: Language) {
 }
 
 export function notificationCopy(kind: string, language: Language): { title: string; body: string; legacyBody?: string } {
+  if (kind === 'staff_new_order') {
+    return language === 'uk'
+      ? { title: 'Нове замовлення', body: 'Відкрийте замовлення в CRM.' }
+      : { title: 'New order', body: 'Open the order in the CRM.' }
+  }
   if (kind.startsWith('manual:')) {
     const body = kind.slice('manual:'.length)
     return { title: language === 'uk' ? 'Повідомлення' : 'Notification', body, legacyBody: body }
