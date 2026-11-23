@@ -87,8 +87,10 @@ self.addEventListener('push', event => {
   let data
   try { data = event.data?.json() } catch {}
   const id = typeof data?.id === 'string' ? data.id : undefined
+  const title = typeof data?.title === 'string' ? data.title.trim() : ''
+  const notificationTitle = title && title.toLowerCase() !== 'tatami.culture' ? title : 'Нове сповіщення'
   event.waitUntil(Promise.all([
-    self.registration.showNotification(typeof data?.title === 'string' && data.title ? data.title : 'Нове сповіщення', {
+    self.registration.showNotification(notificationTitle, {
       body: typeof data?.message === 'string' ? data.message : typeof data?.body === 'string' ? data.body : '',
       icon: offlineIcon,
       tag: id,
