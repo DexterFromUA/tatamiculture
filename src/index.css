@@ -1401,7 +1401,8 @@ textarea {
 .crm-page :is(button, input, select, textarea, a):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .crm-page .text-btn:disabled { opacity: .4; cursor: not-allowed; }
 .crm-page .admin-list { display: grid; gap: 10px; }
-.crm-page .admin-list .crm-order { display: grid; grid-template-columns: 28px minmax(0, 1fr) minmax(130px, auto) minmax(160px, 190px); gap: 14px 20px; padding: 18px; border: 1px solid var(--crm-border); background: var(--card); }
+.crm-page .admin-list .crm-order { display: block; padding: 0; border: 1px solid var(--crm-border); background: var(--card); }
+.crm-order__summary { display: grid; grid-template-columns: 28px minmax(0, 1fr) minmax(130px, auto) minmax(160px, 190px); align-items: center; gap: 14px 20px; padding: 18px; cursor: pointer; }
 .crm-order__identity, .crm-order__amount, .crm-order__status { min-width: 0; }
 .crm-page .admin-list .crm-order--selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 5%, var(--card)); }
 .order-select, .order-select-all { display: inline-flex; align-items: center; cursor: pointer; }
@@ -1453,7 +1454,6 @@ textarea {
 .crm-order__new::before { content: ''; width: 6px; height: 6px; flex: none; border-radius: 50%; background: currentColor; }
 .crm-page .crm-order__date { display: inline; }
 .crm-order__date::before { content: ' · '; }
-.crm-page .admin-list .crm-order { cursor: pointer; }
 .crm-order__reference button { padding: 0; color: var(--accent); font: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .crm-order__note { margin: 4px 0 0; font-size: .85rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 .crm-order__amount strong { display: block; font-size: 1rem; white-space: nowrap; }
@@ -1485,14 +1485,14 @@ textarea {
 .crm-page .customers-page .customers-list { display: grid; gap: 10px; margin-top: 16px; }
 .crm-page .customers-page .customers-list li { display: block; padding: 0; border: 1px solid var(--crm-border); background: var(--card); }
 .customer-list-card { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 14px 20px; width: 100%; padding: 18px; border: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
-.customer-list-card:hover { background: var(--crm-soft); }
+.crm-order__summary:hover, .customer-list-card:hover { background: var(--crm-soft); }
 .customer-list-card:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .customer-list-card__identity { display: block; min-width: 0; overflow-wrap: anywhere; }
 .customer-list-card__name { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 12px; }
 .customer-list-card__identity strong { display: block; color: var(--accent); font-weight: 700; }
 .customer-list-card__identity small { display: block; margin-top: 4px; color: var(--muted); font-size: .8rem; }
 .customer-list-card__name small { margin-top: 0; }
-.customer-list-card__actions { margin: 0 18px; padding: 10px 0; }
+.crm-order > .crm-order__actions, .customer-list-card__actions { margin: 0 18px; padding: 10px 0; }
 .customer-list-card__name .customer-list-card__discount { padding: 2px 7px; background: color-mix(in srgb, var(--accent) 9%, var(--card)); color: var(--accent); font-size: .72rem; font-weight: 600; white-space: nowrap; }
 .crm-page .customers-page .crm-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .customers-toolbar { display: flex; align-items: end; flex-wrap: wrap; gap: 10px 16px; margin: 0 0 4px; }
@@ -1511,7 +1511,7 @@ textarea {
   .crm-page .order-filters { grid-template-columns: minmax(0, 1fr); }
   .order-date-filter input[type="date"] { -webkit-appearance: none; appearance: none; }
   .order-date-filter input[type="date"]::-webkit-date-and-time-value { min-height: 1.2em; margin: 0; text-align: left; }
-  .crm-page .admin-list .crm-order { grid-template-columns: 28px minmax(0, 1fr); gap: 12px; padding: 16px; }
+  .crm-order__summary { grid-template-columns: 28px minmax(0, 1fr); gap: 12px; }
   .crm-order .order-select { align-self: start; }
   .crm-order__reference button { text-align: left; overflow-wrap: anywhere; }
   .crm-page .crm-order__date { display: block; margin-top: 4px; }

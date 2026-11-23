@@ -548,32 +548,36 @@ export function AdminPage() {
             const receiptPath = `/receipt/${encodeURIComponent(order.receipt_code)}`
             const note = order.note?.trim()
             return (
-              <li key={order.id} className={`crm-order${selectedOrderIds.has(order.id) ? ' crm-order--selected' : ''}`} onClick={event => {
-                if (event.target instanceof Element && event.target.closest('a, button, input, select, textarea, label, .crm-order__ttn')) return
-                setSelectedOrderId(order.id)
-              }}>
-                <label className="order-select">
-                  <input type="checkbox" checked={selectedOrderIds.has(order.id)} disabled={bulkBusy}
-                    onChange={event => {
-                      const checked = event.target.checked
-                      setOrderSelection(current => checked ? [...current, order] : current.filter(selected => selected.id !== order.id))
-                      setBulkAction('')
-                    }} />
-                  <span className="sr-only">{t('Select order')} #{order.receipt_code}</span>
-                </label>
-                <div className="crm-order__identity">
-                  <span className="crm-order__reference"><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => setSelectedOrderId(order.id)}>#{order.receipt_code}</button>{order.is_new && <span className="crm-order__new">{t('New order label')}</span>}<span className="crm-order__date"><time dateTime={order.created_at}>{formatDate(order.created_at)} · {new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(new Date(order.created_at))}</time>{order.member_ids.length > 1 && ` · ${t('Merged orders: {{count}}', { count: order.member_ids.length })}`}</span></span>
-                  {note && <p className="crm-order__note"><strong>{t('Note')}</strong> {note}</p>}
-                  {order.customer_email && <span className="crm-order__email">{order.customer_email}</span>}
+              <li key={order.id} className={`crm-order${selectedOrderIds.has(order.id) ? ' crm-order--selected' : ''}`}>
+                <div className="crm-order__summary" onClick={event => {
+                  if (event.target instanceof Element && event.target.closest('a, button, input, select, textarea, label')) return
+                  setSelectedOrderId(order.id)
+                }}>
+                  <label className="order-select">
+                    <input type="checkbox" checked={selectedOrderIds.has(order.id)} disabled={bulkBusy}
+                      onChange={event => {
+                        const checked = event.target.checked
+                        setOrderSelection(current => checked ? [...current, order] : current.filter(selected => selected.id !== order.id))
+                        setBulkAction('')
+                      }} />
+                    <span className="sr-only">{t('Select order')} #{order.receipt_code}</span>
+                  </label>
+                  <div className="crm-order__identity">
+                    <span className="crm-order__reference"><button type="button" className="text-btn" aria-haspopup="dialog" onClick={() => setSelectedOrderId(order.id)}>#{order.receipt_code}</button>{order.is_new && <span className="crm-order__new">{t('New order label')}</span>}<span className="crm-order__date"><time dateTime={order.created_at}>{formatDate(order.created_at)} · {new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(new Date(order.created_at))}</time>{order.member_ids.length > 1 && ` · ${t('Merged orders: {{count}}', { count: order.member_ids.length })}`}</span></span>
+                    {note && <p className="crm-order__note"><strong>{t('Note')}</strong> {note}</p>}
+                    {order.customer_email && <span className="crm-order__email">{order.customer_email}</span>}
+                  </div>
+                  <div className="crm-order__amount"><strong>{formatPrice(Number(order.total_price) / 100, order.currency)}</strong><span>{order.payment_method === 'CASH_ON_DELIVERY' ? t('Payment on delivery') : t('Online payment')}</span></div>
+                  <div className="crm-order__status">
+                    <span>{t('Order status')}</span>
+                    <label className="sr-only" htmlFor={`status-${order.id}`}>{t('Order status')}</label>
+                    <select id={`status-${order.id}`} value={order.status} disabled={bulkBusy || Boolean(updatingId)} onChange={(event) => void changeStatus(order.id, event.target.value as OrderStatus)}>
+                      {!statuses.includes(order.status) && <option value={order.status}>{t(order.status)}</option>}
+                      {statuses.filter(status => order.status !== 'CANCELLED_BY_USER' || status !== 'CANCELLED_BY_STORE').map(status => <option key={status} value={status}>{t(status)}</option>)}
+                    </select>
+                  </div>
+                  {order.nova_poshta_status && <p className="crm-order__delivery">{order.nova_poshta_status}</p>}
                 </div>
-                <div className="crm-order__amount"><strong>{formatPrice(Number(order.total_price) / 100, order.currency)}</strong><span>{order.payment_method === 'CASH_ON_DELIVERY' ? t('Payment on delivery') : t('Online payment')}</span></div>
-                <div className="crm-order__status"><span>{t('Order status')}</span>
-                <label className="sr-only" htmlFor={`status-${order.id}`}>{t('Order status')}</label>
-                <select id={`status-${order.id}`} value={order.status} disabled={bulkBusy || Boolean(updatingId)} onChange={(event) => void changeStatus(order.id, event.target.value as OrderStatus)}>
-                  {!statuses.includes(order.status) && <option value={order.status}>{t(order.status)}</option>}
-                  {statuses.filter(status => order.status !== 'CANCELLED_BY_USER' || status !== 'CANCELLED_BY_STORE').map(status => <option key={status} value={status}>{t(status)}</option>)}
-                </select></div>
-                {order.nova_poshta_status ? <p className="crm-order__delivery">{order.nova_poshta_status}</p> : null}
                 <div className="crm-order__actions"><button type="button" className="text-btn" onClick={() => void copyReceiptLink(receiptPath)}>{t('Copy receipt link')}</button>
                 <button type="button" className="text-btn" aria-haspopup="dialog" title={t('Open customer card')} onClick={() => setSelectedCustomer({ kind: 'order', id: order.id })}>{t('Customer')}</button>
                 {order.status === 'COMPLETED' && order.nova_poshta_ttn &&
