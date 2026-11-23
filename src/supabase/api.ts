@@ -6,7 +6,7 @@ import { fetchAll } from '../lib/crm'
 import { getSizeGuideImageUrls } from '../lib/productText'
 import { supabaseRequest } from '../lib/supabase'
 import { discountedCategory, newArrivalsCategory, type CatalogCursor, type CatalogFilters, type CatalogMetadata, type CatalogPage } from '../lib/storefrontCatalog'
-import type { AuthSession, CartItem, CatalogCategory, CheckoutInput, Order, OrderItem, Product, ProductOption, Store, User } from '../types'
+import type { AuthSession, CartItem, CatalogCategory, CheckoutInput, NotificationChannel, NotificationChannels, NotificationTopic, Order, OrderItem, Product, ProductOption, Store, User } from '../types'
 
 type Row = Record<string, unknown>
 
@@ -18,7 +18,10 @@ const productFields = '*,categories!products_category_id_fkey(*),product_categor
 function mapStore(row: Row): Store {
   return {
     id: text(row.id), name: text(row.name), currency: text(row.currency),
-    smsNotificationsEnabled: row.sms_notifications_enabled !== false,
+    notifications: {
+      restockPush: row.sms_notifications_enabled !== false, restockSms: row.restock_sms_enabled === true,
+      orderPush: row.order_push_enabled !== false, orderSms: row.order_sms_enabled === true,
+    },
   }
 }
 
@@ -101,14 +104,14 @@ async function profileFor(user: Row, token: string) {
 
 export const supabaseApi = {
   async getStore(signal?: AbortSignal): Promise<Store | null> {
-    const rows = await supabaseRequest<Row[]>('/rest/v1/shop_settings?select=id,name,currency,sms_notifications_enabled', { signal, cache: 'no-store' })
+    const rows = await supabaseRequest<Row[]>('/rest/v1/shop_settings?select=*', { signal, cache: 'no-store' })
     return rows[0] ? mapStore(rows[0]) : null
   },
 
-  setSmsNotificationsEnabled(storeId: string, enabled: boolean, token: string) {
-    return supabaseRequest<boolean>('/rest/v1/rpc/set_sms_notifications_enabled', {
+  setNotificationChannel(storeId: string, topic: NotificationTopic, channel: NotificationChannel, enabled: boolean, token: string) {
+    return supabaseRequest<NotificationChannels>('/rest/v1/rpc/set_customer_notification_channel', {
       method: 'POST', token, signal: AbortSignal.timeout(15000),
-      body: JSON.stringify({ p_store_id: storeId, p_enabled: enabled }),
+      body: JSON.stringify({ p_store_id: storeId, p_topic: topic, p_channel: channel, p_enabled: enabled }),
     })
   },
 

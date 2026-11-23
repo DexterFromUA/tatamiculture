@@ -7,6 +7,7 @@ import { PaymentSettings } from './PaymentSettings'
 import { SettingsSectionHeading } from './SettingsSectionHeading'
 import { SmsProviderSettings } from './SmsProviderSettings'
 import { StaffPushSettings } from './StaffPushSettings'
+import { NotificationChannelSettings } from './NotificationChannelSettings'
 import { DeliverySettingsPage } from '../pages/DeliverySettingsPage'
 
 const sectionHeadings = {
@@ -37,7 +38,7 @@ export function SettingsWorkspace({ canManageStaffNotifications }: { canManageSt
       <div hidden={section !== 'delivery'}><DeliverySettingsPage embedded /></div>
       {section === 'payments' && <PaymentSettings heading={heading} />}
       {section === 'sms' && <div className="settings-workspace__notifications">
-        {canManageStaffNotifications && <StaffPushSettings />}
+        {canManageStaffNotifications && <><NotificationChannelSettings /><StaffPushSettings /></>}
         <SmsProviderSettings />
       </div>}
     </div>

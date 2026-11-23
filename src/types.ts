@@ -17,8 +17,12 @@ export type Store = {
   id: string
   name: string
   currency: string
-  smsNotificationsEnabled: boolean
+  notifications: NotificationChannels
 }
+
+export type NotificationTopic = 'restock' | 'order'
+export type NotificationChannel = 'push' | 'sms'
+export type NotificationChannels = { restockPush: boolean; restockSms: boolean; orderPush: boolean; orderSms: boolean }
 
 export type ProductOption = {
   allowOutOfStock?: boolean

@@ -181,7 +181,8 @@ function ProductDetails() {
           <p className="note product-delivery-note">{t(option.quantity > 0
             ? 'Ships in 1–5 business days' : 'Available to order. Dispatch time will be confirmed.')}</p>
         ))}
-        {store.smsNotificationsEnabled && option.quantity === 0 && <RestockSubscription key={option.id} variantId={option.id} />}
+        {(store.notifications.restockPush || store.notifications.restockSms) && option.quantity === 0 && <RestockSubscription key={option.id}
+          variantId={option.id} pushEnabled={store.notifications.restockPush} smsEnabled={store.notifications.restockSms} />}
         <div className="actions">
           <button type="button" className="btn" disabled={!canAdd} onClick={addToCart}>
             {t('Add to cart')}

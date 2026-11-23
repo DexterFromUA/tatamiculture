@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { supabaseConfigured, supabaseRequest } from '../lib/supabase'
 
-export function RestockSubscription({ variantId }: { variantId: string }) {
+export function RestockSubscription({ variantId, pushEnabled, smsEnabled }: { variantId: string; pushEnabled: boolean; smsEnabled: boolean }) {
   const { t } = useTranslation()
   const { token, user } = useAuth()
   const [subscribed, setSubscribed] = useState(false)
@@ -21,6 +21,8 @@ export function RestockSubscription({ variantId }: { variantId: string }) {
   if (!token) return <Link to="/login">{t('Sign in to get a restock notification')}</Link>
   return <div className="customer-section">
     <p>{t('We will notify you in your account when this size is back in stock.')}</p>
+    {pushEnabled && <p className="muted">{t('Push notifications are sent to subscribed devices.')}</p>}
+    {smsEnabled && <p className="muted">{t('SMS notifications are sent to the confirmed number in your profile.')}</p>}
     <button className="btn btn--ghost" disabled={busy} onClick={async () => {
       if (busy) return
       setBusy(true)

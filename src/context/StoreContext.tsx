@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api } from '../lib/api'
 import { SupabaseError } from '../lib/supabase'
-import type { Store } from '../types'
+import type { NotificationChannel, NotificationTopic, Store } from '../types'
 
 type StoreContextValue = {
   store: Store | null
@@ -11,7 +11,7 @@ type StoreContextValue = {
   loadFailed: boolean
   retryStore: () => void
   refreshProducts: () => void
-  setSmsNotificationsEnabled: (enabled: boolean, token: string) => Promise<void>
+  setNotificationChannel: (topic: NotificationTopic, channel: NotificationChannel, enabled: boolean, token: string) => Promise<void>
 }
 
 const StoreContext = createContext<StoreContextValue | null>(null)
@@ -83,10 +83,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const storeId = store?.id
   const refreshProducts = useCallback(() => setCatalogRevision(revision => revision + 1), [])
 
-  const setSmsNotificationsEnabled = useCallback(async (enabled: boolean, token: string) => {
+  const setNotificationChannel = useCallback(async (topic: NotificationTopic, channel: NotificationChannel, enabled: boolean, token: string) => {
     if (!storeId) return
-    const saved = await api.setSmsNotificationsEnabled(storeId, enabled, token)
-    setStore(current => current?.id === storeId ? { ...current, smsNotificationsEnabled: saved } : current)
+    const notifications = await api.setNotificationChannel(storeId, topic, channel, enabled, token)
+    setStore(current => current?.id === storeId ? { ...current, notifications } : current)
   }, [storeId])
 
   const value = useMemo(
@@ -98,9 +98,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       loadFailed: status === 'failed',
       retryStore,
       refreshProducts,
-      setSmsNotificationsEnabled,
+      setNotificationChannel,
     }),
-    [store, catalogRevision, status, retryStore, refreshProducts, setSmsNotificationsEnabled],
+    [store, catalogRevision, status, retryStore, refreshProducts, setNotificationChannel],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

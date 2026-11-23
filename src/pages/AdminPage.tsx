@@ -473,7 +473,7 @@ export function AdminPage() {
             onClick={() => setCreateOrderOpen(true)}>{t('Create order')}</button>
         </div>}
         {section === 'customers' && token && canBroadcast && <div className="crm-section-actions">
-          <button type="button" className="btn" aria-haspopup="dialog" onClick={() => setBroadcastOpen(true)}>{t('Push broadcast')}</button>
+          <button type="button" className="btn" aria-haspopup="dialog" onClick={() => setBroadcastOpen(true)}>{t('Notification broadcast')}</button>
         </div>}
       </div>}
       {token && <div hidden={section !== 'overview'}><AdminDashboard active={section === 'overview'}

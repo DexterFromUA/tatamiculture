@@ -1569,16 +1569,17 @@ textarea {
 .sms-provider-settings__provider { padding-top: 16px; }
 .sms-provider-settings__intro { margin: 0; font-size: .85rem; }
 .sms-provider-settings__provider .field { max-width: 360px; margin: 0; }
-.sms-provider-settings__notifications { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--crm-border); }
-.sms-provider-settings__notification-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.sms-provider-settings__notification-row h3 { margin: 0 0 6px; font-size: 1rem; }
-.sms-provider-settings__notification-row p { margin: 0; font-size: .85rem; }
+.customer-notification-settings fieldset { display: flex; flex-wrap: wrap; gap: 12px 24px; min-width: 0; padding: 0; margin: 0; border: 0; }
+.customer-notification-settings fieldset + fieldset { margin-top: 18px; }
+.customer-notification-settings legend { margin-bottom: 8px; font-weight: 600; }
+.notification-channel-toggle { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; }
+.notification-channel-toggle .toggle-switch { flex-shrink: 0; }
 .staff-push-settings h3 { margin: 0 0 6px; font-size: 1rem; }
 .staff-push-settings > p { margin: 0 0 12px; font-size: .85rem; }
 .staff-push-settings__list { display: grid; list-style: none; padding: 0; margin: 0; }
-.staff-push-settings__row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-top: 1px solid var(--crm-border); }
+.staff-push-settings__row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; padding: 12px 0; border-top: 1px solid var(--crm-border); }
 .staff-push-settings__row:last-child { padding-bottom: 0; }
-.staff-push-settings__row > .toggle-switch { flex-shrink: 0; }
+.staff-push-settings__channels { display: grid; gap: 8px; flex-shrink: 0; }
 .staff-push-settings__identity { display: grid; justify-items: start; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
 .staff-push-settings__identity .text-btn { padding: 0; font-size: .8rem; }
 .payment-settings { padding: clamp(22px, 3vw, 32px); }

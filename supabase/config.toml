@@ -45,3 +45,7 @@ verify_jwt = false
 [functions.customer-push]
 # GET returns the public VAPID key. POST requires the scheduler credential.
 verify_jwt = false
+
+[functions.customer-sms]
+# The database checks the scheduler credential before claiming SMS deliveries.
+verify_jwt = false
