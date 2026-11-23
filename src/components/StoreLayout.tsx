@@ -15,6 +15,7 @@ import { useStorefrontCatalog } from '../hooks/useStorefrontCatalog'
 import type { CatalogFilters } from '../lib/storefrontCatalog'
 import { isStandalone, pwaLayoutPreview } from '../lib/pwa'
 import { PushNotificationsPrompt } from './PushNotificationsPrompt'
+import { useCustomerPushPermissionSync } from '../hooks/useCustomerPushPermissionSync'
 
 const tabIcons = {
   shop: 'M3 10 5 4h14l2 6M3 10v2a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0v-2H3m2 5v5h14v-5',
@@ -52,6 +53,7 @@ export function StoreLayout() {
   const userId = user?.id
   const [crmAccess, setCrmAccess] = useState<{ storeId: string; userId: string; token: string } | null>(null)
   const [contacts, setContacts] = useState<StorefrontContacts | null>(null)
+  useCustomerPushPermissionSync(standalone, token, userId)
 
   useEffect(() => {
     const mode = window.matchMedia('(display-mode: standalone)')

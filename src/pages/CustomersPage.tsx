@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CrmPagination } from '../components/CrmPagination'
+import { CustomerNotificationDrawer } from '../components/CustomerNotificationDrawer'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { useCrmPage } from '../hooks/useCrmPage'
@@ -34,6 +35,7 @@ export function CustomersPage({ onOpenCustomer, revision }: { onOpenCustomer: (i
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<CustomerFilter>('all')
   const [page, setPage] = useState(1)
+  const [notificationCustomer, setNotificationCustomer] = useState<CrmCustomer | null>(null)
   const filters = { p_store_id: store?.id, p_search: search.trim(), p_filter: filter }
   const { data, error, loading, retry } = useCrmPage<CustomerListRow>('crm_customers_page', filters, page, token, revision)
   const rows = data?.rows ?? []
@@ -92,9 +94,15 @@ export function CustomersPage({ onOpenCustomer, revision }: { onOpenCustomer: (i
           <span>{customer.order_count} {t('orders')}</span><strong>{Object.entries(customer.totals)
             .map(([currency, amount]) => formatPrice(amount / 100, currency)).join(' · ') || '—'}</strong>
         </button>
+        <div className="crm-order__actions customer-list-card__actions">
+          <button type="button" className="text-btn" aria-haspopup="dialog"
+            onClick={() => setNotificationCustomer(customer)}>{t('Notifications')}</button>
+        </div>
       </li>)}</ul>
       {data && !rows.length && <p>{t('No customers match this search.')}</p>}
       {rows.length > 0 && <CrmPagination page={current} pages={pages} loading={loading} onChange={setPage} />}
     </section>
+    {store && token && notificationCustomer && <CustomerNotificationDrawer storeId={store.id} token={token}
+      customerId={notificationCustomer.id} customerName={notificationCustomer.name} onClose={() => setNotificationCustomer(null)} />}
   </section>
 }

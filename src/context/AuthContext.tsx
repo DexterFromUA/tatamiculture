@@ -94,12 +94,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const logout = useCallback(() => {
-    if (isStandalone()) void disableCustomerPush(readAuthSession()?.token).catch(() => {})
+    if (isStandalone()) void disableCustomerPush(readAuthSession()?.token, user?.id).catch(() => {})
     clearAuthSession()
     setRestoreFailed(false)
     setToken(null)
     setUser(null)
-  }, [])
+  }, [user?.id])
 
   const value = useMemo(
     () => ({

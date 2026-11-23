@@ -96,6 +96,9 @@ function discountCopy(kind: string, language: Language) {
 }
 
 export function notificationCopy(kind: string, language: Language) {
+  if (kind.startsWith('manual:')) {
+    return { title: language === 'uk' ? 'Повідомлення від магазину' : 'Message from the store', body: kind.slice('manual:'.length) }
+  }
   if (kind.startsWith('discount:')) return discountCopy(kind, language)
   if (kind.startsWith('pickup:')) return pickupCopy(kind, language)
   if (kind.startsWith('shipment:')) {

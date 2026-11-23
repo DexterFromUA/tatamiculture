@@ -1492,6 +1492,7 @@ textarea {
 .customer-list-card__identity strong { display: block; color: var(--accent); font-weight: 700; }
 .customer-list-card__identity small { display: block; margin-top: 4px; color: var(--muted); font-size: .8rem; }
 .customer-list-card__name small { margin-top: 0; }
+.customer-list-card__actions { margin: 0 18px; padding: 10px 0; }
 .customer-list-card__name .customer-list-card__discount { padding: 2px 7px; background: color-mix(in srgb, var(--accent) 9%, var(--card)); color: var(--accent); font-size: .72rem; font-weight: 600; white-space: nowrap; }
 .crm-page .customers-page .crm-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .customers-toolbar { display: flex; align-items: end; flex-wrap: wrap; gap: 10px 16px; margin: 0 0 4px; }
@@ -2016,6 +2017,7 @@ input[type="date"] { color-scheme: light; }
 .notifications-drawer__meta a { font-weight: 600; }
 .notifications-drawer__meta small { color: var(--muted); }
 .notifications-drawer__list p { margin: 8px 0 0; }
+.notifications-drawer__message { white-space: pre-wrap; overflow-wrap: anywhere; }
 .notifications-drawer__list .text-btn { margin-top: 8px; }
 
 /* Registration follows the same centered account layout as sign in. */

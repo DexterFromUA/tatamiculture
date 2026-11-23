@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { disableCustomerPush, updatePushSubscription } from '../lib/customerPush'
+import { disableCustomerPush, rememberPushEndpoint, updatePushSubscription } from '../lib/customerPush'
 import { supabaseRequest } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 
 export function supportsCustomerPush() {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
@@ -14,6 +15,8 @@ function applicationServerKey(key: string) {
 
 export function useCustomerPush(token: string | null, active: boolean) {
   const { i18n } = useTranslation()
+  const { user } = useAuth()
+  const userId = user?.id
   const [config, setConfig] = useState<{
     registration: ServiceWorkerRegistration
     publicKey: Uint8Array<ArrayBuffer>
@@ -35,7 +38,7 @@ export function useCustomerPush(token: string | null, active: boolean) {
       const registration = await navigator.serviceWorker.getRegistration()
       if (!registration) throw new Error('Push notifications are temporarily unavailable.')
       const activeRegistration = registration.active ? registration : await navigator.serviceWorker.ready
-      const subscription = await activeRegistration.pushManager.getSubscription()
+      const subscription = Notification.permission === 'denied' ? null : await activeRegistration.pushManager.getSubscription()
       const subscribed = subscription && await supabaseRequest<boolean>('/rest/v1/rpc/has_customer_push_subscription', {
         token: currentToken, method: 'POST', body: JSON.stringify({ p_endpoint: subscription.endpoint }), signal: abort.signal,
       })
@@ -56,7 +59,7 @@ export function useCustomerPush(token: string | null, active: boolean) {
     let createdSubscription: PushSubscription | undefined
     try {
       if (enabled) {
-        await disableCustomerPush(token)
+        await disableCustomerPush(token, userId)
         setConfig({ ...config, subscription: await config.registration.pushManager.getSubscription() })
         setEnabled(false)
         return true
@@ -74,6 +77,7 @@ export function useCustomerPush(token: string | null, active: boolean) {
         createdSubscription = subscription
       }
       await updatePushSubscription(token, subscription, language)
+      if (userId) rememberPushEndpoint(userId, subscription.endpoint)
       setConfig({ ...config, subscription })
       setEnabled(true)
       return true

@@ -7,7 +7,7 @@ import { supabaseConfigured, supabaseRequest } from '../lib/supabase'
 import { formatDate, formatPrice } from '../lib/format'
 import { useDrawer } from '../lib/useDrawer'
 
-type Notice = { id: string; receipt_code: string; kind: string; value: string; read_at: string | null; created_at: string; orders: { currency: string } | null }
+type Notice = { id: string; receipt_code: string | null; kind: string; value: string; read_at: string | null; created_at: string; orders: { currency: string } | null }
 type RestockNotice = { variant_id: string; notified_at: string; product_variants: { name: string; product_id: string; products: { name: string } } }
 
 export function Notifications() {
@@ -102,10 +102,13 @@ export function Notifications() {
           </li>)}
           {items.map(item => <li key={item.id} className={`order-drawer__card${item.read_at ? '' : ' notifications-drawer__unread'}`}>
             <div className="notifications-drawer__meta">
-              <Link to={`/receipt/${item.receipt_code}`} onClick={event => followNotice(event, `/receipt/${item.receipt_code}`)}>{item.receipt_code}</Link>
+              {item.receipt_code
+                ? <Link to={`/receipt/${item.receipt_code}`} onClick={event => followNotice(event, `/receipt/${item.receipt_code}`)}>{item.receipt_code}</Link>
+                : <strong>{t('Message from the store')}</strong>}
               <small>{formatDate(item.created_at)}</small>
             </div>
-            <p>{t(`event_${item.kind}`)}: {item.kind === 'return' ? formatPrice(Number(item.value) / 100, item.orders?.currency ?? store?.currency ?? 'UAH') : t(item.value)}</p>
+            {item.kind === 'manual' ? <p className="notifications-drawer__message">{item.value}</p>
+              : <p>{t(`event_${item.kind}`)}: {item.kind === 'return' ? formatPrice(Number(item.value) / 100, item.orders?.currency ?? store?.currency ?? 'UAH') : t(item.value)}</p>}
             {!item.read_at && <button type="button" className="text-btn" disabled={pending} onClick={() => void read(item.id)}>{t('Mark as read')}</button>}
           </li>)}
         </ul>
