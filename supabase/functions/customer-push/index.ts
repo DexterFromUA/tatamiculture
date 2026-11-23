@@ -47,14 +47,13 @@ Deno.serve(async request => {
           await db.from('customer_push_subscriptions').delete().eq('id', delivery.subscription_id)
           return
         }
-        const { title, body, manualMessage } = notificationCopy(delivery.kind, delivery.language)
+        const { title, body, legacyBody } = notificationCopy(delivery.kind, delivery.language)
         await webPush.sendNotification(
           { endpoint: delivery.endpoint, keys: { p256dh: delivery.p256dh, auth: delivery.auth_secret } },
           JSON.stringify({
             id: delivery.id, title, message: body, path: delivery.path,
             // Older workers only display the body, so keep the event in it.
-            body: manualMessage ?? `${title}. ${body}`,
-            ...(manualMessage !== undefined && { manual: true }),
+            body: legacyBody ?? `${title}. ${body}`,
           }),
           { TTL: 3600, timeout: 7000, vapidDetails: { subject, publicKey, privateKey } },
         )

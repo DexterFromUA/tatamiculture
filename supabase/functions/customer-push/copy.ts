@@ -95,13 +95,10 @@ function discountCopy(kind: string, language: Language) {
   return { title, body }
 }
 
-export function notificationCopy(kind: string, language: Language): { title: string; body: string; manualMessage?: string } {
+export function notificationCopy(kind: string, language: Language): { title: string; body: string; legacyBody?: string } {
   if (kind.startsWith('manual:')) {
-    const manualMessage = kind.slice('manual:'.length)
-    const firstLine = manualMessage.split(/\r?\n/, 1)[0]
-    // Keep longer messages readable by placing the continuation in the notification body.
-    const title = firstLine.length > 55 ? firstLine.match(/^.{1,55}(?=\s)/u)?.[0] ?? firstLine : firstLine
-    return { title, body: manualMessage.slice(title.length).trimStart(), manualMessage }
+    const body = kind.slice('manual:'.length)
+    return { title: language === 'uk' ? 'Повідомлення' : 'Notification', body, legacyBody: body }
   }
   if (kind.startsWith('discount:')) return discountCopy(kind, language)
   if (kind.startsWith('pickup:')) return pickupCopy(kind, language)
