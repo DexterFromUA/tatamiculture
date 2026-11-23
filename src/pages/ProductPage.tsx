@@ -6,7 +6,7 @@ import { useCart } from '../context/CartContext'
 import { useStore } from '../context/StoreContext'
 import { useToast } from '../context/ToastContext'
 import { formatPrice, optionPrice } from '../lib/format'
-import { purchaseQuantityLimit } from '../lib/catalogAvailability'
+import { purchaseQuantityLimit, stockLabel } from '../lib/catalogAvailability'
 import { categoriesForProduct, categoryPaths, productCategoryLabel } from '../lib/categories'
 import { productDescription, productInformation, productName } from '../lib/productText'
 import { api } from '../lib/api'
@@ -162,14 +162,14 @@ function ProductDetails() {
           <select value={option.id} onChange={(event) => {
             setOptionId(event.target.value)
           }}>
-            {product.productOptions.map((item) => (
-              <option key={item.id} value={item.id}>
+            {product.productOptions.map((item) => {
+              const availability = stockLabel(item)
+              return <option key={item.id} value={item.id}>
                 {item.name}
                 {item.isPreOrder && ` · ${t('pre-order')}`}
-                {item.quantity === 0 && item.allowOutOfStock ? ` · ${t('Available to order')}`
-                  : item.isLimited && ` · ${t('{{count}} available', { count: item.quantity })}`}
+                {availability && ` · ${t(availability)}`}
               </option>
-            ))}
+            })}
           </select>
         </label>
         {purchaseLimit > 0 && (option.isPreOrder ? (

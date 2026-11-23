@@ -33,6 +33,7 @@ export type ProductOption = {
   isPreOrder: boolean
   isLimited: boolean
   quantity: number
+  lowStockThreshold: number
 }
 
 export type CatalogCategory = {

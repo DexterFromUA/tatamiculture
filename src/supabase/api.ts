@@ -52,6 +52,7 @@ function mapProduct(row: Row): Product {
       return {
         ...details, id: text(variant.id), name: text(variant.name), sku: text(variant.sku),
         isPreOrder: Boolean(variant.is_preorder), isLimited: true, quantity: Number(variant.stock_quantity ?? 0),
+        lowStockThreshold: Number(variant.low_stock_threshold ?? 3),
         allowOutOfStock: variant.allow_out_of_stock === true,
       }
     }),
