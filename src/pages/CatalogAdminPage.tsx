@@ -826,7 +826,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
     <section>
       <header className={embedded ? 'crm-section-head catalog-section-head' : 'page-head page-head--row'}>
         {!embedded ? <div><p className="muted">{store.name} · {t('management')}</p><h1>{t('Catalogue')}</h1></div> : <div><span className="crm-section-head__label"><span>{store.name}</span> / CRM</span><h2>{t('Catalogue')}</h2></div>}
-        {!draft && <div className="catalog-header-actions"><button type="button" className="btn btn--ghost" disabled={categoryBusy} onClick={() => { setShowCategories(current => !current); resetCategoryForm() }}>{t(showCategories ? 'Products' : 'Manage categories')}</button>{!showCategories && <button ref={addProductButton} type="button" className="btn" onClick={event => beginDraft(blankDraft(), event.currentTarget)}>{t('Add product')}</button>}</div>}
+        {!draft && <div className="crm-section-actions"><button type="button" className="btn btn--ghost" disabled={categoryBusy} onClick={() => { setShowCategories(current => !current); resetCategoryForm() }}>{t(showCategories ? 'Products' : 'Manage categories')}</button>{!showCategories && <button ref={addProductButton} type="button" className="btn" onClick={event => beginDraft(blankDraft(), event.currentTarget)}>{t('Add product')}</button>}</div>}
       </header>
       {error && <p className="error" role="alert">{t(error)}</p>}
       {catalogue.error && !draft && !showCategories && <p className="error" role="alert">{t(catalogue.error)} <button type="button" className="text-btn" onClick={catalogue.retry}>{t('Try again')}</button></p>}

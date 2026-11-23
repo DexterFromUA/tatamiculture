@@ -28,12 +28,18 @@ export function orderPaymentStatusKey(order: { status: string; payment_method: s
   return `payment_${order.payment_status}`
 }
 
-export async function hasStoreMembership(storeId: string, userId: string, token: string, signal?: AbortSignal): Promise<boolean> {
-  const memberships = await supabaseRequest<Array<{ role: string }>>(
+export type StoreStaffRole = 'OWNER' | 'MANAGER' | 'CONTENT'
+
+export async function getStoreStaffRole(storeId: string, userId: string, token: string, signal?: AbortSignal) {
+  const memberships = await supabaseRequest<Array<{ role: StoreStaffRole }>>(
     `/rest/v1/store_members?store_id=eq.${encodeURIComponent(storeId)}&user_id=eq.${encodeURIComponent(userId)}&select=role`,
     { token, signal },
   )
-  return memberships.length > 0
+  return memberships[0]?.role ?? null
+}
+
+export async function hasStoreMembership(storeId: string, userId: string, token: string, signal?: AbortSignal): Promise<boolean> {
+  return (await getStoreStaffRole(storeId, userId, token, signal)) !== null
 }
 
 // PostgREST defaults to a capped result set; fetch every page for exports and aggregates.

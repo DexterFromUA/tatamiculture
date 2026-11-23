@@ -2,6 +2,7 @@ import { PaymentReviewList } from '../components/PaymentReviewList'
 import { CenteredDialog } from '../components/CenteredDialog'
 import { useEffect, useState } from 'react'
 import { CustomerPanel, type CustomerPanelTarget } from '../components/CustomerPanel'
+import { CustomerNotificationDrawer } from '../components/CustomerNotificationDrawer'
 import { CreateTtnDrawer } from '../components/CreateTtnDrawer'
 import { CreateOrderDrawer } from '../components/CreateOrderDrawer'
 import { CrmPagination } from '../components/CrmPagination'
@@ -26,7 +27,7 @@ import { formatDate, formatPrice } from '../lib/format'
 import { SupabaseError, supabaseConfigured, supabaseRequest } from '../lib/supabase'
 import type { OrderStatus } from '../types'
 import { useTranslation } from 'react-i18next'
-import { crmPageSize, fetchAll, fetchCrmExportRows, hasStoreMembership } from '../lib/crm'
+import { crmPageSize, fetchAll, fetchCrmExportRows, getStoreStaffRole, type StoreStaffRole } from '../lib/crm'
 import { useCrmPage } from '../hooks/useCrmPage'
 import { downloadOrdersCsv } from '../lib/crmExport'
 import { OrderOperations, type OrderDetailsOrder } from '../components/OrderOperations'
@@ -69,7 +70,7 @@ export function AdminPage() {
   const [mergeOpen, setMergeOpen] = useState(false)
   const [mergeError, setMergeError] = useState<string | null>(null)
   const [inventory, setInventory] = useState<InventoryProduct[]>([])
-  const [member, setMember] = useState<boolean | null>(null)
+  const [member, setMember] = useState<StoreStaffRole | false | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [exportingOrders, setExportingOrders] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
@@ -89,6 +90,7 @@ export function AdminPage() {
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerPanelTarget | null>(null)
+  const [broadcastOpen, setBroadcastOpen] = useState(false)
   const [customerRevision, setCustomerRevision] = useState(0)
   const [section, setSection] = useState<AdminSection>('overview')
   const [dashboardOrderIds, setDashboardOrderIds] = useState<string[] | null>(null)
@@ -105,8 +107,8 @@ export function AdminPage() {
   useEffect(() => {
     if (!storeId || !token || !userId || !supabaseConfigured) return
     const abort = new AbortController()
-    void hasStoreMembership(storeId, userId, token, abort.signal).then(allowed => {
-      if (!abort.signal.aborted) setMember(allowed)
+    void getStoreStaffRole(storeId, userId, token, abort.signal).then(role => {
+      if (!abort.signal.aborted) setMember(role ?? false)
     }).catch(cause => {
       if (!abort.signal.aborted) setError(cause instanceof Error ? cause.message : 'Could not load CRM')
     })
@@ -134,8 +136,8 @@ export function AdminPage() {
     if (!store || !token || !user || !supabaseConfigured) return
     const abort = new AbortController()
     const checkAccess = () => {
-      void hasStoreMembership(store.id, user.id, token, abort.signal)
-        .then(isMember => { if (!abort.signal.aborted && !isMember) setMember(false) })
+      void getStoreStaffRole(store.id, user.id, token, abort.signal)
+        .then(role => { if (!abort.signal.aborted) setMember(role ?? false) })
         .catch(() => {})
     }
     window.addEventListener('focus', checkAccess)
@@ -437,6 +439,7 @@ export function AdminPage() {
   }
   if (error && member === null) return <section className="page-status error">{error}</section>
   if (member === null) return <LoadingIndicator label={t('Loading CRM…')} />
+  const canBroadcast = member === 'OWNER' || member === 'MANAGER'
 
   return (
     <section className="crm-page">
@@ -454,11 +457,14 @@ export function AdminPage() {
       {orderDetails.error && <div className="crm-error" role="alert"><span>{t(orderDetails.error)}</span><button type="button" className="text-btn" onClick={() => setSelectedOrderId(null)}>{t('Close')}</button></div>}
       {section !== 'catalogue' && <div className="crm-section-head">
         <div><span className="crm-section-head__label"><span>{store.name}</span> / CRM</span><h2>{section === 'overview' ? t('Overview') : section === 'orders' ? t('Orders') : section === 'customers' ? t('Customers') : t('Settings')}</h2></div>
-        {section === 'orders' && token && <div className="crm-order-actions">
-          <button type="button" className="btn btn--ghost crm-create-order-button" aria-haspopup="dialog"
+        {section === 'orders' && token && <div className="crm-section-actions">
+          <button type="button" className="btn btn--ghost" aria-haspopup="dialog"
             onClick={() => setImportOrdersOpen(true)}>{t('Import')}</button>
-          <button type="button" className="btn crm-create-order-button" aria-haspopup="dialog"
+          <button type="button" className="btn" aria-haspopup="dialog"
             onClick={() => setCreateOrderOpen(true)}>{t('Create order')}</button>
+        </div>}
+        {section === 'customers' && token && canBroadcast && <div className="crm-section-actions">
+          <button type="button" className="btn" aria-haspopup="dialog" onClick={() => setBroadcastOpen(true)}>{t('Push broadcast')}</button>
         </div>}
       </div>}
       {token && <div hidden={section !== 'overview'}><AdminDashboard active={section === 'overview'}
@@ -617,6 +623,8 @@ export function AdminPage() {
           setCustomerRevision(value => value + 1)
           refreshProducts()
         }} />}
+      {broadcastOpen && token && canBroadcast && <CustomerNotificationDrawer storeId={store.id} token={token}
+        onClose={() => setBroadcastOpen(false)} />}
       {selectedCustomer && token && <CustomerPanel key={`${selectedCustomer.kind}:${selectedCustomer.id}`}
         target={selectedCustomer} storeId={store.id} token={token}
         onSaved={() => setCustomerRevision(value => value + 1)} onClose={() => setSelectedCustomer(null)}
