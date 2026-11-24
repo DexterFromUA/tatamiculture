@@ -10,15 +10,17 @@ type SmsAudience = { count: number; phone: string | null; confirmed: boolean }
 const messageLimit = 500
 const emptyRecipients: Recipient[] = []
 
-export function CustomerNotificationDrawer({ storeId, customerId, customerName, token, onClose }: {
+export function CustomerNotificationDrawer({ storeId, customerId, customerName, customerIds, token, onClose }: {
   storeId: string; token: string; onClose: () => void
-} & ({ customerId: string; customerName: string } | { customerId?: never; customerName?: never })) {
+} & ({ customerId: string; customerName: string; customerIds?: never }
+  | { customerId?: never; customerName?: never; customerIds?: string[] })) {
   const { t } = useTranslation()
   const titleId = useId()
   const hintId = useId()
   const { ref, close, onCancel, onClick } = useDrawer({ openOnMount: true, onClose })
   const [audience, setAudience] = useState<Recipient[] | number>()
-  const [smsAudience, setSmsAudience] = useState<SmsAudience>()
+  const [smsVerifiedOnly, setSmsVerifiedOnly] = useState(false)
+  const [smsLookup, setSmsLookup] = useState<(SmsAudience & { verifiedOnly: boolean })>()
   const [smsLookupFailed, setSmsLookupFailed] = useState(false)
   const [confirmSms, setConfirmSms] = useState(false)
   const [recipientId, setRecipientId] = useState('')
@@ -28,12 +30,16 @@ export function CustomerNotificationDrawer({ storeId, customerId, customerName, 
   const [error, setError] = useState('')
   const [revision, setRevision] = useState(0)
   const inFlight = useRef(false)
-  const lastRequests = useRef<Partial<Record<NotificationChannel, { id: string; destination: string; message: string }>>>({})
+  const lastRequests = useRef<Partial<Record<NotificationChannel | 'verified-sms', { id: string; destination: string; message: string }>>>({})
   const broadcast = customerId === undefined
+  const sendSmsToAll = broadcast && !customerIds && !smsVerifiedOnly
+  const smsAudience = smsLookup?.verifiedOnly === smsVerifiedOnly ? smsLookup : undefined
   const recipients = Array.isArray(audience) ? audience : emptyRecipients
   const recipient = recipients.find(account => account.user_id === recipientId)
   const broadcastSize = typeof audience === 'number' ? audience : 0
   const available = broadcast ? broadcastSize > 0 : recipients.some(account => account.push_available)
+  const unavailablePushMessage = customerIds ? 'No selected customers have active push subscriptions.'
+    : broadcast ? 'No customers have active push subscriptions.' : 'This customer has no active push subscriptions.'
   const canSend = Boolean((broadcast ? available : recipient?.push_available) && message.trim() && !sending)
   const canSendSms = Boolean(smsAudience?.count && message.trim() && !sending)
 
@@ -41,7 +47,7 @@ export function CustomerNotificationDrawer({ storeId, customerId, customerName, 
     const abort = new AbortController()
     const lookup = customerId === undefined
       ? supabaseRequest<number>('/rest/v1/rpc/crm_push_broadcast_size', {
-        method: 'POST', token, signal: abort.signal, body: JSON.stringify({ p_store_id: storeId }),
+        method: 'POST', token, signal: abort.signal, body: JSON.stringify({ p_store_id: storeId, p_customer_ids: customerIds }),
       })
       : supabaseRequest<Recipient[]>('/rest/v1/rpc/crm_customer_push_recipients', {
         method: 'POST', token, signal: abort.signal, body: JSON.stringify({ p_store_id: storeId, p_customer_id: customerId }),
@@ -54,26 +60,35 @@ export function CustomerNotificationDrawer({ storeId, customerId, customerName, 
     }).catch(() => {
       if (!abort.signal.aborted) setError('Could not check push availability.')
     })
+    return () => abort.abort()
+  }, [storeId, customerId, customerIds, token, revision])
+
+  useEffect(() => {
+    const abort = new AbortController()
     void supabaseRequest<SmsAudience>('/rest/v1/rpc/crm_sms_audience', {
       method: 'POST', token, signal: abort.signal,
-      body: JSON.stringify({ p_store_id: storeId, p_customer_id: customerId ?? null }),
+      body: JSON.stringify({
+        p_store_id: storeId, p_customer_id: customerId ?? null, p_customer_ids: customerIds,
+        p_verified_only: smsVerifiedOnly || undefined,
+      }),
     }).then(result => {
       if (abort.signal.aborted) return
-      setSmsAudience(result)
+      setSmsLookup({ ...result, verifiedOnly: smsVerifiedOnly })
       setSmsLookupFailed(false)
     }).catch(() => { if (!abort.signal.aborted) setSmsLookupFailed(true) })
     return () => abort.abort()
-  }, [storeId, customerId, token, revision])
+  }, [storeId, customerId, customerIds, token, revision, smsVerifiedOnly])
 
   const send = async (channel: NotificationChannel) => {
     const sms = channel === 'sms'
     if (!(sms ? canSendSms : canSend) || inFlight.current) return
     const body = message.trim()
     const destination = sms ? smsAudience?.phone ?? '' : recipientId
-    let request = lastRequests.current[channel]
+    const requestKey = sms && smsVerifiedOnly ? 'verified-sms' : channel
+    let request = lastRequests.current[requestKey]
     if (!request || request.destination !== destination || request.message !== body) {
       request = { id: crypto.randomUUID(), destination, message: body }
-      lastRequests.current[channel] = request
+      lastRequests.current[requestKey] = request
     }
     inFlight.current = true
     setSending(true)
@@ -81,17 +96,18 @@ export function CustomerNotificationDrawer({ storeId, customerId, customerName, 
     try {
       const rpc = sms ? 'queue_crm_sms' : broadcast ? 'queue_crm_push_broadcast' : 'queue_crm_customer_push'
       const recipientParams = sms
-        ? { p_customer_id: customerId ?? null, p_expected_count: smsAudience?.count, p_expected_phone: smsAudience?.phone }
+        ? { p_customer_id: customerId ?? null, p_expected_count: smsAudience?.count, p_expected_phone: smsAudience?.phone,
+          p_verified_only: smsVerifiedOnly || undefined }
         : broadcast ? {} : { p_customer_id: customerId, p_user_id: destination }
       const count = Number(await supabaseRequest<number | boolean>(`/rest/v1/rpc/${rpc}`, {
         method: 'POST', token, signal: AbortSignal.timeout(15000), body: JSON.stringify({
-          p_store_id: storeId, p_request_id: request.id, p_message: request.message,
+          p_store_id: storeId, p_request_id: request.id, p_message: request.message, p_customer_ids: customerIds,
           ...recipientParams,
         }),
       }))
-      delete lastRequests.current[channel]
+      delete lastRequests.current[requestKey]
       if (count === 0) {
-        if (sms) setSmsAudience({ count: 0, phone: null, confirmed: false })
+        if (sms) setSmsLookup({ count: 0, phone: null, confirmed: false, verifiedOnly: smsVerifiedOnly })
         else if (broadcast) setAudience(0)
         else setAudience(recipients.map(account => account.user_id === destination ? { ...account, push_available: false } : account))
         return
@@ -101,7 +117,7 @@ export function CustomerNotificationDrawer({ storeId, customerId, customerName, 
     } catch (cause) {
       if (sms && cause instanceof SupabaseError && cause.status === 409) {
         setError('SMS recipient list changed. Check it before sending.')
-        setSmsAudience(undefined)
+        setSmsLookup(undefined)
         setRevision(value => value + 1)
       } else setError('Could not confirm that the notification was queued. Try again.')
     } finally {
@@ -119,7 +135,7 @@ export function CustomerNotificationDrawer({ storeId, customerId, customerName, 
     onClick={event => { if (!inFlight.current) onClick(event) }}>
     <header className="order-drawer__header">
       <div className="order-drawer__identity">
-        <p className="order-drawer__eyebrow">{broadcast ? t('Customers') : customerName}</p>
+        <p className="order-drawer__eyebrow">{customerIds ? t('Selected customers: {{count}}', { count: customerIds.length }) : broadcast ? t('All customers') : customerName}</p>
         <h2 id={titleId}>{t(broadcast ? 'Notification broadcast' : 'Notifications')}</h2>
       </div>
       {broadcast && <button type="button" className="btn btn--ghost" disabled={sending} onClick={() => close()}>{t('Close')}</button>}
@@ -140,11 +156,19 @@ export function CustomerNotificationDrawer({ storeId, customerId, customerName, 
           <textarea rows={5} maxLength={messageLimit} required value={message} disabled={sending} aria-describedby={hintId}
             onChange={event => { setMessage(event.target.value); setQueued(0) }} />
         </label>
+        {broadcast && <label className="order-select-all">
+          <input type="checkbox" checked={smsVerifiedOnly} disabled={sending} onChange={event => {
+            setSmsLookup(undefined)
+            setSmsLookupFailed(false)
+            setSmsVerifiedOnly(event.target.checked)
+          }} />
+          {t('Only verified phone numbers for SMS')}
+        </label>}
         <div id={hintId} role="status">
           {queued > 0 && <p className="customer-save-status">{t(broadcast ? 'Broadcast queued. Recipients: {{count}}.' : 'Notification queued.', { count: queued })}</p>}
-          {audience === undefined && !error && <p className="muted">{t('Checking…')}</p>}
+          {((audience === undefined && !error) || (broadcast && !smsAudience && !smsLookupFailed)) && <p className="muted">{t('Checking…')}</p>}
           {broadcast && broadcastSize > 0 && queued === 0 && <p className="muted">{t('Customers with active push subscriptions: {{count}}', { count: broadcastSize })}</p>}
-          {audience !== undefined && !available && <p className="muted">{t(broadcast ? 'No customers have active push subscriptions.' : 'This customer has no active push subscriptions.')}</p>}
+          {audience !== undefined && !available && <p className="muted">{t(unavailablePushMessage)}</p>}
           {smsAudience && (broadcast
             ? <p className="muted">{t('SMS recipients: {{count}}', { count: smsAudience.count })}</p>
             : !smsAudience.phone ? <p className="muted">{t('No valid phone number for SMS.')}</p>
@@ -160,18 +184,18 @@ export function CustomerNotificationDrawer({ storeId, customerId, customerName, 
         }}>{t('Try again')}</button></>}</p>}
         <div className="actions">
           {!broadcast && <button type="button" className="btn btn--ghost" disabled={sending} onClick={() => close()}>{t(queued ? 'Close' : 'Cancel')}</button>}
-          <button type="submit" className="btn" disabled={!canSend}>{t(broadcast ? 'Send push to all' : 'Send push')}</button>
+          <button type="submit" className="btn" disabled={!canSend}>{t(broadcast && !customerIds ? 'Send push to all' : 'Send push')}</button>
           <button type="button" className="btn" disabled={!canSendSms} onClick={() => {
             if (broadcast) setConfirmSms(true)
             else void send('sms')
-          }}>{t(broadcast ? 'Send SMS to all' : 'Send SMS')}</button>
+          }}>{t(sendSmsToAll ? 'Send SMS to all' : 'Send SMS')}</button>
         </div>
         {sending && <p className="muted" role="status">{t('Sending…')}</p>}
       </form>
     </div>
     {confirmSms && smsAudience && <ConfirmationDialog title={t('Confirm SMS broadcast')}
       message={t('Send this SMS to {{count}} customer numbers?', { count: smsAudience.count })}
-      details={[t('This includes valid numbers that customers have not confirmed. SMS is billed by the provider.')]}
-      confirmLabel={t('Send SMS to all')} onClose={confirmed => { setConfirmSms(false); if (confirmed) void send('sms') }} />}
+      details={[t(smsVerifiedOnly ? 'SMS is billed by the provider.' : 'This includes valid numbers that customers have not confirmed. SMS is billed by the provider.')]}
+      confirmLabel={t(sendSmsToAll ? 'Send SMS to all' : 'Send SMS')} onClose={confirmed => { setConfirmSms(false); if (confirmed) void send('sms') }} />}
   </dialog>
 }

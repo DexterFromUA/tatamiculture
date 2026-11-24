@@ -1484,8 +1484,11 @@ textarea {
 .crm-page .customer-panel { z-index: 30; width: min(500px, 100vw); padding: 28px; }
 .crm-page .customers-page .customers-list { display: grid; gap: 10px; margin-top: 16px; }
 .crm-page .customers-page .customers-list li { display: block; padding: 0; border: 1px solid var(--crm-border); background: var(--card); }
+.crm-page .customers-page .customers-list .customer-list-card--selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 5%, var(--card)); }
+.customer-list-card__summary--selectable { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 20px; padding-left: 18px; }
+.customer-list-card__summary--selectable .customer-list-card { padding-left: 0; }
 .customer-list-card { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 14px 20px; width: 100%; padding: 18px; border: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
-.crm-order__summary:hover, .customer-list-card:hover { background: var(--crm-soft); }
+.crm-order__summary:hover, .customer-list-card__summary:has(.customer-list-card:hover) { background: var(--crm-soft); }
 .customer-list-card:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .customer-list-card__identity { display: block; min-width: 0; overflow-wrap: anywhere; }
 .customer-list-card__name { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 12px; }
@@ -1499,8 +1502,8 @@ textarea {
 .customers-toolbar .search-field { flex: 1 1 260px; }
 .customers-toolbar :is(input, select) { min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid var(--crm-border); background: var(--paper); color: inherit; }
 .customers-toolbar select { flex: 0 1 220px; max-width: 100%; }
-.crm-page .customers-list li > div strong, .crm-page .customers-list li > div span { display: block; overflow-wrap: anywhere; }
-.crm-page .customers-list li > div span { margin-top: 4px; font-size: .8rem; }
+.crm-page .customers-list li > div:not(.customer-list-card__summary) strong, .crm-page .customers-list li > div:not(.customer-list-card__summary) span { display: block; overflow-wrap: anywhere; }
+.crm-page .customers-list li > div:not(.customer-list-card__summary) span { margin-top: 4px; font-size: .8rem; }
 :root[data-theme="dark"] .crm-page .admin-tabs button.active, :root[data-theme="dark"] .crm-page .btn:not(.btn--ghost) { color: #202020; }
 @media (max-width: 900px) { .crm-page .crm-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } .crm-analytics__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 650px) {
@@ -1525,6 +1528,8 @@ textarea {
   .crm-order__actions .crm-order__cancel { margin-left: 0; }
   .crm-order__refund { margin-left: auto; }
   .crm-page .customers-list li { grid-template-columns: 1fr; gap: 5px; }
+  .customer-list-card__summary--selectable { gap: 12px; }
+  .customer-list-card__summary--selectable .order-select { align-self: start; margin-top: 14px; }
   .customer-list-card { grid-template-columns: minmax(0, 1fr); gap: 5px; }
   .customers-toolbar > select { flex: 1 1 100%; }
   .crm-page .customers-page .crm-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }

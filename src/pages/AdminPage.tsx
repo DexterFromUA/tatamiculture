@@ -92,7 +92,8 @@ export function AdminPage() {
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerPanelTarget | null>(null)
-  const [broadcastOpen, setBroadcastOpen] = useState(false)
+  const [customerSelection, setCustomerSelection] = useState<string[]>([])
+  const [broadcastAudience, setBroadcastAudience] = useState<string[] | null>(null)
   const [customerRevision, setCustomerRevision] = useState(0)
   const [section, setSection] = useState<AdminSection>('overview')
   const [dashboardOrderIds, setDashboardOrderIds] = useState<string[] | null>(null)
@@ -473,7 +474,9 @@ export function AdminPage() {
             onClick={() => setCreateOrderOpen(true)}>{t('Create order')}</button>
         </div>}
         {section === 'customers' && token && canBroadcast && <div className="crm-section-actions">
-          <button type="button" className="btn" aria-haspopup="dialog" onClick={() => setBroadcastOpen(true)}>{t('Notification broadcast')}</button>
+          <button type="button" className="btn" aria-haspopup="dialog" onClick={() => setBroadcastAudience(customerSelection)}>
+            {t(customerSelection.length ? 'Broadcast to selected customers' : 'Notification broadcast')}
+          </button>
         </div>}
       </div>}
       {token && <div hidden={section !== 'overview'}><AdminDashboard active={section === 'overview'}
@@ -488,7 +491,8 @@ export function AdminPage() {
         onOpenCatalog={query => { setCatalogSearch(query ?? ''); setCatalogFilter('stock'); setSection('catalogue') }}
         onOpenCustomers={() => setSection('customers')}
       /></div>}
-      {section === 'customers' ? <CustomersPage revision={customerRevision} onOpenCustomer={id => setSelectedCustomer({ kind: 'customer', id })} /> : section === 'catalogue' ? <CatalogAdminPage key={`${catalogFilter}:${catalogSearch}`} embedded initialFilter={catalogFilter} initialSearch={catalogSearch} /> : section === 'settings' ? <SettingsWorkspace canManageStaffNotifications={canBroadcast} /> : section === 'orders' ? <>
+      {section === 'customers' ? <CustomersPage revision={customerRevision} onOpenCustomer={id => setSelectedCustomer({ kind: 'customer', id })}
+        selection={canBroadcast ? customerSelection : undefined} setSelection={setCustomerSelection} /> : section === 'catalogue' ? <CatalogAdminPage key={`${catalogFilter}:${catalogSearch}`} embedded initialFilter={catalogFilter} initialSearch={catalogSearch} /> : section === 'settings' ? <SettingsWorkspace canManageStaffNotifications={canBroadcast} /> : section === 'orders' ? <>
       {store && token && <PaymentReviewList storeId={store.id} token={token} revision={ordersRevision} />}
       <div className="crm-grid crm-grid--orders">
         <section className="crm-panel">
@@ -632,8 +636,8 @@ export function AdminPage() {
           setCustomerRevision(value => value + 1)
           refreshProducts()
         }} />}
-      {broadcastOpen && token && canBroadcast && <CustomerNotificationDrawer storeId={store.id} token={token}
-        onClose={() => setBroadcastOpen(false)} />}
+      {broadcastAudience && token && canBroadcast && <CustomerNotificationDrawer storeId={store.id} token={token}
+        customerIds={broadcastAudience.length ? broadcastAudience : undefined} onClose={() => setBroadcastAudience(null)} />}
       {selectedCustomer && token && <CustomerPanel key={`${selectedCustomer.kind}:${selectedCustomer.id}`}
         target={selectedCustomer} storeId={store.id} token={token}
         onSaved={() => setCustomerRevision(value => value + 1)} onClose={() => setSelectedCustomer(null)}
