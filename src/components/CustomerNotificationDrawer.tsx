@@ -122,6 +122,7 @@ export function CustomerNotificationDrawer({ storeId, customerId, customerName, 
         <p className="order-drawer__eyebrow">{broadcast ? t('Customers') : customerName}</p>
         <h2 id={titleId}>{t(broadcast ? 'Notification broadcast' : 'Notifications')}</h2>
       </div>
+      {broadcast && <button type="button" className="btn btn--ghost" disabled={sending} onClick={() => close()}>{t('Close')}</button>}
     </header>
     <div className="order-drawer__body">
       <form className="form" onSubmit={event => { event.preventDefault(); void send('push') }}>
@@ -158,7 +159,7 @@ export function CustomerNotificationDrawer({ storeId, customerId, customerName, 
           setRevision(value => value + 1)
         }}>{t('Try again')}</button></>}</p>}
         <div className="actions">
-          <button type="button" className="btn btn--ghost" disabled={sending} onClick={() => close()}>{t(queued ? 'Close' : 'Cancel')}</button>
+          {!broadcast && <button type="button" className="btn btn--ghost" disabled={sending} onClick={() => close()}>{t(queued ? 'Close' : 'Cancel')}</button>}
           <button type="submit" className="btn" disabled={!canSend}>{t(broadcast ? 'Send push to all' : 'Send push')}</button>
           <button type="button" className="btn" disabled={!canSendSms} onClick={() => {
             if (broadcast) setConfirmSms(true)
