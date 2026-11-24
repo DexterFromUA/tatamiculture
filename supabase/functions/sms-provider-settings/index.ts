@@ -30,7 +30,7 @@ Deno.serve(async request => {
     if (authError || !auth.user) return json({ error: 'Sign in required' }, 401)
 
     const { data: membership, error: memberError } = await client.from('store_members')
-      .select('role').eq('user_id', auth.user.id).in('role', ['OWNER', 'MANAGER']).maybeSingle()
+      .select('store_id').eq('user_id', auth.user.id).in('role', ['OWNER', 'MANAGER']).maybeSingle()
     if (memberError) throw memberError
     if (!membership) return json({ error: 'Manager access required' }, 403)
 
@@ -86,6 +86,9 @@ Deno.serve(async request => {
       }
 
       if (provider !== selected) {
+        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SECRET_KEY')
+        if (!serviceKey) return json({ error: 'Could not save the SMS provider.' }, 503)
+        const previousProvider = provider
         const response = await fetch(authConfigUrl, {
           method: 'PATCH',
           headers: managementHeaders,
@@ -99,6 +102,10 @@ Deno.serve(async request => {
         const updated = activeProvider(await readConfig())
         if (updated !== selected) return json({ error: 'Could not verify the SMS provider change.' }, 502)
         provider = updated
+        const { error: auditError } = await createClient(url, serviceKey).rpc('record_crm_sms_provider_change', {
+          p_store_id: membership.store_id, p_actor: auth.user.id, p_before: previousProvider, p_after: updated,
+        })
+        if (auditError) console.error('Could not record SMS provider change in CRM audit log', auditError.code)
       }
     }
 

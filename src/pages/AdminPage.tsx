@@ -178,7 +178,7 @@ export function AdminPage() {
   }, 1, member && selectedOrderId && !pageOrder ? token : null, ordersRevision)
   const selectedOrder = pageOrder ?? orderDetails.data?.rows[0]
   const exportOrders = async () => {
-    if (!token || (!selectedOrders.length && !matchingOrderCount) || exportingOrders) return
+    if (!store || !token || (!selectedOrders.length && !matchingOrderCount) || exportingOrders) return
     setExportingOrders(true)
     setError(null)
     try {
@@ -188,7 +188,7 @@ export function AdminPage() {
         const primaryReceipt = ids.length > 1 ? order.receipt_code : undefined
         return ids.map(id => ({ id, primaryReceipt }))
       })
-      await downloadOrdersCsv(refs, token, t)
+      await downloadOrdersCsv(refs, store.id, token, t)
     } catch (cause) {
       setError(`${t('Could not export orders')}. ${cause instanceof Error ? cause.message : ''}`.trim())
     } finally {

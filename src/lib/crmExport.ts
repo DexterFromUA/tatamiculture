@@ -2,6 +2,7 @@ import type { CrmCustomer, CrmOrder } from '../components/CrmCustomerCard'
 import type { OrderDetailsOrder } from '../components/OrderOperations'
 import { downloadCsv, fetchAll, orderPaymentStatusKey } from './crm'
 import { formatPrice } from './format'
+import { supabaseRequest } from './supabase'
 
 type Translate = (key: string) => string
 
@@ -38,7 +39,13 @@ const orderFields = [
 
 const isCancelled = (order: { status: string }) => order.status.startsWith('CANCELLED')
 
-export async function downloadOrdersCsv(refs: ExportOrderRef[], token: string, t: Translate) {
+function recordExport(storeId: string, entity: 'orders' | 'crm_customers', count: number, token: string) {
+  return supabaseRequest<void>('/rest/v1/rpc/record_crm_export', {
+    method: 'POST', token, body: JSON.stringify({ p_store_id: storeId, p_entity: entity, p_count: count }),
+  })
+}
+
+export async function downloadOrdersCsv(refs: ExportOrderRef[], storeId: string, token: string, t: Translate) {
   const orders = new Map<string, ExportOrder>()
   // Keep the filter short enough for the API when the export spans many pages.
   for (let index = 0; index < refs.length; index += 50) {
@@ -79,10 +86,12 @@ export async function downloadOrdersCsv(refs: ExportOrderRef[], token: string, t
       order.order_financials ? Number(order.order_financials.cost_amount) / 100 : null, order.id,
     ]
   })
+  await recordExport(storeId, 'orders', rows.length, token)
   downloadCsv('tatami.culture-orders.csv', [headers, ...rows])
 }
 
-export function downloadCustomersCsv(customers: CrmCustomer[], orders: CustomerExportOrder[], storeCurrency: string, t: Translate) {
+export async function downloadCustomersCsv(customers: CrmCustomer[], orders: CustomerExportOrder[],
+  storeId: string, storeCurrency: string, token: string, t: Translate) {
   const customerIds = new Set(customers.map(customer => customer.id))
   const ordersByCustomer = new Map<string, CustomerExportOrder[]>()
   const currencies = new Set([storeCurrency])
@@ -124,5 +133,6 @@ export function downloadCustomersCsv(customers: CrmCustomer[], orders: CustomerE
       latest ? t(orderPaymentStatusKey(latest)) : '', ...totals,
     ]
   })
+  await recordExport(storeId, 'crm_customers', rows.length, token)
   downloadCsv('tatami.culture-customers.csv', [headers, ...rows])
 }

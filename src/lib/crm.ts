@@ -3,7 +3,7 @@ import { supabaseRequest } from './supabase'
 export const crmPageSize = 50
 
 export type CrmPage<T> = { rows: T[]; page: number; total: number }
-export type CrmPageEndpoint = 'crm_orders_page' | 'crm_customers_page' | 'crm_catalog_page'
+export type CrmPageEndpoint = 'crm_orders_page' | 'crm_customers_page' | 'crm_catalog_page' | 'crm_audit_log_page'
 
 export function fetchCrmPage<T>(endpoint: CrmPageEndpoint, body: string, token: string, signal?: AbortSignal) {
   return supabaseRequest<CrmPage<T>>(`/rest/v1/rpc/${endpoint}`, { method: 'POST', body, token, signal })

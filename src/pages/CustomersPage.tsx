@@ -71,7 +71,7 @@ export function CustomersPage({ onOpenCustomer, revision, selection, setSelectio
         const batch = await fetchAll<CustomerExportOrder>(`/rest/v1/orders?store_id=eq.${store.id}&crm_customer_id=in.(${ids})&select=${orderFields}&order=created_at.desc,id`, token)
         orders.push(...batch)
       }
-      downloadCustomersCsv(customers, orders, store.currency, t)
+      await downloadCustomersCsv(customers, orders, store.id, store.currency, token, t)
     } catch (cause) {
       setExportError(cause instanceof Error ? cause.message : 'Could not export customers')
     } finally {

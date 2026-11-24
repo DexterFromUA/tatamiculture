@@ -16,7 +16,7 @@ function paidStorageFrom(value: unknown) {
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === day ? day : null
 }
 
-async function trackShipments(db: SupabaseClient, key: string, shipments: Shipment[]) {
+async function trackShipments(db: SupabaseClient, key: string, shipments: Shipment[], staff?: { orderId: string; actorId: string }) {
   const checkedAt = new Date().toISOString()
   const response = await fetch('https://api.novaposhta.ua/v2.0/json/', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(8000),
@@ -34,11 +34,14 @@ async function trackShipments(db: SupabaseClient, key: string, shipments: Shipme
     const tracking = byNumber.get(shipment.ttn) ?? (shipments.length === 1 && !result.data?.[0]?.Number ? result.data?.[0] : undefined)
     if (!tracking?.Status) throw new Error('Nova Poshta returned no status for this TTN')
     const code = String(tracking.StatusCode ?? '')
-    const { data: changed, error } = await db.rpc('apply_nova_poshta_tracking_with_storage', {
-      p_store_id: shipment.store_id, p_ttn: shipment.ttn,
+    const trackingUpdate = {
+      p_ttn: shipment.ttn,
       p_status: tracking.Status, p_code: code, p_checked_at: checkedAt,
       p_paid_storage_from: paidStorageFrom(tracking.DatePayedKeeping),
-    })
+    }
+    const { data: changed, error } = staff
+      ? await db.rpc('apply_crm_nova_poshta_tracking', { ...trackingUpdate, p_order_id: staff.orderId, p_actor: staff.actorId })
+      : await db.rpc('apply_nova_poshta_tracking_with_storage', { ...trackingUpdate, p_store_id: shipment.store_id })
     if (error) throw error
     return { status: tracking.Status, code, changed }
   }))
@@ -94,7 +97,8 @@ Deno.serve(async request => {
     const { data: settings, error: settingsError } = await db.from('delivery_settings').select('sender_phone').eq('store_id', order.store_id).maybeSingle()
     if (settingsError) throw settingsError
 
-    const [result] = await trackShipments(db, key, [{ store_id: order.store_id, ttn: order.nova_poshta_ttn, sender_phone: settings?.sender_phone ?? '' }])
+    const [result] = await trackShipments(db, key, [{ store_id: order.store_id, ttn: order.nova_poshta_ttn, sender_phone: settings?.sender_phone ?? '' }],
+      { orderId, actorId: user.id })
     if (result.status === 'rejected') throw result.reason
     return json(result.value)
   } catch (error) {
