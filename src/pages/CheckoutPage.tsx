@@ -215,7 +215,7 @@ function CheckoutForm() {
       clear()
       refreshProducts()
       addToast(t('Order placed'))
-      navigate(`/receipt/${order.receiptCode}`)
+      navigate(`/receipt/${order.receiptCode}`, { state: { orderPlaced: true } })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Checkout failed'
       if (message === invalidPhone) {

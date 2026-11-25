@@ -24,7 +24,7 @@ export function useCodReceiptRecovery(storeId?: string) {
         localStorage.removeItem(key)
         localStorage.removeItem(fingerprintKey)
         clear()
-        navigate('/receipt/' + encodeURIComponent(receipt), { replace: true })
+        navigate('/receipt/' + encodeURIComponent(receipt), { replace: true, state: { orderPlaced: true } })
       }
     }
     const check = () => { void recover().catch(() => { /* Retry on reconnect or next visit. */ }) }

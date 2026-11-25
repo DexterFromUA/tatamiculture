@@ -14,6 +14,7 @@ import { LoadingIndicator } from './LoadingIndicator'
 import { useStorefrontCatalog } from '../hooks/useStorefrontCatalog'
 import type { CatalogFilters } from '../lib/storefrontCatalog'
 import { isStandalone, pwaLayoutPreview } from '../lib/pwa'
+import { PwaInstallOffer } from './PwaInstallOffer'
 import { PushNotificationsPrompt } from './PushNotificationsPrompt'
 import { useCustomerPushPermissionSync } from '../hooks/useCustomerPushPermissionSync'
 
@@ -224,14 +225,24 @@ export function StoreLayout() {
       </main>
       {isHome && scrollState.showTopButton && <button type="button" className="back-to-top" aria-label={t('Back to top')} title={t('Back to top')} onClick={() => window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })}>↑</button>}
       <footer className="footer">
-        <div className="footer__identity">
-          <span className="footer__copyright">© {new Date().getFullYear()} <strong>{store.name}</strong></span>
-          <NavLink to={agreementPath}>{t('User agreement')}</NavLink>
-        </div>
-        <div className="footer__contacts">
-          {contacts?.instagram_url && <a href={contacts.instagram_url} target="_blank" rel="noopener noreferrer"><span>Instagram</span><strong>@{contacts.instagram_url.split('/').filter(Boolean).pop()}</strong> ↗</a>}
-          {contacts?.email && <a href={`mailto:${contacts.email}`}><span>Email</span><strong>{contacts.email}</strong> ↗</a>}
-        </div>
+        <NavLink to={agreementPath} className="footer__agreement">{t('User agreement')}</NavLink>
+        {!standalone && !/^\/admin(?:\/|$)/.test(pathname) && <PwaInstallOffer placement="footer" />}
+        <span className="footer__copyright">© <strong>{store.name}</strong> {new Date().getFullYear()}</span>
+        {contacts?.instagram_url && <a className="footer__contact footer__instagram" href={contacts.instagram_url} target="_blank" rel="noopener noreferrer">
+          <span><span className="sr-only">Instagram </span>@{contacts.instagram_url.split('/').filter(Boolean).pop()}</span>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="5" />
+            <circle cx="12" cy="12" r="4" />
+            <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+          </svg>
+        </a>}
+        {contacts?.email && <a className="footer__contact footer__email" href={`mailto:${contacts.email}`}>
+          <span><span className="sr-only">{t('Email')} </span>{contacts.email}</span>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden="true">
+            <rect x="3" y="5" width="18" height="14" rx="2" />
+            <path d="m3.5 7 8.5 6 8.5-6" />
+          </svg>
+        </a>}
       </footer>
       {standalone && <nav className="app-tabs" aria-label={t('Store navigation')}>
         <div className="app-tabs__inner">

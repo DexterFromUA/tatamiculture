@@ -140,28 +140,30 @@ textarea {
 }
 
 .footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-areas: 'agreement . instagram' 'install copyright email';
+  align-items: center;
+  gap: 10px clamp(8px, 3vw, 24px);
   padding: 20px 0 32px;
   color: var(--muted);
   border-top: 1px solid var(--line);
-  font-size: 0.9rem;
+  font-size: .82rem;
 }
-.footer__copyright { color: var(--muted); font-size: .82rem; letter-spacing: .01em; }
+.footer__agreement, .footer .footer__install { justify-self: start; color: inherit; font-size: inherit; font-weight: 400; text-align: start; overflow-wrap: anywhere; }
+.footer__agreement { grid-area: agreement; text-underline-offset: 4px; }
+.footer__install { grid-area: install; padding-inline: 0; }
+.footer__copyright { grid-area: copyright; justify-self: center; text-align: center; letter-spacing: .01em; }
 .footer__copyright strong { color: var(--ink); font-weight: 600; }
-.footer__contacts { display: flex; flex-wrap: wrap; gap: 14px 32px; }
-.footer__contacts a { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; color: var(--ink); text-decoration: none; }
-.footer__contacts a span { grid-column: 1 / -1; color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; }
-.footer__contacts a strong { font-weight: 500; overflow-wrap: anywhere; }
-.footer__contacts a:hover strong { text-decoration: underline; text-underline-offset: 4px; }
+.footer__contact { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; justify-self: end; gap: 6px; max-width: 100%; color: var(--ink); text-align: end; text-decoration: none; overflow-wrap: anywhere; }
+.footer__contact svg { color: var(--muted); }
+.footer__contact:hover > span { text-decoration: underline; text-underline-offset: 4px; }
+.footer__instagram { grid-area: instagram; }
+.footer__email { grid-area: email; }
 .contact-settings { margin-top: 16px; }
 @media (max-width: 600px) {
-  .footer { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); align-items: start; }
-  .footer__identity { overflow-wrap: anywhere; }
-  .footer__contacts { display: grid; gap: 10px; text-align: right; font-size: .75rem; }
-  .footer__contacts a { grid-template-columns: minmax(0, 1fr) auto; column-gap: 6px; }
-  .footer__contacts a span { font-size: .65rem; }
+  .footer { column-gap: 8px; font-size: .75rem; }
+  .footer__copyright { max-width: 16ch; }
 }
 
 .page-head {
@@ -1306,6 +1308,25 @@ textarea {
 .receipt-hero .eyebrow { color: #5b5b5b; }
 .receipt-hero h1 { max-width: 16ch; margin: 20px 0; font: 600 clamp(2.5rem, 5vw, 4.5rem)/1 var(--ui); letter-spacing: -.055em; overflow-wrap: anywhere; }
 .receipt-hero > p:last-child { margin: 0; color: #5c5c5c; }
+.pwa-install-offer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px 16px;
+  padding: 16px;
+  margin-bottom: 18px;
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+.pwa-install-offer img { display: block; border-radius: 10px; }
+.pwa-install-offer h2 { margin: 0; font-size: 1rem; }
+.pwa-install-offer p { margin: 4px 0 0; color: var(--muted); font-size: .85rem; }
+.pwa-install-offer__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.pwa-install-offer__actions button { min-height: 44px; }
+@media (max-width: 650px) {
+  .pwa-install-offer { grid-template-columns: auto minmax(0, 1fr); }
+  .pwa-install-offer__actions { grid-column: 1 / -1; }
+}
 .receipt-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); align-items: start; gap: 18px; }
 .receipt-content { display: grid; gap: 14px; min-width: 0; }
 .receipt-card { padding: clamp(24px, 3vw, 32px); background: var(--card); border: 1px solid var(--line); }
@@ -1737,6 +1758,11 @@ input[type="date"] { color-scheme: light; }
 }
 .confirmation-dialog__details li + li { margin-top: 8px; }
 .confirmation-dialog__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.pwa-install-guide ol { margin: 16px 0 0; padding-inline-start: 22px; line-height: 1.5; }
+.pwa-install-guide li + li { margin-top: 10px; }
+.pwa-install-guide li svg { margin-inline-start: 6px; vertical-align: middle; }
+.pwa-install-guide li small, .confirmation-dialog.pwa-install-guide p { color: var(--muted); font-size: .85rem; }
+.pwa-install-guide li small { display: block; }
 .split-order-dialog { width: min(560px, calc(100% - 32px)); }
 .split-order-dialog__items { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--line); }
 .split-order-dialog__items li { display: grid; grid-template-columns: minmax(0, 1fr) 76px; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
@@ -2467,9 +2493,6 @@ input[type="date"] { color-scheme: light; }
 .agreement-seller dt { color: var(--muted); }
 .agreement-seller dd { margin: 0; }
 @media (max-width: 600px) { .agreement-seller > div { grid-template-columns: 1fr; gap: 3px; } }
-
-.footer__identity { display: grid; justify-items: start; align-content: start; gap: 8px; }
-.footer__identity > a { color: var(--muted); font-size: .82rem; text-underline-offset: 4px; }
 
 /* Keep the arrow and its geometry together after component background/padding shorthands. */
 :root select:not([multiple]):not([size]), :root select[size="1"] {

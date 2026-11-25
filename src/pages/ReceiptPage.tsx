@@ -10,6 +10,7 @@ import type { Order } from '../types'
 import { useTranslation } from 'react-i18next'
 import { OrderActivity } from '../components/OrderActivity'
 import { NovaPoshtaTrackingLink } from '../components/NovaPoshtaTrackingLink'
+import { PwaInstallOffer } from '../components/PwaInstallOffer'
 
 const paymentProviderOrigins = new Set(['https://pay.monobank.ua', 'https://pay.mbnk.biz', 'https://www.liqpay.ua', 'https://liqpay.ua'])
 
@@ -28,9 +29,10 @@ export function ReceiptPage() {
   const { user, token, initializing, logout } = useAuth()
   const location = useLocation()
   const legacyPaymentReturn = new URLSearchParams(location.search).get('payment') === 'return'
-  const returnedFromPayment = (location.state as { returnedFromPayment?: boolean } | null)?.returnedFromPayment === true
+  const receiptState = location.state as { returnedFromPayment?: boolean; orderPlaced?: boolean; claimError?: string } | null
+  const returnedFromPayment = receiptState?.returnedFromPayment === true
   const navigate = useNavigate()
-  const returnError = (location.state as { claimError?: string } | null)?.claimError
+  const returnError = receiptState?.claimError
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
   const [claiming, setClaiming] = useState(false)
@@ -73,6 +75,9 @@ export function ReceiptPage() {
 
   const guestOrder = order.userId === 'guest' && order.storeId === store.id
   const ownOrder = user?.id === order.userId
+  const showInstallOffer = order.storeId === store.id && order.receiptCode === code?.trim().toLowerCase()
+    && !order.status.startsWith('CANCELLED') && order.paymentStatus !== 'REFUNDED'
+    && (receiptState?.orderPlaced === true || (returnedFromPayment && order.paymentStatus === 'PAID'))
   const receiptPath = `/receipt/${encodeURIComponent(order.receiptCode)}`
   const orderPhone = normalizePhone(order.customerPhone)
   const wrongAccount = Boolean(user && orderPhone && normalizePhone(user.phone) !== orderPhone)
@@ -105,6 +110,7 @@ export function ReceiptPage() {
           && (order.paymentStatus === 'PENDING' || order.paymentStatus === 'FAILED')
           && <Link to="/account">{t('Manage reservation in profile')}</Link>}
       </header>
+      {showInstallOffer && <PwaInstallOffer placement="receipt" />}
       <div className="receipt-layout"><div className="receipt-content">
       <section className="receipt-card"><div className="receipt-card__head"><div><p className="eyebrow">{t('Your order')}</p><h2>{t('Order items')}</h2></div><span className="receipt-count">{order.items.reduce((sum, item) => sum + item.quantity, 0)}</span></div>
       <ul className="receipt-items">
