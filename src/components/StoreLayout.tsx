@@ -227,7 +227,7 @@ export function StoreLayout() {
       <footer className="footer">
         <NavLink to={agreementPath} className="footer__agreement">{t('User agreement')}</NavLink>
         {!standalone && !/^\/admin(?:\/|$)/.test(pathname) && <PwaInstallOffer placement="footer" />}
-        <span className="footer__copyright">© <strong>{store.name}</strong> {new Date().getFullYear()}</span>
+        <span className="footer__copyright"><strong>{store.name}</strong> © {new Date().getFullYear()}</span>
         {contacts?.instagram_url && <a className="footer__contact footer__instagram" href={contacts.instagram_url} target="_blank" rel="noopener noreferrer">
           <span><span className="sr-only">Instagram </span>@{contacts.instagram_url.split('/').filter(Boolean).pop()}</span>
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
