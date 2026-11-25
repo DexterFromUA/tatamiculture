@@ -50,7 +50,7 @@ export function ContactSettings() {
     }
   }
 
-  return <section className="settings-card contact-settings">
+  return <section className="settings-card">
     <header className="banner-settings__header"><h2>{t('Store contacts')}</h2><p className="muted">{t('These contacts appear at the bottom of the store.')}</p></header>
     {error && <p className="error" role="alert">{error}</p>}
     {draft && <form className="form" onSubmit={event => void save(event)}>

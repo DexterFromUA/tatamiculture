@@ -160,7 +160,6 @@ textarea {
 .footer__contact:hover > span { text-decoration: underline; text-underline-offset: 4px; }
 .footer__instagram { grid-area: instagram; }
 .footer__email { grid-area: email; }
-.contact-settings { margin-top: 16px; }
 @media (max-width: 600px) {
   .footer { column-gap: 8px; font-size: .75rem; }
   .footer__copyright { max-width: 16ch; }
