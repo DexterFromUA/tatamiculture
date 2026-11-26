@@ -1,4 +1,4 @@
-import { SupabaseError, supabaseBlob, supabaseRequest } from './supabase'
+import { supabaseBlob, supabaseRequest } from './supabase'
 import type { CatalogExchangeRate } from './catalogCosts'
 import type { CatalogImportSettings } from './catalogImportSettings'
 
@@ -19,6 +19,19 @@ export type MantoSnapshot = {
 }
 
 export type MantoSource = { manto_product_id: string; snapshot: MantoSnapshot }
+export type MantoSourceLink = { manto_product_id: string; url: string | null }
+
+export async function getMantoSourceLinks(storeId: string, productIds: string, token: string, signal: AbortSignal) {
+  const query = new URLSearchParams({
+    store_id: `eq.${storeId}`,
+    product_id: `in.(${productIds})`,
+    select: 'product_id,manto_product_id,url:snapshot->>url',
+  })
+  const rows = await supabaseRequest<(MantoSourceLink & { product_id: string })[]>(
+    `/rest/v1/manto_product_sources?${query}`, { token, signal, cache: 'no-store' },
+  )
+  return new Map(rows.map(source => [source.product_id, source]))
+}
 
 export async function saveMantoSnapshot(storeId: string, productId: string, source: MantoSource, token: string, signal: AbortSignal) {
   const [updated] = await supabaseRequest<{ product_id: string }[]>(
@@ -43,16 +56,6 @@ type MantoProduct = {
 }
 
 const endpoint = '/functions/v1/crm-import-manto'
-
-async function requestManto<T>(request: (path: string) => Promise<T>, signal: AbortSignal) {
-  try {
-    return await request(`${endpoint}?forceFunctionRegion=eu-west-1`)
-  } catch (cause) {
-    signal.throwIfAborted()
-    if (cause instanceof SupabaseError && cause.status < 500) throw cause
-    return request(`${endpoint}?forceFunctionRegion=eu-west-3`)
-  }
-}
 
 async function fetchLocalManto(url: URL, signal: AbortSignal) {
   const market = url.hostname === 'www.mantoshop.pl' ? 'pl' : 'eu'
@@ -103,9 +106,20 @@ export async function readMantoProduct(storeId: string, token: string, link: str
       signal.throwIfAborted()
     }
   }
-  return requestManto(path => supabaseRequest<MantoProduct>(path, {
+  return supabaseRequest<MantoProduct>(endpoint, {
     method: 'POST', token, signal, body: JSON.stringify({ storeId, link }),
-  }), signal)
+  })
+}
+
+export async function refreshMantoSnapshot(
+  storeId: string, token: string, link: string, mantoProductId: string, signal: AbortSignal, productId?: string,
+) {
+  const product = await readMantoProduct(storeId, token, link, signal)
+  if (product.id !== mantoProductId) throw new Error('This link leads to a different Manto product.')
+  const source = { manto_product_id: product.id, snapshot: product.snapshot }
+  if (productId) await saveMantoSnapshot(storeId, productId, source, token, signal)
+  signal.throwIfAborted()
+  return source
 }
 
 async function downloadMantoImage(storeId: string, token: string, imageUrl: string, signal: AbortSignal) {
@@ -124,9 +138,9 @@ async function downloadMantoImage(storeId: string, token: string, imageUrl: stri
       }
     }
   }
-  return requestManto(path => supabaseBlob(path, {
+  return supabaseBlob(endpoint, {
     method: 'POST', token, signal, body: JSON.stringify({ storeId, action: 'image', imageUrl }),
-  }), signal)
+  })
 }
 
 export async function downloadMantoPhotos(storeId: string, token: string, urls: string[], signal: AbortSignal) {

@@ -98,3 +98,11 @@ Deploy `crm-refund-order` and the updated Monobank and LiqPay webhooks after the
 Секреты Киевстара и SMSClub синхронизируются из Infisical (`prod`, `/supabase`) в Supabase Edge Function Secrets. `SMS_AUTH_MANAGEMENT_TOKEN` содержит [токен проекта Tatami](https://supabase.com/dashboard/account/tokens) с доступом к конфигурации Auth, а `SMS_AUTH_HOOK_SECRET` — секрет подписи в формате `v1,whsec_<base64>`. CRM включает **Send SMS Hook** для Киевстара и SMSClub. При выборе Twilio Supabase использует встроенную интеграцию.
 
 Номера из списка тестовых OTP в Supabase обходят отправку SMS. Доставку кодов проверяют на обычном номере.
+
+## Импорт каталога Manto
+
+Страницы и фото с `mantoshop.eu` и `mantoshop.pl` загружает отдельный Cloudflare Worker. Функция `crm-import-manto` проверяет доступ сотрудника к магазину и разбирает ответ. Локальный Vite использует прокси разработки.
+
+1. Опубликуйте воркер отдельно от витрины через `npx wrangler deploy --config cloudflare/manto-source/wrangler.jsonc`.
+2. Сгенерируйте случайный токен с помощью `openssl rand -hex 32` и сохраните его как `MANTO_SOURCE_TOKEN` через `npx wrangler secret put MANTO_SOURCE_TOKEN --config cloudflare/manto-source/wrangler.jsonc`.
+3. В Infisical (`prod`, корневая папка `/`) сохраните тот же `MANTO_SOURCE_TOKEN` и HTTPS-адрес воркера в `MANTO_SOURCE_URL`. После синхронизации опубликуйте `crm-import-manto` через `supabase functions deploy crm-import-manto --use-api`.

@@ -10,6 +10,24 @@ const cors = {
 }
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: cors })
 const imageTypes = new Set(['image/jpeg', 'image/png', 'image/webp'])
+const redirects = new Set([301, 302, 303, 307, 308])
+
+type MantoSource = { endpoint: URL; token: string }
+
+async function fetchManto(source: MantoSource, target: URL, signal: AbortSignal) {
+  const endpoint = new URL(source.endpoint)
+  endpoint.searchParams.set('url', target.href)
+  const response = await fetch(endpoint, {
+    signal, redirect: 'manual',
+    headers: { Authorization: `Bearer ${source.token}`, 'User-Agent': 'Tatami CRM Manto import/1.0' },
+  })
+  if (response.status === 504 || !(response.ok || response.status === 422 || redirects.has(response.status))) {
+    await response.body?.cancel()
+    if (response.status === 504) throw new DOMException('Manto source request timed out', 'TimeoutError')
+    throw new Error(`Manto source returned HTTP ${response.status}`)
+  }
+  return response
+}
 
 async function boundedBody(response: Response, limit: number) {
   const reader = response.body?.getReader()
@@ -30,14 +48,11 @@ async function boundedBody(response: Response, limit: number) {
   }
 }
 
-async function fetchProduct(source: NonNullable<ReturnType<typeof mantoProductLink>>) {
+async function fetchProduct(source: NonNullable<ReturnType<typeof mantoProductLink>>, relay: MantoSource) {
   let url = source.url
-  const signal = AbortSignal.timeout(15000)
+  const signal = AbortSignal.timeout(20000)
   for (let redirect = 0; redirect < 4; redirect++) {
-    const response = await fetch(url, {
-      signal, redirect: 'manual',
-      headers: { Accept: 'text/html', 'Accept-Language': url.hostname === 'www.mantoshop.pl' ? 'pl' : 'en' },
-    })
+    const response = await fetchManto(relay, url, signal)
     if (response.ok && response.body && /^text\/html\b/i.test(response.headers.get('content-type') ?? '')) {
       const html = await boundedBody(response, 2 * 1024 * 1024).then(body => body.text())
       try {
@@ -48,7 +63,7 @@ async function fetchProduct(source: NonNullable<ReturnType<typeof mantoProductLi
       }
     }
     await response.body?.cancel()
-    if (![301, 302, 303, 307, 308].includes(response.status)) break
+    if (!redirects.has(response.status)) break
     const next = mantoProductLink(response.headers.get('location'), url.href)
     if (!next || next.id !== source.id || next.url.href === url.href) break
     url = next.url
@@ -78,10 +93,19 @@ Deno.serve(async request => {
     const { data: allowed, error } = await client.rpc('is_store_member', { target_store_id: body.storeId })
     if (error || allowed !== true) return json({ error: 'Manager access required' }, 403)
 
+    const relayUrl = Deno.env.get('MANTO_SOURCE_URL')
+    const relayToken = Deno.env.get('MANTO_SOURCE_TOKEN')
+    const endpoint = relayUrl ? URL.parse(relayUrl) : null
+    if (!endpoint || endpoint.protocol !== 'https:' || endpoint.username || endpoint.password || !relayToken) {
+      console.error('Manto source is not configured')
+      return json({ error: 'Manto source is not configured.' }, 503)
+    }
+    const relay = { endpoint, token: relayToken }
+
     if (body.action === 'image') {
       const image = mantoImageLink(body.imageUrl)
       if (!image) return json({ error: 'Invalid Manto image.' }, 400)
-      const response = await fetch(image, { redirect: 'error', signal: AbortSignal.timeout(10000) })
+      const response = await fetchManto(relay, image, AbortSignal.timeout(12000))
       const type = response.headers.get('content-type')?.split(';', 1)[0] ?? ''
       if (!response.ok || !response.body || !imageTypes.has(type)) {
         await response.body?.cancel()
@@ -94,7 +118,7 @@ Deno.serve(async request => {
 
     const source = mantoProductLink(body.link)
     if (!source) return json({ error: 'Enter a link to a Manto product.' }, 400)
-    const product = await fetchProduct(source)
+    const product = await fetchProduct(source, relay)
     return product ? json(product) : json({ error: 'Could not find product data on the Manto page.', code: 'MANTO_PRODUCT_UNAVAILABLE' }, 422)
   } catch (cause) {
     const name = cause instanceof Error ? cause.name : 'UnknownError'

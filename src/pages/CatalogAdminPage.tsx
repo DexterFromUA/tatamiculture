@@ -4,6 +4,7 @@ import { VariantCostEditor } from '../components/VariantCostEditor'
 import { StockAdjustment } from '../components/StockAdjustment'
 import { ConfirmationDialog } from '../components/ConfirmationDialog'
 import { ImportMantoDialog } from '../components/ImportMantoDialog'
+import { MantoRefreshButton } from '../components/MantoRefreshButton'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,7 +19,7 @@ import { categoryGroups, categoryLabel, categoryPaths } from '../lib/categories'
 import { costInputAmount, parseUnitCost, saveCatalogCosts, type CatalogCost, type CatalogExchangeRate, type CostCurrency } from '../lib/catalogCosts'
 import { formatPrice } from '../lib/format'
 import { getCatalogImportSettings } from '../lib/catalogImportSettings'
-import { downloadMantoPhotos, getMantoDraftPricing, readMantoProduct, saveMantoSnapshot, type MantoSource } from '../lib/mantoImport'
+import { downloadMantoPhotos, getMantoDraftPricing, getMantoSourceLinks, readMantoProduct, refreshMantoSnapshot, saveMantoSnapshot, type MantoSource, type MantoSourceLink } from '../lib/mantoImport'
 import { mantoProductLink } from '../../supabase/functions/crm-import-manto/product'
 import { getSizeGuideImageUrls, maxSizeGuideImages, productName } from '../lib/productText'
 import type { CatalogCategory, ProductText } from '../types'
@@ -210,6 +211,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
   const [mantoImportOpen, setMantoImportOpen] = useState(false)
   const [openedProduct, setOpenedProduct] = useState<CatalogProduct | null>(null)
   const [savedMantoSource, setSavedMantoSource] = useState<(MantoSource & { product_id: string }) | null>(null)
+  const [pageMantoSources, setPageMantoSources] = useState<{ key: string; links: Map<string, MantoSourceLink> }>()
   const [refreshingManto, setRefreshingManto] = useState(false)
   const [mantoRefreshError, setMantoRefreshError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -259,6 +261,25 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
   const pages = Math.max(1, Math.ceil(matchCount / crmPageSize))
   const currentPage = catalogue.data?.page ?? 1
   const pageProducts = products
+  const mantoPageProductIds = pageProducts.map(product => product.id).join(',')
+  const mantoPageKey = `${storeId}:${mantoPageProductIds}`
+  const mantoLinks = pageMantoSources?.key === mantoPageKey ? pageMantoSources.links : undefined
+  useEffect(() => {
+    if (!member || !storeId || !token || !mantoPageProductIds) return
+    const request = new AbortController()
+    void getMantoSourceLinks(storeId, mantoPageProductIds, token, request.signal).then(links => {
+      if (!request.signal.aborted) setPageMantoSources({ key: mantoPageKey, links })
+    }).catch(() => {})
+    return () => request.abort()
+  }, [member, storeId, token, mantoPageProductIds, mantoPageKey])
+
+  const mantoRefreshButton = (productId: string) => {
+    const source = mantoLinks?.get(productId)
+    return source && storeId && token
+      ? <MantoRefreshButton storeId={storeId} productId={productId} token={token} source={source} disabled={saving || categoryBusy} />
+      : null
+  }
+
   const pageProductIds = new Set(pageProducts.map(product => product.id))
   const selectedOutsidePage = selected.filter(id => !pageProductIds.has(id)).length
   const pageSelected = pageProducts.length > 0 && pageProducts.every(product => selected.includes(product.id))
@@ -426,11 +447,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
     setRefreshingManto(true)
     setMantoRefreshError('')
     try {
-      const product = await readMantoProduct(storeId, token, mantoLink.href, request.signal)
-      if (product.id !== mantoSource.manto_product_id) throw new Error('This link leads to a different Manto product.')
-      const source = { manto_product_id: product.id, snapshot: product.snapshot }
-      if (draft.id) await saveMantoSnapshot(storeId, draft.id, source, token, request.signal)
-      request.signal.throwIfAborted()
+      const source = await refreshMantoSnapshot(storeId, token, mantoLink.href, mantoSource.manto_product_id, request.signal, draft.id)
       if (draft.id) setSavedMantoSource({ ...source, product_id: draft.id })
       else setDraft(current => current?.key === draft.key ? { ...current, mantoSource: source } : current)
       addToast(t('Manto snapshot updated'))
@@ -1049,6 +1066,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
                 <button type="button" className="text-btn" data-edit-product={product.id} onClick={event => openProduct(product, event.currentTarget)}>{t('Edit')}</button>
                 <button type="button" className="text-btn" disabled={saving} onClick={() => void duplicate(product)}>{t('Duplicate')}</button>
                 <button type="button" className="text-btn" disabled={saving || categoryBusy} onClick={() => void toggleProductVisibility(product)}>{t(product.is_active ? 'Hide' : 'Publish')}</button>
+                {mantoRefreshButton(product.id)}
                 <button type="button" className="text-btn product-editor__delete" disabled={saving || categoryBusy} onClick={() => requestProductDeletion(product.id)}>{t('Delete')}</button>
               </div>
             </li>
@@ -1073,6 +1091,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
               </div>
               <div className="catalog-stock-row__actions" key={variant.id}>
                 <button type="button" className="text-btn" data-edit-product={product.id} onClick={event => openProduct(product, event.currentTarget)}>{t('Edit')}</button>
+                {mantoRefreshButton(product.id)}
                 {variant.id && token && <VariantCostEditor productId={product.id} variantId={variant.id}
                   cost={variant.variant_costs} rates={rates} token={token} onSaved={reloadCatalogue} />}
                 {variant.id && token && <StockAdjustment variantId={variant.id} token={token} reload={reloadCatalogue} />}

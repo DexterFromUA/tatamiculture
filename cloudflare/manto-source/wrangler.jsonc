@@ -1,0 +1,7 @@
+{
+  "name": "tatami-manto-source",
+  "main": "worker.js",
+  "compatibility_date": "2026-11-04",
+  "workers_dev": true,
+  "preview_urls": false
+}

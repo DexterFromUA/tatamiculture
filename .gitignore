@@ -20,6 +20,7 @@ node_modules
 .env.local
 .env.*.local
 /supabase/functions/.env
+.wrangler/
 .DS_Store
 
 # Logs
