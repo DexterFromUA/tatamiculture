@@ -3,5 +3,11 @@
   "main": "worker.js",
   "compatibility_date": "2026-11-04",
   "workers_dev": true,
-  "preview_urls": false
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "manto.tatamiculture.com",
+      "custom_domain": true
+    }
+  ]
 }
