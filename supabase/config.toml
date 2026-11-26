@@ -49,3 +49,7 @@ verify_jwt = false
 [functions.customer-sms]
 # The database checks the scheduler credential before claiming SMS deliveries.
 verify_jwt = false
+
+[functions.crm-import-manto]
+# The handler validates the bearer token and store membership.
+verify_jwt = false

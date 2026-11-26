@@ -122,14 +122,20 @@ export async function supabaseRequest<T>(path: string, options: RequestOptions =
   return (body ? JSON.parse(body) : undefined) as T
 }
 
+export async function supabaseBlob(path: string, options: RequestOptions) {
+  const response = await supabaseFetch(path, options)
+  if (!response.ok) throw await responseError(response)
+  return response.blob()
+}
+
 function encodedStoragePath(path: string) {
   return path.split('/').map(encodeURIComponent).join('/')
 }
 
-function safeFilename(name: string) {
+function safeFilename(name: string, id: string = crypto.randomUUID()) {
   const extension = name.split('.').pop()?.toLowerCase()
   const permittedExtension = extension && ['jpg', 'jpeg', 'png', 'webp'].includes(extension) ? extension : 'jpg'
-  return `${crypto.randomUUID()}.${permittedExtension}`
+  return `${id}.${permittedExtension}`
 }
 
 export async function uploadBannerImage(storeId: string, file: File, token: string) {
@@ -150,15 +156,15 @@ export async function removeBannerImage(path: string, token: string) {
   if (!response.ok && response.status !== 404) throw await responseError(response)
 }
 
-export async function uploadProductImage(productId: string, file: File, token: string) {
+export async function uploadProductImage(productId: string, file: File, token: string, imageId?: string) {
   if (!url || !anonKey) throw new Error('Supabase is not configured')
   const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
   if (!allowedTypes.includes(file.type)) throw new Error('Use a JPG, PNG, or WebP image')
   if (file.size > 5 * 1024 * 1024) throw new Error('Image must be 5 MB or smaller')
 
-  const storagePath = `products/${productId}/${safeFilename(file.name)}`
+  const storagePath = `products/${productId}/${safeFilename(file.name, imageId)}`
   const response = await supabaseFetch(`/storage/v1/object/product-images/${encodedStoragePath(storagePath)}`, {
-    method: 'POST', token, headers: { 'Content-Type': file.type, 'x-upsert': 'false' }, body: file,
+    method: 'POST', token, headers: { 'Content-Type': file.type, 'x-upsert': imageId ? 'true' : 'false' }, body: file,
   })
   if (!response.ok) throw await responseError(response)
   return {

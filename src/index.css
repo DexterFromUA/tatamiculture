@@ -2305,6 +2305,12 @@ input[type="date"] { color-scheme: light; }
   border: 1px solid var(--crm-border);
   background: var(--card);
 }
+.product-workspace__source { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
+.product-workspace__source-details { flex: 1 1 230px; min-width: 0; display: grid; gap: 6px; }
+.product-workspace__source-details h3 { margin: 0; font-size: 1rem; }
+.product-workspace__source-details a { overflow-wrap: anywhere; text-decoration: underline; text-underline-offset: .15em; }
+.product-workspace__source :is(.muted, .error) { margin: 0; font-size: .82rem; }
+.product-workspace__source .error { flex-basis: 100%; }
 .product-workspace__section-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
 .product-workspace__section-heading span { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 30px; border: 1px solid var(--crm-border); color: var(--muted); font-size: .7rem; font-weight: 700; }
 .product-workspace__section-heading h3 { margin: 0; font-size: 1.05rem; letter-spacing: -.02em; }

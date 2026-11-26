@@ -3,6 +3,7 @@ import { CatalogCostInput } from '../components/CatalogCostInput'
 import { VariantCostEditor } from '../components/VariantCostEditor'
 import { StockAdjustment } from '../components/StockAdjustment'
 import { ConfirmationDialog } from '../components/ConfirmationDialog'
+import { ImportMantoDialog } from '../components/ImportMantoDialog'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,6 +17,9 @@ import { CrmPagination } from '../components/CrmPagination'
 import { categoryGroups, categoryLabel, categoryPaths } from '../lib/categories'
 import { costInputAmount, parseUnitCost, saveCatalogCosts, type CatalogCost, type CatalogExchangeRate, type CostCurrency } from '../lib/catalogCosts'
 import { formatPrice } from '../lib/format'
+import { getCatalogImportSettings } from '../lib/catalogImportSettings'
+import { downloadMantoPhotos, getMantoDraftPricing, readMantoProduct, saveMantoSnapshot, type MantoSource } from '../lib/mantoImport'
+import { mantoProductLink } from '../../supabase/functions/crm-import-manto/product'
 import { getSizeGuideImageUrls, maxSizeGuideImages, productName } from '../lib/productText'
 import type { CatalogCategory, ProductText } from '../types'
 
@@ -31,6 +35,7 @@ type Variant = {
   low_stock_threshold: number
   is_preorder: boolean
   allow_out_of_stock: boolean
+  manto_variant_key?: string | null
   variant_costs: CatalogCost | null
 }
 type ProductImage = { id: string; public_url: string; storage_path: string; position: number }
@@ -99,6 +104,7 @@ type Draft = {
   newImageFiles: File[]
   removedImageIds: string[]
   variants: DraftVariant[]
+  mantoSource?: MantoSource
 }
 
 const defaultLowStockThreshold = 3
@@ -173,13 +179,13 @@ function toDraft(product: CatalogProduct, language?: string): Draft {
     images: [...product.product_images].sort((a, b) => a.position - b.position),
     newImageFiles: [],
     removedImageIds: [],
-    variants: product.product_variants.map(({ id, name, sku, compare_at_price, stock_quantity, low_stock_threshold, is_preorder, allow_out_of_stock, variant_costs, discount_percent, stack_customer_discount }) => ({
-      key: id ?? crypto.randomUUID(), id, name, sku, compare_at_price, is_preorder, allow_out_of_stock,
+    variants: product.product_variants.map(({ id, name, sku, compare_at_price, stock_quantity, low_stock_threshold, is_preorder, allow_out_of_stock, variant_costs, discount_percent, stack_customer_discount, manto_variant_key }) => ({
+      key: id ?? crypto.randomUUID(), id, name, sku, compare_at_price, is_preorder, allow_out_of_stock, manto_variant_key,
       stock_quantity: String(stock_quantity), low_stock_threshold: String(low_stock_threshold),
       discountPercent: discount_percent == null ? '' : String(discount_percent),
       stackCustomerDiscount: stack_customer_discount === true,
       unitCost: costInputAmount(variant_costs),
-      currency: variant_costs?.currency ?? 'UAH',
+      currency: variant_costs?.currency ?? (manto_variant_key ? product.product_costs?.currency : null) ?? 'UAH',
       unitCostEdited: false,
     })),
   }
@@ -201,6 +207,11 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
   const [categories, setCategories] = useState<CatalogCategory[]>([])
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number> | null>(null)
   const [draft, setDraft] = useState<Draft | null>(null)
+  const [mantoImportOpen, setMantoImportOpen] = useState(false)
+  const [openedProduct, setOpenedProduct] = useState<CatalogProduct | null>(null)
+  const [savedMantoSource, setSavedMantoSource] = useState<(MantoSource & { product_id: string }) | null>(null)
+  const [refreshingManto, setRefreshingManto] = useState(false)
+  const [mantoRefreshError, setMantoRefreshError] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [productToDelete, setProductToDelete] = useState<CatalogProduct | null>(null)
@@ -231,7 +242,9 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
     ...children.map(category => ({ category, label: `${categoryLabel(parent, language)} / ${categoryLabel(category, language)}` })),
   ])
   const editingCategory = categories.find(category => category.id === editingCategoryId)
-  const editingProduct = products.find(product => product.id === draft?.id)
+  const editingProduct = products.find(product => product.id === draft?.id) ?? (openedProduct?.id === draft?.id ? openedProduct : null)
+  const mantoSource = (savedMantoSource?.product_id === draft?.id ? savedMantoSource : null) ?? draft?.mantoSource
+  const mantoLink = mantoProductLink(mantoSource?.snapshot.url)?.url
   const savedVariants = editingProduct?.product_variants
   const hasDifferentPrices = savedVariants?.some(variant => Number(variant.price) !== Number(savedVariants[0].price))
   const showStock = filter === 'stock' || filter === 'low-stock' || filter === 'out-of-stock'
@@ -255,6 +268,9 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
   const editorHeading = useRef<HTMLHeadingElement>(null)
   const listScroll = useRef<{ productId?: string; scrollY: number; buttonTop: number } | null>(null)
   const savedStock = useRef(new Map<string, number>())
+  const imageIds = useRef(new WeakMap<File, string>())
+  const mantoRefresh = useRef<AbortController | null>(null)
+  useEffect(() => () => mantoRefresh.current?.abort(), [])
   const editorOpen = draft !== null
   useLayoutEffect(() => {
     if (!editorOpen) return
@@ -283,6 +299,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
     const preventExit = (event: BeforeUnloadEvent) => event.preventDefault()
     const preventNavigation = (event: MouseEvent) => {
       if (!(event.target instanceof Element)) return
+      if (event.target.closest('.product-workspace__source a[target="_blank"]')) return
       if (!event.target.closest('a[href], .admin-tabs button')) return
       if (!window.confirm(t('Discard unsaved changes?'))) {
         event.preventDefault()
@@ -297,20 +314,32 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
     }
   }, [dirty, t])
 
+  const loadDraft = (next: Draft, existingProduct: CatalogProduct | null = null) => {
+    savedStock.current = new Map(next.variants.filter(variant => variant.id)
+      .map(variant => [variant.key, Number(variant.stock_quantity)]))
+    setOriginalDraft(next.mantoSource && !next.id ? '' : JSON.stringify(next))
+    setError(null)
+    setSavedMantoSource(null)
+    setMantoRefreshError('')
+    setOpenedProduct(existingProduct)
+    setDraft(next)
+  }
   const beginDraft = (next: Draft, button: HTMLButtonElement) => {
     listScroll.current = {
       productId: next.id,
       scrollY: Math.max(0, window.scrollY),
       buttonTop: button.getBoundingClientRect().top,
     }
-    savedStock.current = new Map(next.variants.filter(variant => variant.id)
-      .map(variant => [variant.key, Number(variant.stock_quantity)]))
-    setOriginalDraft(JSON.stringify(next))
-    setError(null)
-    setDraft(next)
+    loadDraft(next)
   }
   const closeSavedEditor = () => {
+    mantoRefresh.current?.abort()
+    mantoRefresh.current = null
+    setRefreshingManto(false)
+    setMantoRefreshError('')
     setDraft(null)
+    setOpenedProduct(null)
+    setSavedMantoSource(null)
     setShowCategories(false)
     setEditingCategoryId(null)
     setCategoryNames({ uk: '', en: '' })
@@ -322,6 +351,114 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
     closeSavedEditor()
   }
   const openProduct = (product: CatalogProduct, button: HTMLButtonElement) => beginDraft(toDraft(product, language), button)
+
+  const importManto = async (link: string, signal: AbortSignal) => {
+    if (!store || !token) throw new Error('Sign in required')
+    const storeId = store.id
+    const product = await readMantoProduct(storeId, token, link, signal)
+    const source = { manto_product_id: product.id, snapshot: product.snapshot }
+    const sourcePath = `/rest/v1/manto_product_sources?store_id=eq.${storeId}&manto_product_id=eq.${product.id}`
+    const [linked] = await supabaseRequest<{ product_id: string }[]>(`${sourcePath}&select=product_id`, {
+      token, signal, cache: 'no-store',
+    })
+    if (linked) {
+      const [existing] = await supabaseRequest<CatalogProduct[]>(`/rest/v1/products?id=eq.${linked.product_id}&store_id=eq.${storeId}&select=*,product_categories(category_id),product_images(*),product_costs(*),product_variants(*,variant_costs(*))&product_variants.order=position.asc,id.asc`, {
+        token, signal, cache: 'no-store',
+      })
+      if (!existing) throw new Error('Could not load catalogue')
+      await saveMantoSnapshot(storeId, existing.id, source, token, signal)
+      signal.throwIfAborted()
+      loadDraft({ ...toDraft(existing, language), mantoSource: source }, existing)
+      addToast(t('Manto snapshot updated'))
+      return
+    }
+
+    const imageUrls = [...new Set([...product.imageUrls, ...(product.sizeGuide ? [product.sizeGuide] : [])])]
+    const [photos, settings] = await Promise.all([
+      downloadMantoPhotos(storeId, token, imageUrls, signal),
+      getCatalogImportSettings(storeId, token, signal),
+    ])
+    signal.throwIfAborted()
+    const pricing = getMantoDraftPricing(source.snapshot, store.currency, rates, settings)
+    const costCurrency = source.snapshot.currency ?? 'UAH'
+    const newImageFiles = product.imageUrls.flatMap(url => {
+      const file = photos.get(url)
+      return file ? [file] : []
+    })
+    const sizeGuide = product.sizeGuide ? photos.get(product.sizeGuide) : undefined
+    const sourceCategory = source.snapshot.category.trim().toLowerCase()
+    const matching = sourceCategory ? categories.filter(category =>
+      [category.name_en, category.name].some(name => name?.trim().toLowerCase() === sourceCategory)) : []
+    const category = matching.length === 1 ? matching[0] : undefined
+    loadDraft({
+      ...blankDraft(),
+      names: { uk: '', en: product.name },
+      descriptions: { uk: '', en: product.description },
+      composition: { uk: '', en: product.composition },
+      weightGrams: product.weightGrams ? String(product.weightGrams) : '',
+      price: pricing.price,
+      defaultCost: pricing.defaultCost,
+      defaultCostCurrency: pricing.defaultCost ? costCurrency : 'UAH',
+      defaultCostEdited: pricing.defaultCost !== '',
+      isActive: false,
+      categoryIds: category ? [category.id, ...(category.parent_id ? [category.parent_id] : [])] : [],
+      imageOrder: newImageFiles.map((_, index) => `new:${index}`),
+      newImageFiles,
+      sizeGuideImages: sizeGuide ? [{ key: crypto.randomUUID(), file: sizeGuide }] : [],
+      mantoSource: source,
+      variants: source.snapshot.variants.map(item => {
+        const unitCost = pricing.variantCosts.get(item.key) ?? ''
+        return {
+          ...blankVariant(), name: item.name, sku: item.sku, manto_variant_key: item.key,
+          stock_quantity: String(item.quantity ?? 0),
+          unitCost, unitCostEdited: unitCost !== '', currency: unitCost || pricing.defaultCost ? costCurrency : 'UAH',
+        }
+      }),
+    })
+    if (pricing.priceMessage) addToast(t(pricing.priceMessage))
+    if (photos.size < imageUrls.length) addToast(t('Some Manto images could not be downloaded.'))
+  }
+
+  const refreshManto = async () => {
+    if (!storeId || !token || !draft || !mantoSource || !mantoLink || saving || mantoRefresh.current) return
+    const request = new AbortController()
+    mantoRefresh.current = request
+    setRefreshingManto(true)
+    setMantoRefreshError('')
+    try {
+      const product = await readMantoProduct(storeId, token, mantoLink.href, request.signal)
+      if (product.id !== mantoSource.manto_product_id) throw new Error('This link leads to a different Manto product.')
+      const source = { manto_product_id: product.id, snapshot: product.snapshot }
+      if (draft.id) await saveMantoSnapshot(storeId, draft.id, source, token, request.signal)
+      request.signal.throwIfAborted()
+      if (draft.id) setSavedMantoSource({ ...source, product_id: draft.id })
+      else setDraft(current => current?.key === draft.key ? { ...current, mantoSource: source } : current)
+      addToast(t('Manto snapshot updated'))
+    } catch (cause) {
+      if (!request.signal.aborted) {
+        setMantoRefreshError(cause instanceof Error ? cause.message : 'Could not update Manto data.')
+      }
+    } finally {
+      if (mantoRefresh.current === request) {
+        mantoRefresh.current = null
+        setRefreshingManto(false)
+      }
+    }
+  }
+
+  const draftId = draft?.id
+  const importedInEditor = Boolean(draft?.mantoSource)
+  useEffect(() => {
+    if (!draftId || !storeId || !token || importedInEditor) return
+    const abort = new AbortController()
+    void supabaseRequest<(MantoSource & { product_id: string })[]>(
+      `/rest/v1/manto_product_sources?store_id=eq.${storeId}&product_id=eq.${draftId}&select=product_id,manto_product_id,snapshot`,
+      { token, signal: abort.signal, cache: 'no-store' },
+    ).then(([source]) => {
+      if (!abort.signal.aborted) setSavedMantoSource(source ?? null)
+    }).catch(() => {})
+    return () => abort.abort()
+  }, [draftId, importedInEditor, storeId, token])
 
   const userId = user?.id
   useEffect(() => {
@@ -466,7 +603,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
   }
 
   const save = async () => {
-    if (!store || !token || !draft || saving) return
+    if (!store || !token || !draft || saving || mantoRefresh.current) return
     const name_uk = draft.names.uk.trim() || null
     const name_en = draft.names.en.trim() || null
     const name = name_uk ?? name_en
@@ -529,7 +666,14 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
       }
       const productId = draft.key
       const productPath = `/rest/v1/products?id=eq.${encodeURIComponent(productId)}&store_id=eq.${encodeURIComponent(store.id)}`
-      if (!draft.id) {
+      if (!draft.id && draft.mantoSource) {
+        await supabaseRequest('/rest/v1/rpc/reserve_manto_product', {
+          method: 'POST', token, body: JSON.stringify({
+            p_store_id: store.id, p_product_id: productId, p_name: name,
+            p_manto_product_id: draft.mantoSource.manto_product_id, p_snapshot: draft.mantoSource.snapshot,
+          }),
+        })
+      } else if (!draft.id) {
         // Keep an unfinished product off the storefront and reuse its ID on retry.
         await supabaseRequest('/rest/v1/products?on_conflict=id', {
           method: 'POST', token, headers: { Prefer: 'resolution=ignore-duplicates' },
@@ -543,7 +687,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
           sizeGuideImageUrls.push(image.url)
           continue
         }
-        const { publicUrl } = await uploadProductImage(productId, image.file, token)
+        const { publicUrl } = await uploadProductImage(productId, image.file, token, image.key)
         sizeGuideImageUrls.push(publicUrl)
         // Keep completed uploads in the draft if a later step fails.
         setDraft(current => current?.key === productId ? {
@@ -567,6 +711,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
           product_id: productId,
           name: variant.name.trim() || 'One size',
           sku: variant.sku?.trim() || null,
+          ...(variant.manto_variant_key ? { manto_variant_key: variant.manto_variant_key } : {}),
           price,
           compare_at_price: variant.compare_at_price && Number(variant.compare_at_price) >= price ? variant.compare_at_price : null,
           discount_percent: variant.discountPercent === '' ? null : Number(variant.discountPercent),
@@ -613,11 +758,15 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
       await Promise.all(retainedImages.map(image =>
         supabaseRequest(`/rest/v1/product_images?id=eq.${encodeURIComponent(image.id)}`, { method: 'PATCH', token, body: JSON.stringify({ position: draft.imageOrder.indexOf(`saved:${image.id}`) }) }),
       ))
-      const uploadedImages = await Promise.all(draft.newImageFiles.map((file) => uploadProductImage(productId, file, token)))
+      const uploadedImages = await Promise.all(draft.newImageFiles.map(async file => {
+        const id = imageIds.current.get(file) ?? crypto.randomUUID()
+        imageIds.current.set(file, id)
+        return { id, ...await uploadProductImage(productId, file, token, id) }
+      }))
       await Promise.all(uploadedImages.map((image, index) =>
-        supabaseRequest('/rest/v1/product_images', {
-          method: 'POST', token,
-          body: JSON.stringify({ product_id: productId, public_url: image.publicUrl, storage_path: image.storagePath, position: draft.imageOrder.indexOf(`new:${index}`) }),
+        supabaseRequest('/rest/v1/product_images?on_conflict=id', {
+          method: 'POST', token, headers: { Prefer: 'resolution=merge-duplicates' },
+          body: JSON.stringify({ id: image.id, product_id: productId, public_url: image.publicUrl, storage_path: image.storagePath, position: draft.imageOrder.indexOf(`new:${index}`) }),
         }),
       ))
       await setProductCategories([productId], draft.categoryIds, token)
@@ -662,7 +811,9 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
       refreshProducts()
       closeSavedEditor()
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not save product')
+      setError(cause instanceof SupabaseError && cause.code === '23505' && !draft.id && draft.mantoSource
+        ? 'This Manto product is already in the catalogue. Import the link again to open it.'
+        : cause instanceof Error ? cause.message : 'Could not save product')
     } finally {
       setSaving(false)
     }
@@ -937,10 +1088,25 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
           <div className="product-editor__head product-workspace__header">
             <h2 ref={editorHeading} tabIndex={-1}>{draft.id ? t('Edit product') : t('New product')}</h2>
             <div className="actions">
+              {!draft.id && <button type="button" className="btn btn--ghost" disabled={saving || categoryBusy || refreshingManto} onClick={() => {
+                if (!dirty || window.confirm(t('Discard unsaved changes?'))) setMantoImportOpen(true)
+              }}>{t('Import from Manto')}</button>}
               <button type="button" className="text-btn" disabled={saving || categoryBusy} onClick={closeEditor}>{t('Close')}</button>
             </div>
           </div>
           {editingProduct && <ProductTimestamps product={editingProduct} />}
+          {mantoSource && mantoLink && <section className="product-workspace__section product-workspace__source" aria-label={t('Import source')} aria-busy={refreshingManto}>
+            <div className="product-workspace__source-details">
+              <h3>{t('Import source')}</h3>
+              <a href={mantoLink.href} target="_blank" rel="noopener noreferrer">{mantoLink.hostname}{mantoLink.pathname}</a>
+              <p className="muted">{t('Updated')} <time dateTime={mantoSource.snapshot.checkedAt}>
+                {new Date(mantoSource.snapshot.checkedAt).toLocaleString(language, { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Kyiv' })}
+              </time></p>
+            </div>
+            <button type="button" className="btn btn--ghost" disabled={refreshingManto || saving || !token}
+              onClick={() => void refreshManto()}>{t(refreshingManto ? 'Updating…' : 'Refresh')}</button>
+            {mantoRefreshError && <p className="error" role="alert">{t(mantoRefreshError)}</p>}
+          </section>}
           <section className="product-workspace__section">
             <div className="product-workspace__section-heading"><span>01</span><h3>{t('Basic information')}</h3></div>
           <div className="product-editor__translations product-workspace__languages">
@@ -1103,47 +1269,48 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
           </section>
           <div className="variant-editor product-workspace__section"><div className="product-editor__head"><div className="product-workspace__section-heading"><span>06</span><h3>{t('Sizes and stock')}</h3></div><button type="button" className="text-btn" onClick={() => setDraft({ ...draft, variants: [...draft.variants, blankVariant()] })}>{t('Add size')}</button></div>
             {draft.variants.map((variant, index) => <div className="variant-editor__row" key={variant.key}>
-              <div className="variant-editor__fields">
-                <label className="variant-field"><span>{t('Size')}</span><input value={variant.name} onChange={event => updateVariant(index, 'name', event.target.value)} /></label>
-                <label className="variant-field"><span>{t('SKU')}</span><input value={variant.sku ?? ''} onChange={event => updateVariant(index, 'sku', event.target.value)} /></label>
-                <label className="variant-field"><span>{t('Stock, units')}</span><input type="number" min="0" disabled={saving} value={variant.stock_quantity} onChange={event => updateVariant(index, 'stock_quantity', event.target.value)} /></label>
-                <label className="variant-field"><span>{t('Low stock threshold')}</span><input type="number" min="0" value={variant.low_stock_threshold} onChange={event => updateVariant(index, 'low_stock_threshold', event.target.value)} /></label>
-              </div>
-              <div className="variant-editor__controls">
-                <CatalogCostInput label={t('Unit cost')} amount={variant.unitCost} currency={variant.currency}
-                  rates={rates} disabled={saving} placeholder={variant.currency === draft.defaultCostCurrency ? draft.defaultCost : undefined}
-                  onChange={(amount, currency) => setDraft(current => current && {
-                    ...current,
-                    variants: current.variants.map(item => item.key === variant.key
-                      ? { ...item, unitCost: amount, currency, unitCostEdited: true }
-                      : item),
-                  })} />
-                <div className="variant-editor__availability">
-                  <label className="check switch-field">
-                    <ToggleSwitch checked={variant.is_preorder} onChange={event => updateVariant(index, 'is_preorder', event.target.checked)} />
-                    <span>{t('Pre-order')}</span>
-                  </label>
-                  <label className="check switch-field">
-                    <ToggleSwitch checked={variant.allow_out_of_stock} disabled={saving}
-                      onChange={event => updateVariant(index, 'allow_out_of_stock', event.target.checked)} />
-                    <span>{t('Allow purchase when out of stock')}</span>
-                  </label>
+                <div className="variant-editor__fields">
+                  <label className="variant-field"><span>{t('Size')}</span><input value={variant.name} onChange={event => updateVariant(index, 'name', event.target.value)} /></label>
+                  <label className="variant-field"><span>{t('SKU')}</span><input value={variant.sku ?? ''} onChange={event => updateVariant(index, 'sku', event.target.value)} /></label>
+                  <label className="variant-field"><span>{t('Stock, units')}</span><input type="number" min="0" disabled={saving} value={variant.stock_quantity} onChange={event => updateVariant(index, 'stock_quantity', event.target.value)} /></label>
+                  <label className="variant-field"><span>{t('Low stock threshold')}</span><input type="number" min="0" value={variant.low_stock_threshold} onChange={event => updateVariant(index, 'low_stock_threshold', event.target.value)} /></label>
                 </div>
-                <button type="button" className="variant-editor__remove" disabled={draft.variants.length === 1} onClick={() => removeVariant(index)}>{t('Remove')}</button>
-              </div>
-              <CatalogDiscountFields variant percent={variant.discountPercent} stacking={variant.stackCustomerDiscount} disabled={saving}
-                onPercentChange={value => updateVariant(index, 'discountPercent', value)}
-                onStackingChange={value => updateVariant(index, 'stackCustomerDiscount', value)} />
-            </div>)}
+                <div className="variant-editor__controls">
+                  <CatalogCostInput label={t('Unit cost')} amount={variant.unitCost} currency={variant.currency}
+                    rates={rates} disabled={saving} placeholder={variant.currency === draft.defaultCostCurrency ? draft.defaultCost : undefined}
+                    onChange={(amount, currency) => setDraft(current => current && {
+                      ...current,
+                      variants: current.variants.map(item => item.key === variant.key
+                        ? { ...item, unitCost: amount, currency, unitCostEdited: true }
+                        : item),
+                    })} />
+                  <div className="variant-editor__availability">
+                    <label className="check switch-field">
+                      <ToggleSwitch checked={variant.is_preorder} onChange={event => updateVariant(index, 'is_preorder', event.target.checked)} />
+                      <span>{t('Pre-order')}</span>
+                    </label>
+                    <label className="check switch-field">
+                      <ToggleSwitch checked={variant.allow_out_of_stock} disabled={saving}
+                        onChange={event => updateVariant(index, 'allow_out_of_stock', event.target.checked)} />
+                      <span>{t('Allow purchase when out of stock')}</span>
+                    </label>
+                  </div>
+                  <button type="button" className="variant-editor__remove" disabled={draft.variants.length === 1} onClick={() => removeVariant(index)}>{t('Remove')}</button>
+                </div>
+                <CatalogDiscountFields variant percent={variant.discountPercent} stacking={variant.stackCustomerDiscount} disabled={saving}
+                  onPercentChange={value => updateVariant(index, 'discountPercent', value)}
+                  onStackingChange={value => updateVariant(index, 'stackCustomerDiscount', value)} />
+              </div>)}
           </div>
           <div className="actions product-workspace__footer">
-            {draft.id && <button type="button" className="text-btn product-editor__delete product-workspace__footer-delete" disabled={saving || categoryBusy} onClick={() => requestProductDeletion(draft.id!)}>
+            {draft.id && <button type="button" className="text-btn product-editor__delete product-workspace__footer-delete" disabled={saving || categoryBusy || refreshingManto} onClick={() => requestProductDeletion(draft.id!)}>
               {t(deleting ? 'Deleting…' : 'Delete product')}
             </button>}
-            <button type="button" className="btn product-workspace__save" disabled={saving || categoryBusy} onClick={() => void save()}>{t(saving && !deleting ? 'Saving…' : 'Save product')}</button>
+            <button type="button" className="btn product-workspace__save" disabled={saving || categoryBusy || refreshingManto} onClick={() => void save()}>{t(saving && !deleting ? 'Saving…' : 'Save product')}</button>
             <button type="button" className="btn btn--ghost" disabled={saving || categoryBusy} onClick={closeEditor}>{t('Cancel')}</button>
           </div>
         </section>}
+      {mantoImportOpen && draft && <ImportMantoDialog onClose={() => setMantoImportOpen(false)} onImport={importManto} />}
       {productToDelete && <ConfirmationDialog
         title={t('Delete product')}
         message={t('Permanently delete “{{name}}” from the catalogue?', { name: productName(productToDelete, language) })}

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { BannerSettings } from './BannerSettings'
 import { ThemeSettings } from './ThemeSettings'
 import { ContactSettings } from './ContactSettings'
+import { CatalogImportSettings } from './CatalogImportSettings'
 import { PaymentSettings } from './PaymentSettings'
 import { SettingsSectionHeading } from './SettingsSectionHeading'
 import { SmsProviderSettings } from './SmsProviderSettings'
@@ -37,6 +38,7 @@ export function SettingsWorkspace({ canManageStaffNotifications }: { canManageSt
         <BannerSettings />
         <ThemeSettings />
         <ContactSettings />
+        <CatalogImportSettings />
       </div>
       <div hidden={section !== 'delivery'}><DeliverySettingsPage embedded /></div>
       {section === 'payments' && <PaymentSettings heading={heading} />}

@@ -31,6 +31,7 @@ const entities: Record<string, string> = {
   order_cancellation_refunds: 'Refund', products: 'Product', product_variants: 'Variant',
   categories: 'Category', product_categories: 'Product categories', product_images: 'Product photo',
   product_costs: 'Product cost', variant_costs: 'Variant cost', stock_movements: 'Stock adjustment',
+  catalog_import_settings: 'Cost on import',
   crm_customers: 'Customer', crm_customer_keys: 'Customer account', customer_discounts: 'Personal discount',
   store_members: 'Administrator access', store_payment_methods: 'Payment methods',
   delivery_settings: 'Nova Poshta settings', shop_settings: 'Store settings',
@@ -52,6 +53,7 @@ const fieldLabels: Record<string, string> = {
   restock_sms_enabled: 'Back-in-stock SMS', sms_notifications_enabled: 'Back-in-stock push',
   auto_update_order_status: 'Update order statuses automatically', previous_quantity: 'Previous stock',
   nova_poshta_tracking_interval_minutes: 'Tracking interval in minutes',
+  auto_fill_cost: 'Fill in the cost automatically', cost_discount_percent: 'Discount from supplier price, %',
 }
 
 type AuditRow = {
