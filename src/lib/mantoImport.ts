@@ -55,7 +55,8 @@ async function requestManto<T>(request: (path: string) => Promise<T>, signal: Ab
 }
 
 async function fetchLocalManto(url: URL, signal: AbortSignal) {
-  return fetch(`/__manto-source${url.pathname}`, {
+  const market = url.hostname === 'www.mantoshop.pl' ? 'pl' : 'eu'
+  return fetch(`/__manto-source/${market}${url.pathname}`, {
     redirect: 'error', credentials: 'omit', referrerPolicy: 'no-referrer', signal,
   })
 }

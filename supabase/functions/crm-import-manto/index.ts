@@ -35,7 +35,8 @@ async function fetchProduct(source: NonNullable<ReturnType<typeof mantoProductLi
   const signal = AbortSignal.timeout(7000)
   for (let redirect = 0; redirect < 4; redirect++) {
     const response = await fetch(url, {
-      signal, redirect: 'manual', headers: { Accept: 'text/html', 'Accept-Language': 'en' },
+      signal, redirect: 'manual',
+      headers: { Accept: 'text/html', 'Accept-Language': url.hostname === 'www.mantoshop.pl' ? 'pl' : 'en' },
     })
     if (response.ok && response.body && /^text\/html\b/i.test(response.headers.get('content-type') ?? '')) {
       const html = await boundedBody(response, 2 * 1024 * 1024).then(body => body.text())

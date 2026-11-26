@@ -9,9 +9,10 @@ function mantoUrl(value: unknown, base?: string) {
   } catch {
     return null
   }
-  if (url.protocol !== 'https:' || !['mantoshop.eu', 'www.mantoshop.eu'].includes(url.host)
+  const market = url.host.match(/^(?:www\.)?mantoshop\.(eu|pl)$/)?.[1]
+  if (url.protocol !== 'https:' || !market
     || url.username || url.password) return null
-  url.hostname = 'www.mantoshop.eu'
+  url.hostname = `www.mantoshop.${market}`
   url.search = ''
   url.hash = ''
   return url
@@ -21,12 +22,13 @@ export function mantoProductLink(value: unknown, base?: string) {
   const url = mantoUrl(value, base)
   const id = url?.pathname.match(productPath)?.[1]
   if (!url || !id) return null
-  url.pathname = url.pathname.replace(/^\/product-(?:eng|ger|pol)-/i, '/product-eng-')
+  const locale = url.hostname === 'www.mantoshop.pl' ? 'pol' : 'eng'
+  url.pathname = url.pathname.replace(/^\/product-(?:eng|ger|pol)-/i, `/product-${locale}-`)
   return { url, id }
 }
 
-export function mantoImageLink(value: unknown) {
-  const url = mantoUrl(value, origin)
+export function mantoImageLink(value: unknown, base = origin) {
+  const url = mantoUrl(value, base)
   if (!url || !/^\/(?:hpeciai\/|data\/include\/cms\/|data\/gfx\/pictures\/)[^?#]+\.(?:webp|jpe?g|png)$/i.test(url.pathname)) return null
   return url
 }
@@ -77,8 +79,8 @@ export function parseMantoProduct(html: string, id: string, url: string, checked
   const composition = descriptionLines.filter(isComposition).join('\n')
   const description = descriptionLines.filter(line => !isComposition(line)).join('\n')
   const photos = doc.querySelectorAll('#projector_photos a.photos__link').map(link => link.getAttribute('href'))
-  const imageUrls = [...new Set([...photos, meta('og:image')].flatMap(image => mantoImageLink(image)?.href ?? []))].slice(0, 16)
-  const sizeGuide = mantoImageLink(doc.querySelector('.sizes_chart_cms img')?.getAttribute('src'))?.href ?? null
+  const imageUrls = [...new Set([...photos, meta('og:image')].flatMap(image => mantoImageLink(image, url)?.href ?? []))].slice(0, 16)
+  const sizeGuide = mantoImageLink(doc.querySelector('.sizes_chart_cms img')?.getAttribute('src'), url)?.href ?? null
   const breadcrumb = doc.querySelector('#breadcrumbs ol')
   const category = cleanText(breadcrumb?.querySelectorAll('li > a.category').at(-1)?.text, 120)
   const currency: 'EUR' | 'PLN' | null = data.currency === '€' || data.currency === 'EUR' ? 'EUR'

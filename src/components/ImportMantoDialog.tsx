@@ -42,6 +42,7 @@ export function ImportMantoDialog({ onClose, onImport }: {
         <input type="url" value={link} disabled={busy} required
           placeholder="https://www.mantoshop.eu/product-eng-…"
           onChange={event => { setLink(event.target.value); setError('') }} />
+        <small className="muted">{t('Accepts links from mantoshop.eu and mantoshop.pl.')}</small>
       </label>
       {error && <div className="error" role="alert">{t(error)}</div>}
       <div className="confirmation-dialog__actions">

@@ -368,6 +368,7 @@ const uk = {
   'Import product': 'Імпортувати товар',
   'Importing product…': 'Імпортуємо товар…',
   'Manto product link': 'Посилання на товар Manto',
+  'Accepts links from mantoshop.eu and mantoshop.pl.': 'Підтримуються посилання з mantoshop.eu та mantoshop.pl.',
   'Enter a link to a Manto product.': 'Введіть посилання на товар Manto.',
   'Could not read the Manto product. Check the link and try again.': 'Не вдалося завантажити товар Manto. Перевірте посилання та спробуйте ще раз.',
   'Could not find product data on the Manto page.': 'На сторінці Manto не знайдено даних товару.',
