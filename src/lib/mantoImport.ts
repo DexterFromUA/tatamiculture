@@ -1,4 +1,5 @@
 import { supabaseBlob, supabaseRequest } from './supabase'
+import { fetchAll } from './crm'
 import type { CatalogExchangeRate } from './catalogCosts'
 import type { CatalogImportSettings } from './catalogImportSettings'
 
@@ -20,14 +21,16 @@ export type MantoSnapshot = {
 
 export type MantoSource = { manto_product_id: string; snapshot: MantoSnapshot }
 export type MantoSourceLink = { manto_product_id: string; url: string | null }
+type LinkedMantoProduct = MantoSourceLink & { product_id: string }
+const sourceLinkFields = 'product_id,manto_product_id,url:snapshot->>url'
 
 export async function getMantoSourceLinks(storeId: string, productIds: string, token: string, signal: AbortSignal) {
   const query = new URLSearchParams({
     store_id: `eq.${storeId}`,
     product_id: `in.(${productIds})`,
-    select: 'product_id,manto_product_id,url:snapshot->>url',
+    select: sourceLinkFields,
   })
-  const rows = await supabaseRequest<(MantoSourceLink & { product_id: string })[]>(
+  const rows = await supabaseRequest<LinkedMantoProduct[]>(
     `/rest/v1/manto_product_sources?${query}`, { token, signal, cache: 'no-store' },
   )
   return new Map(rows.map(source => [source.product_id, source]))
@@ -120,6 +123,27 @@ export async function refreshMantoSnapshot(
   if (productId) await saveMantoSnapshot(storeId, productId, source, token, signal)
   signal.throwIfAborted()
   return source
+}
+
+export async function refreshCatalogueMantoStock(storeId: string, token: string, signal: AbortSignal) {
+  const query = new URLSearchParams({
+    store_id: `eq.${storeId}`,
+    select: sourceLinkFields,
+    order: 'product_id.asc',
+  })
+  const products = await fetchAll<LinkedMantoProduct>(`/rest/v1/manto_product_sources?${query}`, token, signal)
+  const batchSize = 4
+  let updated = 0
+  for (let start = 0; start < products.length; start += batchSize) {
+    signal.throwIfAborted()
+    const results = await Promise.allSettled(products.slice(start, start + batchSize).map(async product => {
+      if (!product.url) throw new Error('Enter a link to a Manto product.')
+      await refreshMantoSnapshot(storeId, token, product.url, product.manto_product_id, signal, product.product_id)
+    }))
+    updated += results.filter(result => result.status === 'fulfilled').length
+  }
+  signal.throwIfAborted()
+  return { updated, failed: products.length - updated }
 }
 
 async function downloadMantoImage(storeId: string, token: string, imageUrl: string, signal: AbortSignal) {

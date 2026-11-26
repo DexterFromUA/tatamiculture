@@ -19,7 +19,7 @@ import { categoryGroups, categoryLabel, categoryPaths } from '../lib/categories'
 import { costInputAmount, parseUnitCost, saveCatalogCosts, type CatalogCost, type CatalogExchangeRate, type CostCurrency } from '../lib/catalogCosts'
 import { formatPrice } from '../lib/format'
 import { getCatalogImportSettings } from '../lib/catalogImportSettings'
-import { downloadMantoPhotos, getMantoDraftPricing, getMantoSourceLinks, readMantoProduct, refreshMantoSnapshot, saveMantoSnapshot, type MantoSource, type MantoSourceLink } from '../lib/mantoImport'
+import { downloadMantoPhotos, getMantoDraftPricing, getMantoSourceLinks, readMantoProduct, refreshCatalogueMantoStock, refreshMantoSnapshot, saveMantoSnapshot, type MantoSource, type MantoSourceLink } from '../lib/mantoImport'
 import { mantoProductLink } from '../../supabase/functions/crm-import-manto/product'
 import { getSizeGuideImageUrls, maxSizeGuideImages, productName } from '../lib/productText'
 import type { CatalogCategory, ProductText } from '../types'
@@ -213,6 +213,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
   const [savedMantoSource, setSavedMantoSource] = useState<(MantoSource & { product_id: string }) | null>(null)
   const [pageMantoSources, setPageMantoSources] = useState<{ key: string; links: Map<string, MantoSourceLink> }>()
   const [refreshingManto, setRefreshingManto] = useState(false)
+  const [refreshingMantoStock, setRefreshingMantoStock] = useState(false)
   const [mantoRefreshError, setMantoRefreshError] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -276,7 +277,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
   const mantoRefreshButton = (productId: string) => {
     const source = mantoLinks?.get(productId)
     return source && storeId && token
-      ? <MantoRefreshButton storeId={storeId} productId={productId} token={token} source={source} disabled={saving || categoryBusy} />
+      ? <MantoRefreshButton storeId={storeId} productId={productId} token={token} source={source} disabled={saving || categoryBusy || refreshingMantoStock} />
       : null
   }
 
@@ -291,7 +292,11 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
   const savedStock = useRef(new Map<string, number>())
   const imageIds = useRef(new WeakMap<File, string>())
   const mantoRefresh = useRef<AbortController | null>(null)
-  useEffect(() => () => mantoRefresh.current?.abort(), [])
+  const mantoStockRefresh = useRef<AbortController | null>(null)
+  useEffect(() => () => {
+    mantoRefresh.current?.abort()
+    mantoStockRefresh.current?.abort()
+  }, [])
   const editorOpen = draft !== null
   useLayoutEffect(() => {
     if (!editorOpen) return
@@ -440,8 +445,26 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
     if (photos.size < imageUrls.length) addToast(t('Some Manto images could not be downloaded.'))
   }
 
+  const refreshMantoStock = async () => {
+    if (!storeId || !token || saving || categoryBusy || mantoStockRefresh.current) return
+    const request = new AbortController()
+    mantoStockRefresh.current = request
+    setRefreshingMantoStock(true)
+    try {
+      const { updated, failed } = await refreshCatalogueMantoStock(storeId, token, request.signal)
+      addToast(failed ? t('Manto stock: {{updated}} updated, {{failed}} failed.', { updated, failed })
+        : updated ? t('Manto stock updated: {{count}}', { count: updated })
+        : t('No products with a Manto link.'))
+    } catch (cause) {
+      if (!request.signal.aborted) addToast(t(cause instanceof Error ? cause.message : 'Could not update Manto data.'))
+    } finally {
+      mantoStockRefresh.current = null
+      if (!request.signal.aborted) setRefreshingMantoStock(false)
+    }
+  }
+
   const refreshManto = async () => {
-    if (!storeId || !token || !draft || !mantoSource || !mantoLink || saving || mantoRefresh.current) return
+    if (!storeId || !token || !draft || !mantoSource || !mantoLink || saving || mantoRefresh.current || mantoStockRefresh.current) return
     const request = new AbortController()
     mantoRefresh.current = request
     setRefreshingManto(true)
@@ -994,7 +1017,16 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
     <section>
       <header className={embedded ? 'crm-section-head catalog-section-head' : 'page-head page-head--row'}>
         {!embedded ? <div><p className="muted">{store.name} · {t('management')}</p><h1>{t('Catalogue')}</h1></div> : <div><span className="crm-section-head__label"><span>{store.name}</span> / CRM</span><h2>{t('Catalogue')}</h2></div>}
-        {!draft && <div className="crm-section-actions"><button type="button" className="btn btn--ghost" disabled={categoryBusy} onClick={() => { setShowCategories(current => !current); resetCategoryForm() }}>{t(showCategories ? 'Products' : 'Manage categories')}</button>{!showCategories && <button ref={addProductButton} type="button" className="btn" onClick={event => beginDraft(blankDraft(), event.currentTarget)}>{t('Add product')}</button>}</div>}
+        {!draft && <div className="crm-section-actions">
+          <button type="button" className="btn btn--ghost" disabled={categoryBusy}
+            onClick={() => { setShowCategories(current => !current); resetCategoryForm() }}>{t(showCategories ? 'Products' : 'Manage categories')}</button>
+          {!showCategories && <>
+            <button type="button" className="btn btn--ghost" title={t('Refresh Manto stock for the whole catalogue')}
+              disabled={!token || saving || categoryBusy || refreshingMantoStock} aria-busy={refreshingMantoStock}
+              onClick={() => void refreshMantoStock()}>{t(refreshingMantoStock ? 'Updating…' : 'Refresh stock')}</button>
+            <button ref={addProductButton} type="button" className="btn" onClick={event => beginDraft(blankDraft(), event.currentTarget)}>{t('Add product')}</button>
+          </>}
+        </div>}
       </header>
       {error && <p className="error" role="alert">{t(error)}</p>}
       {catalogue.error && !draft && !showCategories && <p className="error" role="alert">{t(catalogue.error)} <button type="button" className="text-btn" onClick={catalogue.retry}>{t('Try again')}</button></p>}
@@ -1122,7 +1154,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
                 {new Date(mantoSource.snapshot.checkedAt).toLocaleString(language, { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Kyiv' })}
               </time></p>
             </div>
-            <button type="button" className="btn btn--ghost" disabled={refreshingManto || saving || !token}
+            <button type="button" className="btn btn--ghost" disabled={refreshingManto || refreshingMantoStock || saving || !token}
               onClick={() => void refreshManto()}>{t(refreshingManto ? 'Updating…' : 'Refresh')}</button>
             {mantoRefreshError && <p className="error" role="alert">{t(mantoRefreshError)}</p>}
           </section>}
