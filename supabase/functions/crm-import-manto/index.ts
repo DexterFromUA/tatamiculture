@@ -32,7 +32,7 @@ async function boundedBody(response: Response, limit: number) {
 
 async function fetchProduct(source: NonNullable<ReturnType<typeof mantoProductLink>>) {
   let url = source.url
-  const signal = AbortSignal.timeout(7000)
+  const signal = AbortSignal.timeout(15000)
   for (let redirect = 0; redirect < 4; redirect++) {
     const response = await fetch(url, {
       signal, redirect: 'manual',
@@ -81,7 +81,7 @@ Deno.serve(async request => {
     if (body.action === 'image') {
       const image = mantoImageLink(body.imageUrl)
       if (!image) return json({ error: 'Invalid Manto image.' }, 400)
-      const response = await fetch(image, { redirect: 'error', signal: AbortSignal.timeout(6000) })
+      const response = await fetch(image, { redirect: 'error', signal: AbortSignal.timeout(10000) })
       const type = response.headers.get('content-type')?.split(';', 1)[0] ?? ''
       if (!response.ok || !response.body || !imageTypes.has(type)) {
         await response.body?.cancel()
