@@ -46,6 +46,7 @@ export function useStorefrontTheme(storeId?: string) {
     theme,
     showThemeSwitch: settings.show_theme_switch,
     showLanguageSwitch: settings.show_language_switch,
+    defaultLanguage: settings.default_language,
     fullWidth: settings.full_width,
     selectTheme,
   }

@@ -1,4 +1,5 @@
 import { supabaseConfigured, supabaseRequest } from './supabase'
+import type { StorefrontLanguageMode } from './storefrontLanguage'
 
 export type ThemeMode = 'system' | 'light' | 'dark'
 export type ThemeSettings = {
@@ -6,12 +7,14 @@ export type ThemeSettings = {
   default_theme: ThemeMode
   full_width: boolean
   show_language_switch: boolean
+  default_language: StorefrontLanguageMode
 }
 export const defaultThemeSettings: ThemeSettings = {
   show_theme_switch: true,
   default_theme: 'system',
   full_width: false,
   show_language_switch: true,
+  default_language: 'auto',
 }
 export const themeSettingsChanged = 'tatami:theme-settings-changed'
 export const themeStorageKey = (storeId: string) => `tatami.theme.${storeId}`
@@ -30,7 +33,7 @@ export function resolveTheme(mode: ThemeMode, systemDark: boolean): 'light' | 'd
 
 export async function getThemeSettings(storeId: string): Promise<ThemeSettings> {
   if (!supabaseConfigured) return { ...defaultThemeSettings }
-  const rows = await supabaseRequest<ThemeSettings[]>(`/rest/v1/storefront_theme_settings?store_id=eq.${encodeURIComponent(storeId)}&select=*`)
+  const rows = await supabaseRequest<ThemeSettings[]>(`/rest/v1/storefront_theme_settings?store_id=eq.${encodeURIComponent(storeId)}&select=*`, { cache: 'no-store' })
   return { ...defaultThemeSettings, ...rows[0] }
 }
 

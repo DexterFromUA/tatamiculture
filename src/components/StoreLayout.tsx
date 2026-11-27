@@ -10,6 +10,7 @@ import { contactsChanged, getStorefrontContacts, type StorefrontContacts } from 
 import { agreementPath } from '../content/agreement'
 import { ThemeSwitch } from './ThemeSwitch'
 import { useStorefrontTheme } from '../hooks/useStorefrontTheme'
+import { useStorefrontLanguage } from '../hooks/useStorefrontLanguage'
 import { LoadingIndicator } from './LoadingIndicator'
 import { useStorefrontCatalog } from '../hooks/useStorefrontCatalog'
 import type { CatalogFilters } from '../lib/storefrontCatalog'
@@ -49,7 +50,8 @@ export function StoreLayout() {
   const [scrollState, setScrollState] = useState({ headerVisible: true, showTopButton: false })
   const [standalone, setStandalone] = useState(() => isStandalone() || pwaLayoutPreview)
   const storeId = store?.id
-  const { mode, theme, showThemeSwitch, showLanguageSwitch, fullWidth, selectTheme } = useStorefrontTheme(storeId)
+  const { mode, theme, showThemeSwitch, showLanguageSwitch, defaultLanguage, fullWidth, selectTheme } = useStorefrontTheme(storeId)
+  const selectLanguage = useStorefrontLanguage(defaultLanguage, showLanguageSwitch)
   const catalog = useStorefrontCatalog(storeId, filters, catalogRevision, isHome)
   const userId = user?.id
   const [crmAccess, setCrmAccess] = useState<{ storeId: string; userId: string; token: string } | null>(null)
@@ -214,7 +216,7 @@ export function StoreLayout() {
             <NavLink to="/login">{t('Sign in')}</NavLink>
           )}
           </>}
-          {showLanguageSwitch && <button type="button" className="text-btn nav__language" lang={nextLanguage} aria-label={nextLanguageName} onClick={() => void i18n.changeLanguage(nextLanguage)}>
+          {showLanguageSwitch && <button type="button" className="text-btn nav__language" lang={nextLanguage} aria-label={nextLanguageName} onClick={() => selectLanguage(nextLanguage)}>
             {nextLanguage === 'en' ? 'EN' : 'UA'}
           </button>}
           {showThemeSwitch && <ThemeSwitch mode={mode} theme={theme} onChange={selectTheme} />}

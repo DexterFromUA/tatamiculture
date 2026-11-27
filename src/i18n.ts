@@ -1,5 +1,6 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
+import { browserLanguage, readLanguagePreference } from './lib/storefrontLanguage'
 
 const uk = {
   'Seller': 'Продавець',
@@ -385,6 +386,8 @@ const uk = {
   'Full-width application': 'Додаток на всю ширину екрана',
   'Application layout': 'Ширина додатка',
   'Languages': 'Мови',
+  'Default language': 'Мова за замовчуванням',
+  'Automatically': 'Автоматично',
   'Show language switch in the header': 'Показувати перемикач мов у шапці',
   'Could not load language settings.': 'Не вдалося завантажити налаштування мов.',
   'Could not save language settings.': 'Не вдалося зберегти налаштування мов.',
@@ -949,7 +952,9 @@ const uk = {
   'Save settings': 'Зберегти налаштування', Saved: 'Збережено', 'Test mode': 'Тестовий режим', 'Live mode': 'Робочий режим',
 }
 
-const savedLanguage = typeof window === 'undefined' ? null : window.localStorage.getItem('tatami-language')
+i18n.on('languageChanged', (language) => {
+  if (typeof document !== 'undefined') document.documentElement.lang = language
+})
 
 void i18n
   .use(initReactI18next)
@@ -968,15 +973,10 @@ void i18n
       'Return accounting only': 'Records a confirmed return only. Does not issue a bank refund or restock inventory.',
       'Margin explanation': 'Delivered orders with a known cost only, less recorded returns. Excludes fees, taxes and operating costs. Repeat customers are based on non-cancelled orders.',
     } }, uk: { translation: uk } },
-    lng: savedLanguage === 'en' || savedLanguage === 'uk' ? savedLanguage : 'uk',
+    lng: readLanguagePreference() ?? browserLanguage(),
     fallbackLng: 'en',
     returnNull: false,
     interpolation: { escapeValue: false },
   })
-
-i18n.on('languageChanged', (language) => {
-  window.localStorage.setItem('tatami-language', language)
-  document.documentElement.lang = language
-})
 
 export default i18n
