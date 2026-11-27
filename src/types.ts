@@ -37,6 +37,7 @@ export type ProductOption = {
   isPreOrder: boolean
   isLimited: boolean
   quantity: number
+  warehouseQuantity?: number
   lowStockThreshold: number
 }
 

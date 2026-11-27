@@ -13,7 +13,7 @@ type Row = Record<string, unknown>
 const money = (amount: unknown) => Number(amount ?? 0) / 100
 const text = (value: unknown) => String(value ?? '')
 const productIdPattern = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i
-const productFields = '*,categories!products_category_id_fkey(*),product_categories(categories(*)),product_variants(*),product_images(*)'
+const productFields = '*,categories!products_category_id_fkey(*),product_categories(categories(*)),product_variants(*,catalog_stock_quantity),product_images(*)'
 
 function mapStore(row: Row): Store {
   return {
@@ -54,7 +54,9 @@ function mapProduct(row: Row): Product {
       })
       return {
         ...details, id: text(variant.id), name: text(variant.name), sku: text(variant.sku),
-        isPreOrder: Boolean(variant.is_preorder), isLimited: true, quantity: Number(variant.stock_quantity ?? 0),
+        isPreOrder: Boolean(variant.is_preorder), isLimited: true,
+        quantity: Number(variant.catalog_stock_quantity ?? variant.stock_quantity ?? 0),
+        warehouseQuantity: Number(variant.stock_quantity ?? 0),
         lowStockThreshold: Number(variant.low_stock_threshold ?? 3),
         allowOutOfStock: variant.allow_out_of_stock === true,
       }

@@ -3,6 +3,10 @@ import type { ProductOption } from '../types'
 export const maxOrderVariantQuantity = 20
 export const unavailableQuantity = 'A product is no longer available in the requested quantity.'
 
+export function isSoldOut(options: readonly ProductOption[]) {
+  return options.every(option => option.quantity === 0)
+}
+
 export function stockLabel(option: ProductOption) {
   if (option.quantity === 0 && option.allowOutOfStock) return 'Available to order'
   if (!option.isLimited) return

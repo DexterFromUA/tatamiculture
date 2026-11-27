@@ -92,7 +92,7 @@ export function CustomersPage({ onOpenCustomer, revision, selection, setSelectio
       <div className="orders-list-toolbar">
         <button type="button" className="text-btn" title={t(selectedIds.size ? 'Export selected customers' : 'Export CSV')}
           disabled={!store || !token || !exportCount || exporting} onClick={() => void exportCustomers()}>
-          {exporting ? t('Preparing export…') : selectedIds.size ? `${t('Export CSV')} (${selectedIds.size})` : t('Export CSV')}
+          {exporting ? t('Preparing export…') : `${t('Export CSV')} (${exportCount})`}
         </button>
         <CrmPagination page={current} pages={pages} loading={loading} onChange={setPage} />
       </div>

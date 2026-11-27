@@ -6,7 +6,7 @@ import { useCart } from '../context/CartContext'
 import { useStore } from '../context/StoreContext'
 import { useToast } from '../context/ToastContext'
 import { formatPrice, optionPrice } from '../lib/format'
-import { purchaseQuantityLimit, stockLabel } from '../lib/catalogAvailability'
+import { isSoldOut, purchaseQuantityLimit, stockLabel } from '../lib/catalogAvailability'
 import { categoriesForProduct, categoryPaths, productCategoryLabel } from '../lib/categories'
 import { productDescription, productInformation, productName } from '../lib/productText'
 import { api } from '../lib/api'
@@ -75,6 +75,7 @@ function ProductDetails() {
   const price = optionPrice(option)
   const inCart = quantityFor(product.id, option.id)
   const purchaseLimit = purchaseQuantityLimit(option)
+  const soldOut = isSoldOut(product.productOptions)
   const canAdd = inCart < purchaseLimit
   const name = productName(product, i18n.resolvedLanguage)
   const description = productDescription(product, i18n.resolvedLanguage)
@@ -112,7 +113,10 @@ function ProductDetails() {
       </div>}
       <div className="product-view__body">
         <p className="muted">{categoryPaths(categories, categoryIds, i18n.resolvedLanguage).join(' · ') || productCategoryLabel(product, i18n.resolvedLanguage) || t('Uncategorized')}</p>
-        {product.isNew && <span className="badge badge--new">{t('New arrival')}</span>}
+        {(soldOut || product.isNew) && <div className="product-view__badges">
+          {soldOut && <span className="badge badge--sold-out">{t('Sold out')}</span>}
+          {product.isNew && <span className="badge badge--new">{t('New arrival')}</span>}
+        </div>}
         <h1>{name}</h1>
         {description.trim() && (
           <div className="lede product-description">
@@ -178,7 +182,7 @@ function ProductDetails() {
             <small>{t('This is an estimate. Your parcel may arrive earlier or take longer.')}</small>
           </p>
         ) : (
-          <p className="note product-delivery-note">{t(option.quantity > 0
+          <p className="note product-delivery-note">{t((option.warehouseQuantity ?? option.quantity) > inCart
             ? 'Ships in 1–5 business days' : 'Available to order. Dispatch time will be confirmed.')}</p>
         ))}
         {(store.notifications.restockPush || store.notifications.restockSms) && purchaseLimit === 0 && <RestockSubscription key={option.id}

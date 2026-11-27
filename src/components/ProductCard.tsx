@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { optionPrice, formatPrice } from '../lib/format'
+import { isSoldOut } from '../lib/catalogAvailability'
 import { productCategoryLabel } from '../lib/categories'
 import { productName } from '../lib/productText'
 import type { Product, Store } from '../types'
@@ -19,8 +20,10 @@ export function ProductCard({ product, store, scrollToTop = false }: { product: 
     ? t(varyingDiscounts ? 'Up to −{{percent}}%' : 'Sale −{{percent}}%', { percent: maxDiscount.toLocaleString(i18n.resolvedLanguage) })
     : t('Sale')
   const image = product.imgUrls[0]
-  const badges = (product.isNew || onSale) && (
+  const soldOut = isSoldOut(product.productOptions)
+  const badges = (soldOut || product.isNew || onSale) && (
     <div className="product-card__badges">
+      {soldOut && <span className="badge badge--sold-out">{t('Sold out')}</span>}
       {product.isNew && <span className="badge badge--new">{t('New arrival')}</span>}
       {onSale && <span className="badge badge--sale">{discountLabel}</span>}
     </div>

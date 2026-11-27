@@ -19,7 +19,7 @@ import { categoryGroups, categoryLabel, categoryPaths } from '../lib/categories'
 import { costInputAmount, parseUnitCost, saveCatalogCosts, type CatalogCost, type CatalogExchangeRate, type CostCurrency } from '../lib/catalogCosts'
 import { formatPrice } from '../lib/format'
 import { getCatalogImportSettings } from '../lib/catalogImportSettings'
-import { downloadMantoPhotos, getMantoDraftPricing, getMantoSourceLinks, readMantoProduct, refreshCatalogueMantoStock, refreshMantoSnapshot, saveMantoSnapshot, type MantoSource, type MantoSourceLink } from '../lib/mantoImport'
+import { downloadMantoPhotos, getMantoDraftPricing, getMantoSourceLinks, readMantoProduct, refreshCatalogueMantoStock, refreshMantoStock, saveMantoSnapshot, type MantoSource, type MantoSourceLink } from '../lib/mantoImport'
 import { mantoProductLink } from '../../supabase/functions/crm-import-manto/product'
 import { getSizeGuideImageUrls, maxSizeGuideImages, productName } from '../lib/productText'
 import type { CatalogCategory, ProductText } from '../types'
@@ -33,6 +33,7 @@ type Variant = {
   discount_percent?: number | null
   stack_customer_discount?: boolean
   stock_quantity: number
+  variant_supplier_stock?: { quantity: number | null } | null
   low_stock_threshold: number
   is_preorder: boolean
   allow_out_of_stock: boolean
@@ -40,10 +41,10 @@ type Variant = {
   variant_costs: CatalogCost | null
 }
 type ProductImage = { id: string; public_url: string; storage_path: string; position: number }
-type DraftVariant = Omit<Variant, 'price' | 'variant_costs' | 'stock_quantity' | 'low_stock_threshold'> & {
+type DraftVariant = Omit<Variant, 'price' | 'variant_costs' | 'variant_supplier_stock' | 'stock_quantity' | 'low_stock_threshold'> & {
   key: string; unitCost: string; currency: CostCurrency; unitCostEdited: boolean
   discountPercent: string; stackCustomerDiscount: boolean
-  stock_quantity: string; low_stock_threshold: string
+  stock_quantity: string; supplier_stock_quantity: string; low_stock_threshold: string
 }
 type CatalogProduct = ProductText & {
   discount_percent?: number | null
@@ -109,7 +110,8 @@ type Draft = {
 }
 
 const defaultLowStockThreshold = 3
-const blankVariant = (): DraftVariant => ({ key: crypto.randomUUID(), name: 'M', sku: '', compare_at_price: null, stock_quantity: '0', low_stock_threshold: String(defaultLowStockThreshold), is_preorder: false, allow_out_of_stock: false, unitCost: '', currency: 'UAH', unitCostEdited: false, discountPercent: '', stackCustomerDiscount: false })
+const totalStock = (variant: Variant) => variant.stock_quantity + (variant.variant_supplier_stock?.quantity ?? 0)
+const blankVariant = (): DraftVariant => ({ key: crypto.randomUUID(), name: 'M', sku: '', compare_at_price: null, stock_quantity: '0', supplier_stock_quantity: '', low_stock_threshold: String(defaultLowStockThreshold), is_preorder: false, allow_out_of_stock: false, unitCost: '', currency: 'UAH', unitCostEdited: false, discountPercent: '', stackCustomerDiscount: false })
 const blankDraft = (): Draft => ({ key: crypto.randomUUID(), imageOrder: [], sizeGuide: { uk: '', en: '' }, sizeGuideImages: [], composition: { uk: '', en: '' }, careInstructions: { uk: '', en: '' }, names: { uk: '', en: '' }, descriptions: { uk: '', en: '' }, price: '0', discountPercent: '', stackCustomerDiscount: false, defaultCost: '', defaultCostCurrency: 'UAH', defaultCostEdited: false, weightGrams: '', categoryIds: [], isActive: true, isNew: false, images: [], newImageFiles: [], removedImageIds: [], variants: [blankVariant()] })
 
 function validDiscountPercent(value: string) {
@@ -180,9 +182,10 @@ function toDraft(product: CatalogProduct, language?: string): Draft {
     images: [...product.product_images].sort((a, b) => a.position - b.position),
     newImageFiles: [],
     removedImageIds: [],
-    variants: product.product_variants.map(({ id, name, sku, compare_at_price, stock_quantity, low_stock_threshold, is_preorder, allow_out_of_stock, variant_costs, discount_percent, stack_customer_discount, manto_variant_key }) => ({
+    variants: product.product_variants.map(({ id, name, sku, compare_at_price, stock_quantity, variant_supplier_stock, low_stock_threshold, is_preorder, allow_out_of_stock, variant_costs, discount_percent, stack_customer_discount, manto_variant_key }) => ({
       key: id ?? crypto.randomUUID(), id, name, sku, compare_at_price, is_preorder, allow_out_of_stock, manto_variant_key,
       stock_quantity: String(stock_quantity), low_stock_threshold: String(low_stock_threshold),
+      supplier_stock_quantity: variant_supplier_stock?.quantity == null ? '' : String(variant_supplier_stock.quantity),
       discountPercent: discount_percent == null ? '' : String(discount_percent),
       stackCustomerDiscount: stack_customer_discount === true,
       unitCost: costInputAmount(variant_costs),
@@ -255,8 +258,8 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
     product,
     variants: product.product_variants.filter(variant =>
       filter === 'stock' || (filter === 'out-of-stock'
-        ? variant.stock_quantity === 0
-        : variant.stock_quantity < variant.low_stock_threshold)),
+        ? totalStock(variant) === 0
+        : totalStock(variant) < variant.low_stock_threshold)),
   })).filter(({ variants }) => variants.length > 0) : []
   const matchCount = catalogue.data?.total ?? 0
   const pages = Math.max(1, Math.ceil(matchCount / crmPageSize))
@@ -277,7 +280,8 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
   const mantoRefreshButton = (productId: string) => {
     const source = mantoLinks?.get(productId)
     return source && storeId && token
-      ? <MantoRefreshButton storeId={storeId} productId={productId} token={token} source={source} disabled={saving || categoryBusy || refreshingMantoStock} />
+      ? <MantoRefreshButton storeId={storeId} productId={productId} token={token} source={source}
+          disabled={saving || categoryBusy || refreshingMantoStock} onRefreshed={reloadCatalogue} />
       : null
   }
 
@@ -290,6 +294,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
   const editorHeading = useRef<HTMLHeadingElement>(null)
   const listScroll = useRef<{ productId?: string; scrollY: number; buttonTop: number } | null>(null)
   const savedStock = useRef(new Map<string, number>())
+  const savedSupplierStock = useRef(new Map<string, string>())
   const imageIds = useRef(new WeakMap<File, string>())
   const mantoRefresh = useRef<AbortController | null>(null)
   const mantoStockRefresh = useRef<AbortController | null>(null)
@@ -343,6 +348,8 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
   const loadDraft = (next: Draft, existingProduct: CatalogProduct | null = null) => {
     savedStock.current = new Map(next.variants.filter(variant => variant.id)
       .map(variant => [variant.key, Number(variant.stock_quantity)]))
+    savedSupplierStock.current = new Map(next.variants.filter(variant => variant.id)
+      .map(variant => [variant.key, variant.supplier_stock_quantity]))
     setOriginalDraft(next.mantoSource && !next.id ? '' : JSON.stringify(next))
     setError(null)
     setSavedMantoSource(null)
@@ -388,7 +395,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
       token, signal, cache: 'no-store',
     })
     if (linked) {
-      const [existing] = await supabaseRequest<CatalogProduct[]>(`/rest/v1/products?id=eq.${linked.product_id}&store_id=eq.${storeId}&select=*,product_categories(category_id),product_images(*),product_costs(*),product_variants(*,variant_costs(*))&product_variants.order=position.asc,id.asc`, {
+      const [existing] = await supabaseRequest<CatalogProduct[]>(`/rest/v1/products?id=eq.${linked.product_id}&store_id=eq.${storeId}&select=*,product_categories(category_id),product_images(*),product_costs(*),product_variants(*,variant_costs(*),variant_supplier_stock(quantity))&product_variants.order=position.asc,id.asc`, {
         token, signal, cache: 'no-store',
       })
       if (!existing) throw new Error('Could not load catalogue')
@@ -436,7 +443,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
         const unitCost = pricing.variantCosts.get(item.key) ?? ''
         return {
           ...blankVariant(), name: item.name, sku: item.sku, manto_variant_key: item.key,
-          stock_quantity: String(item.quantity ?? 0),
+          supplier_stock_quantity: item.quantity == null ? '' : String(item.quantity),
           unitCost, unitCostEdited: unitCost !== '', currency: unitCost || pricing.defaultCost ? costCurrency : 'UAH',
         }
       }),
@@ -445,13 +452,14 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
     if (photos.size < imageUrls.length) addToast(t('Some Manto images could not be downloaded.'))
   }
 
-  const refreshMantoStock = async () => {
+  const refreshAllMantoStock = async () => {
     if (!storeId || !token || saving || categoryBusy || mantoStockRefresh.current) return
     const request = new AbortController()
     mantoStockRefresh.current = request
     setRefreshingMantoStock(true)
     try {
       const { updated, failed } = await refreshCatalogueMantoStock(storeId, token, request.signal)
+      if (updated) reloadCatalogue()
       addToast(failed ? t('Manto stock: {{updated}} updated, {{failed}} failed.', { updated, failed })
         : updated ? t('Manto stock updated: {{count}}', { count: updated })
         : t('No products with a Manto link.'))
@@ -470,10 +478,27 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
     setRefreshingManto(true)
     setMantoRefreshError('')
     try {
-      const source = await refreshMantoSnapshot(storeId, token, mantoLink.href, mantoSource.manto_product_id, request.signal, draft.id)
-      if (draft.id) setSavedMantoSource({ ...source, product_id: draft.id })
-      else setDraft(current => current?.key === draft.key ? { ...current, mantoSource: source } : current)
-      addToast(t('Manto snapshot updated'))
+      const target = draft.id ? { productId: draft.id } : { snapshot: mantoSource.snapshot }
+      const { refreshedKeys, ...source } = await refreshMantoStock(storeId, token, mantoLink.href, mantoSource.manto_product_id, request.signal, target)
+      if (draft.id) {
+        setSavedMantoSource({ ...source, product_id: draft.id })
+        reloadCatalogue()
+      }
+      const quantities = new Map(source.snapshot.variants.filter(item => refreshedKeys.has(item.key))
+        .map(item => [item.key, item.quantity] as const))
+      for (const variant of draft.variants) {
+        const quantity = quantities.get(variant.manto_variant_key ?? '')
+        if (variant.id && quantity != null) savedSupplierStock.current.set(variant.key, String(quantity))
+      }
+      setDraft(current => current?.key === draft.key ? {
+        ...current,
+        mantoSource: draft.id ? current.mantoSource : source,
+        variants: current.variants.map(variant => {
+          const quantity = quantities.get(variant.manto_variant_key ?? '')
+          return quantity == null ? variant : { ...variant, supplier_stock_quantity: String(quantity) }
+        }),
+      } : current)
+      addToast(t('Manto stock updated.'))
     } catch (cause) {
       if (!request.signal.aborted) {
         setMantoRefreshError(cause instanceof Error ? cause.message : 'Could not update Manto data.')
@@ -664,7 +689,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
       setError(t('Enter a discount from 0 to 100% with up to two decimal places.'))
       return
     }
-    if (draft.variants.some(variant => [variant.stock_quantity, variant.low_stock_threshold].some(value => {
+    if (draft.variants.some(variant => [variant.stock_quantity, variant.supplier_stock_quantity, variant.low_stock_threshold].some(value => {
       const quantity = Number(value)
       return !Number.isInteger(quantity) || quantity < 0 || quantity > 2147483647
     }))) {
@@ -790,6 +815,22 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
           }),
         }),
       ))
+      const editedSupplierStock = draft.variants.filter(variant =>
+        (savedSupplierStock.current.get(variant.key) ?? '') !== variant.supplier_stock_quantity,
+      ).sort((a, b) => a.key.localeCompare(b.key))
+      if (editedSupplierStock.length) {
+        await supabaseRequest('/rest/v1/variant_supplier_stock?on_conflict=variant_id', {
+          method: 'POST', token, headers: { Prefer: 'resolution=merge-duplicates' },
+          body: JSON.stringify(editedSupplierStock.map(variant => ({
+            variant_id: variant.key,
+            quantity: variant.supplier_stock_quantity === '' ? null : Number(variant.supplier_stock_quantity),
+            revision: crypto.randomUUID(),
+          }))),
+        })
+        for (const variant of editedSupplierStock) {
+          savedSupplierStock.current.set(variant.key, variant.supplier_stock_quantity)
+        }
+      }
       const removedImages = draft.images.filter((image) => draft.removedImageIds.includes(image.id))
       const retainedImages = draft.images.filter((image) => !draft.removedImageIds.includes(image.id))
       await Promise.all(removedImages.map(async (image) => {
@@ -1023,7 +1064,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
           {!showCategories && <>
             <button type="button" className="btn btn--ghost" title={t('Refresh Manto stock for the whole catalogue')}
               disabled={!token || saving || categoryBusy || refreshingMantoStock} aria-busy={refreshingMantoStock}
-              onClick={() => void refreshMantoStock()}>{t(refreshingMantoStock ? 'Updating…' : 'Refresh stock')}</button>
+              onClick={() => void refreshAllMantoStock()}>{t(refreshingMantoStock ? 'Updating…' : 'Refresh stock')}</button>
             <button ref={addProductButton} type="button" className="btn" onClick={event => beginDraft(blankDraft(), event.currentTarget)}>{t('Add product')}</button>
           </>}
         </div>}
@@ -1089,7 +1130,7 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
         </div>}
         <ul ref={productList} className={`catalog-admin__list${!showStock ? ' catalog-admin__list--products' : ''}`}>
           {!showStock ? pageProducts.map(product => {
-            const unavailable = product.product_variants.filter(variant => variant.stock_quantity === 0).length
+            const unavailable = product.product_variants.filter(variant => totalStock(variant) === 0).length
             return <li key={product.id} className={selected.includes(product.id) ? 'catalog-admin__selected' : undefined}>
               <label className="order-select"><input type="checkbox" aria-label={`${t('Select product')} · ${productName(product, language)}`} checked={selected.includes(product.id)} disabled={saving} onChange={event => { const checked = event.target.checked; setSelected(current => checked ? [...current, product.id] : current.filter(id => id !== product.id)) }} /></label>
               {product.product_images[0] && <img className="catalog-admin__thumb" src={product.product_images[0].public_url} alt="" />}
@@ -1119,7 +1160,10 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
                   </select>
                 </label>
                 <span>{variant.sku || t('No SKU')} · {product.is_active ? t('Published') : t('Hidden')}</span>
-                <span className={variant.stock_quantity < variant.low_stock_threshold ? 'stock-low' : ''}>{variant.stock_quantity} {t('in stock')}{variant.is_preorder && ` · ${t('Pre-order')}`}</span>
+                <span className={totalStock(variant) < variant.low_stock_threshold ? 'stock-low' : ''}>
+                  {t('Total stock: {{count}}', { count: totalStock(variant) })}{variant.is_preorder && ` · ${t('Pre-order')}`}
+                </span>
+                <span>{t('In stock')} · {variant.stock_quantity} / {t('At supplier')} · {variant.variant_supplier_stock?.quantity ?? 0}</span>
               </div>
               <div className="catalog-stock-row__actions" key={variant.id}>
                 <button type="button" className="text-btn" data-edit-product={product.id} onClick={event => openProduct(product, event.currentTarget)}>{t('Edit')}</button>
@@ -1323,9 +1367,16 @@ export function CatalogAdminPage({ embedded = false, initialSearch = '', initial
                 <div className="variant-editor__fields">
                   <label className="variant-field"><span>{t('Size')}</span><input value={variant.name} onChange={event => updateVariant(index, 'name', event.target.value)} /></label>
                   <label className="variant-field"><span>{t('SKU')}</span><input value={variant.sku ?? ''} onChange={event => updateVariant(index, 'sku', event.target.value)} /></label>
-                  <label className="variant-field"><span>{t('Stock, units')}</span><input type="number" min="0" disabled={saving} value={variant.stock_quantity} onChange={event => updateVariant(index, 'stock_quantity', event.target.value)} /></label>
+                  <label className="variant-field"><span>{t('In stock')}</span><input type="number" min="0" disabled={saving} value={variant.stock_quantity} onChange={event => updateVariant(index, 'stock_quantity', event.target.value)} /></label>
+                  <label className="variant-field">
+                    <span>{t('At supplier')}</span>
+                    <input type="number" min="0" max="2147483647" step="1" placeholder="—"
+                      disabled={saving || refreshingManto} value={variant.supplier_stock_quantity}
+                      onChange={event => updateVariant(index, 'supplier_stock_quantity', event.target.value)} />
+                  </label>
                   <label className="variant-field"><span>{t('Low stock threshold')}</span><input type="number" min="0" value={variant.low_stock_threshold} onChange={event => updateVariant(index, 'low_stock_threshold', event.target.value)} /></label>
                 </div>
+                <small>{t('Total stock: {{count}}', { count: Number(variant.stock_quantity) + Number(variant.supplier_stock_quantity) })}</small>
                 <div className="variant-editor__controls">
                   <CatalogCostInput label={t('Unit cost')} amount={variant.unitCost} currency={variant.currency}
                     rates={rates} disabled={saving} placeholder={variant.currency === draft.defaultCostCurrency ? draft.defaultCost : undefined}

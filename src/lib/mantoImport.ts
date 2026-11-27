@@ -114,15 +114,38 @@ export async function readMantoProduct(storeId: string, token: string, link: str
   })
 }
 
-export async function refreshMantoSnapshot(
-  storeId: string, token: string, link: string, mantoProductId: string, signal: AbortSignal, productId?: string,
-) {
+export async function refreshMantoStock(
+  storeId: string, token: string, link: string, mantoProductId: string, signal: AbortSignal,
+  target: { productId: string } | { snapshot: MantoSnapshot },
+): Promise<MantoSource & { refreshedKeys: ReadonlySet<string> }> {
   const product = await readMantoProduct(storeId, token, link, signal)
   if (product.id !== mantoProductId) throw new Error('This link leads to a different Manto product.')
-  const source = { manto_product_id: product.id, snapshot: product.snapshot }
-  if (productId) await saveMantoSnapshot(storeId, productId, source, token, signal)
+  const { checkedAt, variants } = product.snapshot
+  const quantities = new Map(variants.flatMap(({ key, quantity }) => quantity === null ? [] : [[key, quantity] as const]))
   signal.throwIfAborted()
-  return source
+  if ('snapshot' in target) {
+    const snapshot = {
+      ...target.snapshot,
+      checkedAt,
+      variants: target.snapshot.variants.map(variant => ({
+        ...variant,
+        quantity: quantities.get(variant.key) ?? variant.quantity,
+      })),
+    }
+    return { manto_product_id: mantoProductId, snapshot, refreshedKeys: new Set(quantities.keys()) }
+  }
+
+  const snapshot = await supabaseRequest<MantoSnapshot | null>('/rest/v1/rpc/refresh_manto_stock', {
+    method: 'POST', token, signal,
+    body: JSON.stringify({
+      p_store_id: storeId, p_product_id: target.productId, p_manto_product_id: mantoProductId,
+      p_quantities: Object.fromEntries(quantities), p_checked_at: checkedAt,
+    }),
+  })
+  signal.throwIfAborted()
+  if (!snapshot) throw new Error('The Manto link is no longer attached to this product.')
+  const refreshedKeys = Date.parse(snapshot.checkedAt) === Date.parse(checkedAt) ? new Set(quantities.keys()) : new Set<string>()
+  return { manto_product_id: mantoProductId, snapshot, refreshedKeys }
 }
 
 export async function refreshCatalogueMantoStock(storeId: string, token: string, signal: AbortSignal) {
@@ -138,7 +161,7 @@ export async function refreshCatalogueMantoStock(storeId: string, token: string,
     signal.throwIfAborted()
     const results = await Promise.allSettled(products.slice(start, start + batchSize).map(async product => {
       if (!product.url) throw new Error('Enter a link to a Manto product.')
-      await refreshMantoSnapshot(storeId, token, product.url, product.manto_product_id, signal, product.product_id)
+      await refreshMantoStock(storeId, token, product.url, product.manto_product_id, signal, { productId: product.product_id })
     }))
     updated += results.filter(result => result.status === 'fulfilled').length
   }
