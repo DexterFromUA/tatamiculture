@@ -31,16 +31,16 @@ export function SettingsWorkspace({ canManageStaffNotifications }: { canManageSt
   return <div className="settings-workspace">
     <nav className="settings-nav" aria-label={t('Settings sections')}>
       <button type="button" className={section === 'storefront' ? 'active' : ''} aria-current={section === 'storefront' ? 'page' : undefined} onClick={() => setSection('storefront')}><span className="settings-nav__index">{sectionHeadings.storefront.number}</span><span><strong>{t('General')}</strong></span><span className="settings-nav__arrow" aria-hidden="true">↗</span></button>
-      <button type="button" className={section === 'delivery' ? 'active' : ''} aria-current={section === 'delivery' ? 'page' : undefined} onClick={() => setSection('delivery')}><span className="settings-nav__index">02</span><span><strong>{t('Delivery')}</strong><small>{t('Nova Poshta settings')}</small></span><span className="settings-nav__arrow" aria-hidden="true">↗</span></button>
-      <button type="button" className={section === 'payments' ? 'active' : ''} aria-current={section === 'payments' ? 'page' : undefined} onClick={() => setSection('payments')}><span className="settings-nav__index">03</span><span><strong>{t('Payments')}</strong><small>{t('Payment methods')}</small></span><span className="settings-nav__arrow" aria-hidden="true">↗</span></button>
-      <button type="button" className={section === 'sms' ? 'active' : ''} aria-current={section === 'sms' ? 'page' : undefined} onClick={() => setSection('sms')}><span className="settings-nav__index">04</span><span><strong>{t('Notifications and SMS')}</strong><small>{t('Sign-in and notifications')}</small></span><span className="settings-nav__arrow" aria-hidden="true">↗</span></button>
+      <button type="button" className={section === 'delivery' ? 'active' : ''} aria-current={section === 'delivery' ? 'page' : undefined} onClick={() => setSection('delivery')}><span className="settings-nav__index">02</span><span><strong>{t('Delivery')}</strong></span><span className="settings-nav__arrow" aria-hidden="true">↗</span></button>
+      <button type="button" className={section === 'payments' ? 'active' : ''} aria-current={section === 'payments' ? 'page' : undefined} onClick={() => setSection('payments')}><span className="settings-nav__index">03</span><span><strong>{t('Payments')}</strong></span><span className="settings-nav__arrow" aria-hidden="true">↗</span></button>
+      <button type="button" className={section === 'sms' ? 'active' : ''} aria-current={section === 'sms' ? 'page' : undefined} onClick={() => setSection('sms')}><span className="settings-nav__index">04</span><span><strong>{t('Notifications and SMS')}</strong></span><span className="settings-nav__arrow" aria-hidden="true">↗</span></button>
       <button type="button" className={section === 'languages' ? 'active' : ''} aria-current={section === 'languages' ? 'page' : undefined} onClick={() => setSection('languages')}><span className="settings-nav__index">{sectionHeadings.languages.number}</span><span><strong>{t('Languages')}</strong></span><span className="settings-nav__arrow" aria-hidden="true">↗</span></button>
       {canManageStaffNotifications && <button type="button" className={section === 'audit' ? 'active' : ''} aria-current={section === 'audit' ? 'page' : undefined} onClick={() => setSection('audit')}><span className="settings-nav__index">{sectionHeadings.audit.number}</span><span><strong>{t('Activity log')}</strong></span><span className="settings-nav__arrow" aria-hidden="true">↗</span></button>}
     </nav>
     <div className="settings-workspace__content">
-      {section !== 'payments' && <SettingsSectionHeading {...heading} />}
+      {(section === 'sms' || section === 'audit') && <SettingsSectionHeading {...heading} />}
       <div hidden={section !== 'storefront'}>
-        <StorefrontSettingsSave>
+        <StorefrontSettingsSave heading={sectionHeadings.storefront}>
           <BannerSettings />
           <ThemeSettings />
           <LayoutSettings />
@@ -48,8 +48,8 @@ export function SettingsWorkspace({ canManageStaffNotifications }: { canManageSt
           <CatalogImportSettings />
         </StorefrontSettingsSave>
       </div>
-      <div hidden={section !== 'languages'}><LanguageSettings /></div>
-      <div hidden={section !== 'delivery'}><DeliverySettingsPage embedded /></div>
+      <div hidden={section !== 'languages'}><LanguageSettings heading={sectionHeadings.languages} /></div>
+      <div hidden={section !== 'delivery'}><DeliverySettingsPage heading={sectionHeadings.delivery} /></div>
       {section === 'payments' && <PaymentSettings heading={heading} />}
       {section === 'audit' && canManageStaffNotifications && <CrmAuditLog />}
       {section === 'sms' && <div className="settings-workspace__notifications">

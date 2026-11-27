@@ -1574,14 +1574,15 @@ textarea {
 .settings-nav button.active { background: var(--crm-soft); box-shadow: inset 3px 0 var(--accent); }
 .settings-nav button:hover { background: var(--crm-soft); }
 .settings-nav__index { padding-top: 3px; color: var(--muted); font-size: .65rem; font-weight: 700; }
-.settings-nav strong, .settings-nav small { display: block; }
 .settings-nav strong { font-size: .88rem; }
-.settings-nav small { margin-top: 4px; color: var(--muted); font-size: .73rem; line-height: 1.4; }
 .settings-nav__arrow { color: var(--muted); }
 .settings-workspace__content { min-width: 0; }
 .settings-workspace__content [hidden] { display: none; }
 .settings-workspace__heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 22px 24px; margin-bottom: 12px; border: 1px solid var(--crm-border); background: var(--card); }
 .settings-workspace__heading h2 { margin: 0; font-size: 1.4rem; }
+.settings-workspace__heading-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.settings-workspace__heading-actions .btn { min-height: 36px; padding: 6px 12px; font-size: .85rem; }
+.settings-workspace__heading-actions .success { margin: 0; }
 .settings-workspace__storefront, .settings-workspace__notifications { display: grid; gap: 12px; }
 .crm-audit__filters { align-items: center; margin-bottom: 16px; }
 .crm-audit__filters .btn { min-height: 44px; }
@@ -1643,7 +1644,7 @@ textarea {
   .settings-nav button:nth-child(-n+2), .settings-nav:has(button:nth-child(5)) button:nth-child(-n+4) { border-bottom: 1px solid var(--crm-border); }
   .settings-nav button:nth-child(even) { border-right: 0; }
   .settings-nav button:last-child:nth-child(odd) { grid-column: 1 / -1; }
-  .settings-nav button small, .settings-nav__index { display: none; }
+  .settings-nav__index { display: none; }
   .settings-nav button { display: block; }
 }
 @media (max-width: 600px) { .settings-nav button { padding: 16px 12px; } .settings-nav__arrow { display: none; } .settings-nav button { grid-template-columns: auto minmax(0, 1fr); } }

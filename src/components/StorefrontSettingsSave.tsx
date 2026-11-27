@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
+import { SettingsSectionHeading } from './SettingsSectionHeading'
 
 type SaveHandler = () => Promise<void>
 type SaveRegistry = Map<string, SaveHandler>
@@ -17,7 +18,10 @@ export function useStorefrontSettingsSave(name: string, save: SaveHandler) {
   }, [name, registry])
 }
 
-export function StorefrontSettingsSave({ children }: { children: ReactNode }) {
+export function StorefrontSettingsSave({ heading, children }: {
+  heading: { number: string; title: string }
+  children: ReactNode
+}) {
   const { t } = useTranslation()
   const { token } = useAuth()
   const registry = useRef<SaveRegistry>(new Map()).current
@@ -48,16 +52,16 @@ export function StorefrontSettingsSave({ children }: { children: ReactNode }) {
   }
 
   return <SaveContext.Provider value={registry}>
+    <SettingsSectionHeading {...heading} action={<div className="settings-workspace__heading-actions">
+      {saved && <p className="success" role="status">{t('Saved')}</p>}
+      <button type="button" className="btn" disabled={busy || !token} onClick={() => void saveAll()}>
+        {t(busy ? 'Saving…' : 'Save')}
+      </button>
+    </div>} />
     <div ref={container} className="settings-workspace__storefront" inert={busy}
       onChange={() => setSaved(false)}>
       {children}
     </div>
-    <div className="banner-settings__actions">
-      <button type="button" className="btn" disabled={busy || !token} onClick={() => void saveAll()}>
-        {t(busy ? 'Saving…' : 'Save settings')}
-      </button>
-      {saved && <p className="success" role="status">{t('Saved')}</p>}
-      {failed && <p className="error" role="alert">{t('Some settings could not be saved. Check the messages above and try again.')}</p>}
-    </div>
+    {failed && <p className="error" role="alert">{t('Some settings could not be saved. Check the messages above and try again.')}</p>}
   </SaveContext.Provider>
 }

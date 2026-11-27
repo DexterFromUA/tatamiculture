@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { SupabaseError, supabaseRequest } from '../lib/supabase'
 import { ToggleSwitch } from '../components/ToggleSwitch'
+import { SettingsSectionHeading } from '../components/SettingsSectionHeading'
 
 type Warehouse = { ref: string; name: string }
 type City = Warehouse & { area: string }
@@ -39,11 +40,12 @@ const blank = (storeId: string): Settings => ({
   delivery_payer: 'RECIPIENT',
 })
 
-export function DeliverySettingsPage({ embedded = false }: { embedded?: boolean }) {
+export function DeliverySettingsPage({ heading }: { heading?: { number: string; title: string } }) {
   const { store } = useStore()
   const { token, user } = useAuth()
   const { t } = useTranslation()
   const automationDescriptionId = useId()
+  const formId = useId()
   const [settings, setSettings] = useState<Settings | null>(null)
   const [cities, setCities] = useState<City[] | null>(null)
   const [warehouses, setWarehouses] = useState<Warehouse[] | null>(null)
@@ -115,13 +117,26 @@ export function DeliverySettingsPage({ embedded = false }: { embedded?: boolean 
     return () => controller.abort()
   }, [cityRef])
 
+  const saveAction = <div className="settings-workspace__heading-actions">
+    {saved && <p className="success" role="status">{t('Saved')}</p>}
+    <button type="submit" form={formId} className="btn" disabled={saving || !settings || !token}>
+      {t(saving ? 'Saving…' : 'Save')}
+    </button>
+  </div>
+  const header = heading ? <SettingsSectionHeading {...heading} action={saveAction} /> : (
+    <header className="page-head page-head--row">
+      <div><p className="eyebrow">{t('Shipping')}</p><h1>{t('Nova Poshta settings')}</h1></div>
+      {saveAction}
+    </header>
+  )
+
   if (!settings) {
-    return error ? (
+    return <>{header}{error ? (
       <section className="page-status error">
         <h2>Settings are unavailable</h2>
         <p>{error}</p>
       </section>
-    ) : <div className="page-status">{t('Loading…')}</div>
+    ) : <div className="page-status">{t('Loading…')}</div>}</>
   }
 
   const update = (patch: Partial<Settings>) => {
@@ -159,10 +174,10 @@ export function DeliverySettingsPage({ embedded = false }: { embedded?: boolean 
 
   return (
     <section className="settings-page">
-      {!embedded && <header className="page-head"><p className="eyebrow">{t('Shipping')}</p><h1>{t('Nova Poshta settings')}</h1></header>}
+      {header}
       {error && <p className="error" role="alert">{error}</p>}
       <section className="settings-card">
-        <form onSubmit={event => { event.preventDefault(); void save() }}>
+        <form id={formId} onSubmit={event => { event.preventDefault(); void save() }}>
           <div className="delivery-settings__automation">
             <label className="switch-field">
               <ToggleSwitch aria-describedby={automationDescriptionId}
@@ -235,8 +250,6 @@ export function DeliverySettingsPage({ embedded = false }: { embedded?: boolean 
             ))}
           </fieldset>
           <p className="muted">{t('The declared value is set automatically from the order total when the TTN is created.')}</p>
-          <button type="submit" className="btn" disabled={saving}>{t(saving ? 'Saving…' : 'Save settings')}</button>
-          {saved && <p className="success" role="status">{t('Saved')}</p>}
         </form>
       </section>
     </section>

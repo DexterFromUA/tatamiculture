@@ -1,15 +1,17 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
 import { getThemeSettings, saveThemeSettings, themeSettingsChanged } from '../lib/storefrontTheme'
+import { SettingsSectionHeading } from './SettingsSectionHeading'
 import { ToggleSwitch } from './ToggleSwitch'
 
-export function LanguageSettings() {
+export function LanguageSettings({ heading }: { heading: { number: string; title: string } }) {
   const { t } = useTranslation()
   const { store } = useStore()
   const { token } = useAuth()
   const storeId = store?.id
+  const formId = useId()
   const [showLanguageSwitch, setShowLanguageSwitch] = useState<boolean | null>(null)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -26,8 +28,7 @@ export function LanguageSettings() {
     return () => { active = false }
   }, [storeId])
 
-  const save = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
+  const save = async () => {
     if (!storeId || !token || showLanguageSwitch === null || saving) return
     setSaving(true)
     setSaved(false)
@@ -43,9 +44,19 @@ export function LanguageSettings() {
     }
   }
 
-  return <div>
+  return <>
+    <SettingsSectionHeading {...heading} action={showLanguageSwitch !== null && (
+      <div className="settings-workspace__heading-actions">
+        <button type="submit" form={formId} className="btn" disabled={saving || !token}>
+          {t(saving ? 'Saving…' : 'Save')}
+        </button>
+      </div>
+    )} />
     {error && <p className="error" role="alert">{t(error)}</p>}
-    {showLanguageSwitch !== null && <form className="form" onSubmit={event => void save(event)}>
+    {showLanguageSwitch !== null && <form id={formId} className="form" onSubmit={event => {
+      event.preventDefault()
+      void save()
+    }}>
       <label className="field switch-field">
         <ToggleSwitch checked={showLanguageSwitch} disabled={saving} onChange={event => {
           setShowLanguageSwitch(event.target.checked)
@@ -53,10 +64,9 @@ export function LanguageSettings() {
         }} />
         {t('Show language switch in the header')}
       </label>
-      <div className="banner-settings__actions">
-        <button type="submit" className="btn" disabled={saving || !token}>{t(saving ? 'Saving…' : 'Save settings')}</button>
-        {saved && <p className="success" role="status">{t('Saved')}</p>}
-      </div>
+      {saved && <div className="banner-settings__actions">
+        <p className="success" role="status">{t('Saved')}</p>
+      </div>}
     </form>}
-  </div>
+  </>
 }

@@ -69,11 +69,17 @@ export function PaymentSettings({ heading }: { heading: { number: string; title:
 
   return <>
     <SettingsSectionHeading {...heading} action={saved && (
-      <label className="switch-field">
-        <ToggleSwitch aria-label={t('Live mode')} checked={testMode === false}
-          disabled={busy || modeBusy || !token} onChange={event => void changeMode(event.target.checked)} />
-        {t(testMode === null ? 'Provider defaults' : testMode ? 'Test mode' : 'Live mode')}
-      </label>
+      <div className="settings-workspace__heading-actions">
+        {confirmed && <p className="success" role="status">{t('Saved')}</p>}
+        <label className="switch-field">
+          <ToggleSwitch aria-label={t('Live mode')} checked={testMode === false}
+            disabled={busy || modeBusy || !token} onChange={event => void changeMode(event.target.checked)} />
+          {t(testMode === null ? 'Provider defaults' : testMode ? 'Test mode' : 'Live mode')}
+        </label>
+        <button type="button" className="btn" disabled={!dirty || busy || modeBusy || !token} onClick={() => void save()}>
+          {t(busy ? 'Saving…' : 'Save')}
+        </button>
+      </div>
     )} />
     <section className="settings-card payment-settings">
       <header className="banner-settings__header">
@@ -96,10 +102,6 @@ export function PaymentSettings({ heading }: { heading: { number: string; title:
           </label>)}
         </div>
         {!paymentMethods.some(({ field, configured }) => configured && draft[field]) && <p className="muted">{t('With no payment methods available, customers cannot place orders.')}</p>}
-        <div className="banner-settings__actions">
-          <button type="button" className="btn" disabled={!dirty || busy || modeBusy || !token} onClick={() => void save()}>{t(busy ? 'Saving…' : 'Save settings')}</button>
-          {confirmed && <p className="success" role="status">{t('Saved')}</p>}
-        </div>
       </>}
     </section>
   </>
