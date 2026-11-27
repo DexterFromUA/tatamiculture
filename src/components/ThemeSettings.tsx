@@ -1,9 +1,9 @@
+import { useStorefrontSettingsSave } from './StorefrontSettingsSave'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
-import { getThemeSettings, themeSettingsChanged, type ThemeMode, type ThemeSettings as Settings } from '../lib/storefrontTheme'
-import { supabaseRequest } from '../lib/supabase'
+import { getThemeSettings, saveThemeSettings, themeSettingsChanged, type ThemeMode, type ThemeSettings as Settings } from '../lib/storefrontTheme'
 import { ToggleSwitch } from './ToggleSwitch'
 
 export function ThemeSettings() {
@@ -13,7 +13,7 @@ export function ThemeSettings() {
   const [draft, setDraft] = useState<Settings | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [saved, setSaved] = useState(false)
+  const [, setSaved] = useState(false)
   const storeId = store?.id
 
   useEffect(() => {
@@ -25,28 +25,28 @@ export function ThemeSettings() {
     return () => { active = false }
   }, [storeId, t])
 
-  const save = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!storeId || !token || !draft || busy) return
+  const save = async () => {
+    if (!storeId || !token || !draft || busy) throw new Error('Settings are not ready.')
     setBusy(true)
     setError('')
     setSaved(false)
     try {
-      await supabaseRequest('/rest/v1/storefront_theme_settings?on_conflict=store_id', {
-        method: 'POST', token, headers: { Prefer: 'resolution=merge-duplicates' },
-        body: JSON.stringify({ store_id: storeId, ...draft }),
-      })
+      await saveThemeSettings(storeId, token, { show_theme_switch: draft.show_theme_switch, default_theme: draft.default_theme })
       setSaved(true)
       window.dispatchEvent(new Event(themeSettingsChanged))
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('Could not save theme settings.'))
+      throw cause
     } finally { setBusy(false) }
   }
 
+  useStorefrontSettingsSave('ThemeSettings.tsx', save)
+
   return <section className="settings-card">
-    <header className="banner-settings__header"><h2>{t('Storefront theme')}</h2><p className="muted">{t('Choose the default appearance and let visitors switch themes.')}</p></header>
+    <header className="banner-settings__header"><h3>{t('Storefront theme')}</h3></header>
+    <p className="muted">{t('Choose the default appearance and let visitors switch themes.')}</p>
     {error && <p className="error" role="alert">{error}</p>}
-    {draft && <form className="form" onSubmit={event => void save(event)}>
+    {draft && <form onSubmit={event => event.preventDefault()}>
       <label className="field switch-field">
         <ToggleSwitch checked={draft.show_theme_switch} disabled={busy} onChange={event => {
           setDraft({ ...draft, show_theme_switch: event.target.checked })
@@ -58,7 +58,7 @@ export function ThemeSettings() {
         <option value="system">{t('System theme')}</option><option value="light">{t('Light theme')}</option><option value="dark">{t('Dark theme')}</option>
       </select></label>
       <p className="muted">{t('Visitors’ saved choices take priority. When the switch is hidden, everyone uses the default theme.')}</p>
-      <div className="banner-settings__actions"><button className="btn" disabled={busy || !token}>{t(busy ? 'Saving…' : 'Save settings')}</button>{saved && <p className="success" role="status">{t('Saved')}</p>}</div>
+
     </form>}
   </section>
 }

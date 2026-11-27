@@ -49,7 +49,7 @@ export function StoreLayout() {
   const [scrollState, setScrollState] = useState({ headerVisible: true, showTopButton: false })
   const [standalone, setStandalone] = useState(() => isStandalone() || pwaLayoutPreview)
   const storeId = store?.id
-  const { mode, theme, showThemeSwitch, selectTheme } = useStorefrontTheme(storeId)
+  const { mode, theme, showThemeSwitch, showLanguageSwitch, fullWidth, selectTheme } = useStorefrontTheme(storeId)
   const catalog = useStorefrontCatalog(storeId, filters, catalogRevision, isHome)
   const userId = user?.id
   const [crmAccess, setCrmAccess] = useState<{ storeId: string; userId: string; token: string } | null>(null)
@@ -192,7 +192,7 @@ export function StoreLayout() {
     : { to: '/login', icon: 'account', label: t('Sign in'), active: pathname === '/register' })
 
   return (
-    <div className={standalone ? 'shell shell--standalone' : 'shell'}>
+    <div className={`shell${standalone ? ' shell--standalone' : ''}${fullWidth ? ' shell--full-width' : ''}`}>
       {standalone && isHome && !initializing && !restoreFailed && <PushNotificationsPrompt token={token} />}
       <header className={`topbar${isHome ? ' topbar--scroll' : ''}${isHome && !scrollState.headerVisible ? ' topbar--hidden' : ''}`} inert={isHome && !scrollState.headerVisible}>
         <NavLink to="/" className="brand">
@@ -214,9 +214,9 @@ export function StoreLayout() {
             <NavLink to="/login">{t('Sign in')}</NavLink>
           )}
           </>}
-          <button type="button" className="text-btn nav__language" lang={nextLanguage} aria-label={nextLanguageName} onClick={() => void i18n.changeLanguage(nextLanguage)}>
+          {showLanguageSwitch && <button type="button" className="text-btn nav__language" lang={nextLanguage} aria-label={nextLanguageName} onClick={() => void i18n.changeLanguage(nextLanguage)}>
             {nextLanguage === 'en' ? 'EN' : 'UA'}
-          </button>
+          </button>}
           {showThemeSwitch && <ThemeSwitch mode={mode} theme={theme} onChange={selectTheme} />}
         </nav>
       </header>

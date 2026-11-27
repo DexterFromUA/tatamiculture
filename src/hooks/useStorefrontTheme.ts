@@ -41,5 +41,12 @@ export function useStorefrontTheme(storeId?: string) {
     try { localStorage.setItem(themeStorageKey(storeId), next) } catch { /* In-memory preference remains usable. */ }
   }
 
-  return { mode, theme, showThemeSwitch: settings.show_theme_switch, selectTheme }
+  return {
+    mode,
+    theme,
+    showThemeSwitch: settings.show_theme_switch,
+    showLanguageSwitch: settings.show_language_switch,
+    fullWidth: settings.full_width,
+    selectTheme,
+  }
 }

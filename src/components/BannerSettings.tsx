@@ -1,3 +1,4 @@
+import { useStorefrontSettingsSave } from './StorefrontSettingsSave'
 import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
@@ -22,13 +23,14 @@ export function BannerSettings() {
   const { store } = useStore()
   const { token } = useAuth()
   const { t } = useTranslation()
+  const headingId = useId()
   const imageHintId = useId()
   const [banner, setBanner] = useState<Banner | null>(null)
   const [files, setFiles] = useState<File[]>([])
   const [removedUrls, setRemovedUrls] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [saved, setSaved] = useState(false)
+  const [, setSaved] = useState(false)
   const existingImages = bannerImages(banner)
   const keptImages = existingImages.filter(image => !removedUrls.includes(image.url))
   useEffect(() => {
@@ -38,7 +40,7 @@ export function BannerSettings() {
     return () => { cancelled = true }
   }, [store, token])
   const save = async () => {
-    if (!banner || !token || busy) return
+    if (!banner || !token || busy) throw new Error('Settings are not ready.')
     setBusy(true); setError(''); setSaved(false)
     const uploaded: BannerImage[] = []
     let savingRecord = false
@@ -70,9 +72,13 @@ export function BannerSettings() {
         await Promise.allSettled(uploaded.map(image => removeBannerImage(image.path, token)))
       }
       setError(cause instanceof Error ? cause.message : t('Could not save banner'))
+      throw cause
     } finally { setBusy(false) }
   }
-  return <section className="settings-card banner-settings">
+  useStorefrontSettingsSave('BannerSettings.tsx', save)
+
+  return <section className="settings-card banner-settings" aria-labelledby={headingId}>
+    <header className="banner-settings__header"><h3 id={headingId}>{t('Homepage banner')}</h3></header>
     {error && <p className="error" role="alert">{t(error)}</p>}
     {banner && <>
       <label className="switch-field banner-settings__visibility">
@@ -137,10 +143,7 @@ export function BannerSettings() {
           })}
         </fieldset>)}
       </div>
-      <div className="banner-settings__actions">
-        <button type="button" className="btn" disabled={busy} onClick={() => void save()}>{busy ? t('Saving…') : t('Save banner')}</button>
-        {saved && <p className="success" role="status">{t('Saved')}</p>}
-      </div>
+
     </>}
   </section>
 }

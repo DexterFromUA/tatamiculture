@@ -1,4 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useStorefrontSettingsSave } from './StorefrontSettingsSave'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
@@ -14,7 +15,7 @@ export function CatalogImportSettings() {
   const [autoFill, setAutoFill] = useState(false)
   const [discount, setDiscount] = useState('')
   const [busy, setBusy] = useState(false)
-  const [saved, setSaved] = useState(false)
+  const [, setSaved] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -31,9 +32,8 @@ export function CatalogImportSettings() {
     return () => request.abort()
   }, [storeId, token])
 
-  const save = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!storeId || !token || !settings || busy) return
+  const save = async () => {
+    if (!storeId || !token || !settings || busy) throw new Error('Settings are not ready.')
     const next = {
       auto_fill_cost: autoFill,
       cost_discount_percent: autoFill ? Number(discount) : settings.cost_discount_percent,
@@ -48,15 +48,18 @@ export function CatalogImportSettings() {
       setSaved(true)
     } catch {
       setError('Could not save import cost settings.')
+      throw new Error('Could not save import cost settings.')
     } finally {
       setBusy(false)
     }
   }
 
+  useStorefrontSettingsSave('CatalogImportSettings.tsx', save)
+
   return <section className="settings-card">
-    <header className="banner-settings__header"><h2>{t('Cost on import')}</h2></header>
+    <header className="banner-settings__header"><h3>{t('Cost on import')}</h3></header>
     {error && <p className="error" role="alert">{t(error)}</p>}
-    {settings && <form className="form" onSubmit={save}>
+    {settings && <form onSubmit={event => event.preventDefault()}>
       <label className="field switch-field">
         <ToggleSwitch checked={autoFill} disabled={busy} onChange={event => {
           setAutoFill(event.target.checked)
@@ -72,10 +75,7 @@ export function CatalogImportSettings() {
             setSaved(false)
           }} />
       </label>
-      <div className="banner-settings__actions">
-        <button type="submit" className="btn" disabled={busy || !token}>{t(busy ? 'Saving…' : 'Save settings')}</button>
-        {saved && <p className="success" role="status">{t('Saved')}</p>}
-      </div>
+
     </form>}
   </section>
 }
