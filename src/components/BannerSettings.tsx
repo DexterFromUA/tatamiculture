@@ -10,7 +10,7 @@ import { ToggleSwitch } from './ToggleSwitch'
 import { removeBannerImage, SupabaseError, supabaseRequest, uploadBannerImage } from '../lib/supabase'
 
 const empty = (id: string): Banner => ({
-  store_id: id, enabled: true, show_text: true, custom_size_enabled: false, image_url: '', image_path: '', images: [],
+  store_id: id, enabled: true, show_text: true, show_full_media: true, custom_size_enabled: false, image_url: '', image_path: '', images: [],
   kicker_uk: '', kicker_en: '', title_uk: '', title_en: '', description_uk: '', description_en: '',
 })
 
@@ -167,7 +167,7 @@ export function BannerSettings() {
         }} />
         {t('Advanced banner settings')}
       </label>
-      {(showText || banner.custom_size_enabled) && <BannerLayoutSettings banner={banner} storeName={store.name} images={keptImages} files={files} busy={busy}
+      {banner.custom_size_enabled && <BannerLayoutSettings banner={banner} storeName={store.name} images={keptImages} files={files} busy={busy}
         onChange={layout => {
           setBanner(current => current && { ...current, ...layout })
           setSaved(false)

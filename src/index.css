@@ -284,10 +284,10 @@ textarea {
 .storefront-hero h1 .storefront-hero__brand { color: inherit; font-size: .72em; }
 .storefront-hero__copy p { max-width: 28rem; margin: 0; color: var(--banner-ink, #5c5c5c); line-height: 1.5; }
 .storefront-hero__image { position: relative; min-height: 0; overflow: hidden; background: var(--banner-background, #1c1916); }
-.storefront-hero__image :is(img, video) { width: 100%; height: 100%; position: absolute; inset: 0; object-fit: cover; }
+.storefront-hero__image :is(img, video) { width: 100%; height: 100%; position: absolute; inset: 0; object-fit: var(--banner-media-fit, cover); }
 .storefront-hero__image--site-icon img { object-fit: contain; }
 .banner-carousel__slide { position: absolute; inset: 0; animation: banner-slide-appear .6s cubic-bezier(.22, 1, .36, 1) both; }
-@keyframes banner-slide-appear { from { transform: scale(1.06); } to { transform: scale(1); } }
+@keyframes banner-slide-appear { from { transform: scale(var(--banner-slide-start-scale, 1.06)); } to { transform: scale(1); } }
 .banner-carousel__product { position: absolute; inset: 0; color: #303030; }
 .banner-carousel__product:focus-visible { outline: 3px solid #fff; outline-offset: -5px; }
 .banner-carousel__product-name { position: absolute; top: 18px; left: 18px; max-width: calc(100% - 36px); padding: 7px 10px; background: rgba(255,255,255,.92); color: #303030; font-size: .72rem; overflow-wrap: anywhere; }
@@ -1655,6 +1655,7 @@ textarea {
 .banner-layout__devices .btn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 .banner-layout__color { font-size: .85rem; }
 .banner-layout__color input { width: 44px; height: 40px; padding: 3px; border: 1px solid var(--line); background: var(--card); cursor: pointer; }
+.banner-layout__media-fit { margin-bottom: 8px; }
 .banner-layout__frame { position: relative; width: 100%; margin-inline: auto; overflow: hidden; border: 1px solid var(--line); background: var(--paper); }
 .banner-layout__canvas { position: absolute; inset: 0 auto auto 0; transform-origin: top left; background: var(--paper); }
 .banner-layout__topbar, .banner-layout__main { width: min(1100px, calc(100% - 32px)); margin-inline: auto; }

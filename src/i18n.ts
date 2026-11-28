@@ -27,6 +27,7 @@ const uk = {
   'Show banner text on desktop': 'Показувати текст банера на компʼютері',
   'Show banner text on mobile': 'Показувати текст банера на телефоні',
   'Banner images and videos': 'Зображення та відео банера',
+  'Show images and videos in full': 'Показувати зображення та відео повністю',
   'Advanced banner settings': 'Розширені налаштування банера',
   'Preview screen': 'Екран для попереднього перегляду',
   Desktop: 'Компʼютер',

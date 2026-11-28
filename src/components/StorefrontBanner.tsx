@@ -13,22 +13,25 @@ export function StorefrontBanner({ banner, storeName, language, children, header
   const kicker = banner?.[`kicker_${language}`]?.trim()
   const title = banner?.[`title_${language}`]?.trim()
   const description = banner?.[`description_${language}`]?.trim()
-  const background = banner?.background_color
-  const size = banner?.custom_size_enabled ? banner : undefined
-  const desktopText = size?.desktop_text_percent ?? bannerTextShare.default
-  const mobileText = size?.mobile_text_percent ?? bannerTextShare.default
+  const layout = banner?.custom_size_enabled ? banner : undefined
+  const background = layout?.background_color
+  const showFullMedia = layout !== undefined && layout.show_full_media !== false
+  const desktopText = layout?.desktop_text_percent ?? bannerTextShare.default
+  const mobileText = layout?.mobile_text_percent ?? bannerTextShare.default
   const mobileMedia = 100 - mobileText
   const style = {
-    '--banner-desktop-width': size?.desktop_width_percent == null ? undefined : `${size.desktop_width_percent}%`,
-    '--banner-mobile-width': size?.mobile_width_percent == null ? undefined : `${size.mobile_width_percent}%`,
-    '--banner-desktop-height': size?.desktop_height_px == null ? undefined : `${size.desktop_height_px}px`,
-    '--banner-mobile-height': size?.mobile_height_px == null ? undefined : `${size.mobile_height_px}px`,
+    '--banner-desktop-width': layout?.desktop_width_percent == null ? undefined : `${layout.desktop_width_percent}%`,
+    '--banner-mobile-width': layout?.mobile_width_percent == null ? undefined : `${layout.mobile_width_percent}%`,
+    '--banner-desktop-height': layout?.desktop_height_px == null ? undefined : `${layout.desktop_height_px}px`,
+    '--banner-mobile-height': layout?.mobile_height_px == null ? undefined : `${layout.mobile_height_px}px`,
     '--banner-desktop-text-width': `${desktopText}%`,
     '--banner-mobile-text-track': `${mobileText}fr`,
     '--banner-mobile-media-track': `${mobileMedia}fr`,
     '--banner-mobile-media-share': mobileMedia / 100,
     '--banner-background': background ?? undefined,
     '--banner-ink': background ? bannerTextColor(background) : undefined,
+    '--banner-media-fit': showFullMedia ? 'contain' : 'cover',
+    '--banner-slide-start-scale': showFullMedia ? .96 : 1.06,
   } as CSSProperties
 
   return <div className="storefront-banner">

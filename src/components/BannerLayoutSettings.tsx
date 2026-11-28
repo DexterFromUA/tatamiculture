@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { bannerIcon, bannerSizeLimits, bannerTextShare, bannerTextVisible, type Banner, type BannerDevice, type BannerImage, type BannerLayout } from '../lib/banner'
 import { StorefrontBanner } from './StorefrontBanner'
+import { ToggleSwitch } from './ToggleSwitch'
 
 const viewports = { desktop: 1280, mobile: 390 }
 const { minWidth, maxWidth, minHeight, maxHeight } = bannerSizeLimits
@@ -37,7 +38,6 @@ export function BannerLayoutSettings({ banner, storeName, images, files, busy, o
   const drag = useRef<AbortController | null>(null)
   const viewportWidth = device === currentDevice ? windowSize.width : viewports[device]
   const typographyWidth = device === currentDevice ? windowSize.viewport : viewportWidth
-  const customSize = banner.custom_size_enabled === true
   const widthKey = `${device}_width_percent` as const
   const heightKey = `${device}_height_px` as const
   const ratioKey = `${device}_text_percent` as const
@@ -48,7 +48,7 @@ export function BannerLayoutSettings({ banner, storeName, images, files, busy, o
   const slides = needsFallback ? fallbackSlides : [...images, ...localSlides]
   const media = slides.length ? slides[slide % slides.length] : undefined
 
-  useEffect(() => () => drag.current?.abort(), [device, busy, customSize])
+  useEffect(() => () => drag.current?.abort(), [device, busy])
 
   useEffect(() => {
     const observer = new ResizeObserver(() => {
@@ -129,16 +129,16 @@ export function BannerLayoutSettings({ banner, storeName, images, files, busy, o
         <button type="button" className="btn btn--ghost" aria-pressed={device === 'desktop'} onClick={() => setDevice('desktop')}>{t('Desktop')}</button>
         <button type="button" className="btn btn--ghost" aria-pressed={device === 'mobile'} onClick={() => setDevice('mobile')}>{t('Mobile')}</button>
       </div>
-      {customSize && <div className="banner-layout__color">
+      <div className="banner-layout__color">
         <label>
           {t('Banner background')}
           <input type="color" value={banner.background_color ?? '#f1f1f1'} onChange={event => onChange({ background_color: event.target.value })} />
         </label>
         {banner.background_color && <button className="text-btn" type="button" onClick={() => onChange({ background_color: null })}>{t('Reset color')}</button>}
-      </div>}
+      </div>
     </div>
 
-    {customSize && <div className="banner-layout__sizes">
+    <div className="banner-layout__sizes">
       <label className="field">
         <span>{t('Banner width')} · {width}%</span>
         <input type="range" min={minWidth} max={maxWidth} value={width} onChange={event => onChange({ [widthKey]: event.target.valueAsNumber })} />
@@ -154,8 +154,12 @@ export function BannerLayoutSettings({ banner, storeName, images, files, busy, o
       </label>}
       <button className="text-btn" type="button" disabled={banner[widthKey] == null && banner[heightKey] == null && banner[ratioKey] == null}
         onClick={() => onChange({ [widthKey]: null, [heightKey]: null, [ratioKey]: null })}>{t('Reset size')}</button>
-    </div>}
+    </div>
 
+    <label className="switch-field banner-layout__media-fit">
+      <ToggleSwitch checked={banner.show_full_media !== false} onChange={event => onChange({ show_full_media: event.target.checked })} />
+      {t('Show images and videos in full')}
+    </label>
     <div className="banner-layout__frame" ref={frame} style={{ maxWidth: viewportWidth, height: metrics.height || 240 }}>
       <div className="banner-layout__canvas" ref={canvas} style={{
         width: viewportWidth, transform: `scale(${metrics.scale || 1})`,
@@ -169,7 +173,7 @@ export function BannerLayoutSettings({ banner, storeName, images, files, busy, o
                 ? <video src={media.url} muted playsInline preload="metadata" />
                 : <img src={media?.url ?? bannerIcon} alt="" />}
             </div>
-            {customSize && <button type="button" className="banner-layout__handle" aria-label={t('Resize banner')}
+            <button type="button" className="banner-layout__handle" aria-label={t('Resize banner')}
               onPointerDown={startResize}
               onKeyDown={event => {
                 if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
@@ -182,7 +186,7 @@ export function BannerLayoutSettings({ banner, storeName, images, files, busy, o
                 }
               }}>
               <span aria-hidden="true">↘</span>
-            </button>}
+            </button>
           </StorefrontBanner>
         </div>
       </div>

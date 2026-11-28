@@ -14,6 +14,7 @@ export type BannerLayout = {
   desktop_text_percent: number | null
   mobile_text_percent: number | null
   background_color: string | null
+  show_full_media: boolean
 }
 
 export type Banner = Partial<BannerLayout> & {
