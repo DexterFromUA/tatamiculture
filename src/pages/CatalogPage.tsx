@@ -6,14 +6,14 @@ import { useOutletContext } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { CatalogNavigation } from '../components/StoreLayout'
 import { supabaseConfigured, supabaseRequest } from '../lib/supabase'
-import { bannerImages, defaultBannerTitle, type Banner, type BannerImage } from '../lib/banner'
+import { bannerIcon, bannerImages, type Banner, type BannerImage } from '../lib/banner'
 import { BannerCarousel } from '../components/BannerCarousel'
+import { StorefrontBanner } from '../components/StorefrontBanner'
 import { categoryGroups, categoryLabel } from '../lib/categories'
 import { productName } from '../lib/productText'
 import { discountedCategory, newArrivalsCategory } from '../lib/storefrontCatalog'
 
 const bannerTimeout = 5000
-const siteIcon = '/tatami-mark-transparent.png'
 
 export function CatalogPage() {
   const { store } = useStore()
@@ -51,7 +51,7 @@ export function CatalogPage() {
   const images: BannerImage[] = configuredImages.length ? configuredImages : (catalog.metadata?.bannerProducts ?? [])
     .map(product => ({ url: product.url, path: '', productId: product.id, productName: productName(product, language) }))
   const waitingForFallback = showBanner && !configuredImages.length && catalog.loadingMetadata
-  const firstImage = showBanner && !waitingForFallback && images[0]?.type !== 'video' ? (images[0]?.url ?? siteIcon) : undefined
+  const firstImage = showBanner && !waitingForFallback && images[0]?.type !== 'video' ? (images[0]?.url ?? bannerIcon) : undefined
   const waitingForImage = Boolean(firstImage && imageResult?.url !== firstImage)
   const imageUnavailable = imageResult?.url === firstImage && imageResult?.loaded === false
   const loading = loadingBanner || waitingForFallback || waitingForImage
@@ -91,9 +91,6 @@ export function CatalogPage() {
   }, [firstImage])
 
   if (!store) return null
-  const kicker = banner?.[`kicker_${language}`]?.trim()
-  const customTitle = banner?.[`title_${language}`]?.trim()
-  const description = banner?.[`description_${language}`]?.trim()
   const groups = categoryGroups(catalog.metadata?.categories ?? [], language)
   const hasNewArrivals = catalog.metadata?.hasNewArrivals ?? false
   const showingNewArrivals = category === newArrivalsCategory && hasNewArrivals
@@ -116,21 +113,16 @@ export function CatalogPage() {
     <>
       {loading && <LoadingIndicator label={t('Opening store…')} />}
       <section className="storefront" hidden={loading}>
-        {showBanner && <header className={`storefront-hero${banner?.show_text === false ? ' storefront-hero--media-only' : ''}`}>
-          {banner?.show_text !== false && <div className="storefront-hero__copy">
-            {kicker && <span className="storefront-kicker">{kicker}</span>}
-            <h1><span className="storefront-hero__brand">{store.name}</span><span lang={customTitle ? undefined : 'en'}> / {customTitle || defaultBannerTitle}</span></h1>
-            {description && <p>{description}</p>}
-          </div>}
+        {showBanner && <StorefrontBanner banner={banner} storeName={store.name} language={language}>
           {(images.length > 1 || (images.length === 1 && !imageUnavailable)) && (
             <BannerCarousel key={JSON.stringify(images.map(image => image.url))} images={images} imageRef={heroImage} ready={!loading} hideFirstImage={imageUnavailable} />
           )}
           {images.length === 0 && !imageUnavailable && (
             <div className="storefront-hero__image storefront-hero__image--site-icon">
-              <img ref={heroImage} src={siteIcon} alt="" fetchPriority="high" />
+              <img ref={heroImage} src={bannerIcon} alt="" fetchPriority="high" />
             </div>
           )}
-        </header>}
+        </StorefrontBanner>}
         {!loading && (
           <>
             <div id="collection" className="collection-head">

@@ -3,13 +3,14 @@ import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
-import { bannerImages, defaultBannerTitle, type Banner, type BannerImage } from '../lib/banner'
+import { bannerImages, bannerTextVisible, defaultBannerTitle, type Banner, type BannerImage } from '../lib/banner'
 import { LocalImagePreview } from './LocalImagePreview'
+import { BannerLayoutSettings } from './BannerLayoutSettings'
 import { ToggleSwitch } from './ToggleSwitch'
 import { removeBannerImage, SupabaseError, supabaseRequest, uploadBannerImage } from '../lib/supabase'
 
 const empty = (id: string): Banner => ({
-  store_id: id, enabled: true, show_text: true, image_url: '', image_path: '', images: [],
+  store_id: id, enabled: true, show_text: true, custom_size_enabled: false, image_url: '', image_path: '', images: [],
   kicker_uk: '', kicker_en: '', title_uk: '', title_en: '', description_uk: '', description_en: '',
 })
 
@@ -17,6 +18,11 @@ const textFields = [
   { key: 'kicker', label: 'Banner eyebrow', maxLength: 80 },
   { key: 'title', label: 'Banner heading', maxLength: 80 },
   { key: 'description', label: 'Banner description', maxLength: 240 },
+] as const
+
+const textSwitches = [
+  { device: 'desktop', label: 'Show banner text on desktop' },
+  { device: 'mobile', label: 'Show banner text on mobile' },
 ] as const
 
 export function BannerSettings() {
@@ -33,6 +39,7 @@ export function BannerSettings() {
   const [, setSaved] = useState(false)
   const existingImages = bannerImages(banner)
   const keptImages = existingImages.filter(image => !removedUrls.includes(image.url))
+  const showText = bannerTextVisible(banner, 'desktop') || bannerTextVisible(banner, 'mobile')
   useEffect(() => {
     if (!store || !token) return
     let cancelled = false
@@ -80,7 +87,7 @@ export function BannerSettings() {
   return <section className="settings-card banner-settings" aria-labelledby={headingId}>
     <header className="banner-settings__header"><h3 id={headingId}>{t('Homepage banner')}</h3></header>
     {error && <p className="error" role="alert">{t(error)}</p>}
-    {banner && <>
+    {banner && store && <>
       <label className="switch-field banner-settings__visibility">
         <ToggleSwitch checked={banner.enabled} disabled={busy} onChange={event => {
           setBanner({ ...banner, enabled: event.target.checked })
@@ -124,14 +131,14 @@ export function BannerSettings() {
           </li>)}
         </ol>}
       </div>
-      <label className="switch-field banner-settings__visibility">
-        <ToggleSwitch checked={banner.show_text !== false} disabled={busy} onChange={event => {
-          setBanner({ ...banner, show_text: event.target.checked })
+      {textSwitches.map(({ device, label }) => <label key={device} className="switch-field banner-settings__visibility">
+        <ToggleSwitch checked={bannerTextVisible(banner, device)} disabled={busy} onChange={event => {
+          setBanner({ ...banner, [`show_${device}_text`]: event.target.checked })
           setSaved(false)
         }} />
-        {t('Show banner text')}
-      </label>
-      {banner.show_text !== false && <div className="banner-settings__languages">
+        {t(label)}
+      </label>)}
+      {showText && <div className="banner-settings__languages">
         {(['uk', 'en'] as const).map(language => <fieldset className="banner-settings__language" key={language} disabled={busy}>
           <legend>{language === 'uk' ? t('Ukrainian') : t('English')}</legend>
           {textFields.map(field => {
@@ -151,6 +158,20 @@ export function BannerSettings() {
           })}
         </fieldset>)}
       </div>}
+
+      <label className="switch-field banner-settings__visibility">
+        <ToggleSwitch checked={banner.custom_size_enabled === true} disabled={busy} onChange={event => {
+          const enabled = event.target.checked
+          setBanner(current => current && { ...current, custom_size_enabled: enabled })
+          setSaved(false)
+        }} />
+        {t('Advanced banner settings')}
+      </label>
+      {(showText || banner.custom_size_enabled) && <BannerLayoutSettings banner={banner} storeName={store.name} images={keptImages} files={files} busy={busy}
+        onChange={layout => {
+          setBanner(current => current && { ...current, ...layout })
+          setSaved(false)
+        }} />}
 
     </>}
   </section>
