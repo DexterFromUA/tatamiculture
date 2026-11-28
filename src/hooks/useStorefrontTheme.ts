@@ -4,6 +4,7 @@ import { defaultThemeSettings, getThemeSettings, readThemePreference, resolveThe
 export function useStorefrontTheme(storeId?: string) {
   const [settings, setSettings] = useState(defaultThemeSettings)
   const [preference, setPreference] = useState<ThemeMode | null>(null)
+  const [loadedStoreId, setLoadedStoreId] = useState<string>()
   const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches)
   const mode = settings.show_theme_switch ? preference ?? settings.default_theme : settings.default_theme
   const theme = resolveTheme(mode, systemDark)
@@ -14,7 +15,11 @@ export function useStorefrontTheme(storeId?: string) {
     let request = 0
     const load = () => {
       const current = ++request
-      void getThemeSettings(storeId).then(value => { if (active && current === request) setSettings(value) }).catch(() => { /* Keep system defaults if settings cannot be loaded. */ })
+      void getThemeSettings(storeId).then(value => {
+        if (active && current === request) { setSettings(value); setLoadedStoreId(storeId) }
+      }).catch(() => {
+        if (active && current === request) setLoadedStoreId(storeId)
+      })
     }
     const syncPreference = () => setPreference(readThemePreference(storeId))
     syncPreference()
@@ -32,8 +37,11 @@ export function useStorefrontTheme(storeId?: string) {
   }, [])
 
   useLayoutEffect(() => {
+    if (!storeId || loadedStoreId !== storeId) return
     document.documentElement.dataset.theme = theme
-  }, [theme])
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#161411' : '#fafafa')
+    try { localStorage.setItem('tatami.resolved-theme', theme) } catch { /* The current theme still applies without storage. */ }
+  }, [theme, storeId, loadedStoreId])
 
   const selectTheme = (next: ThemeMode) => {
     if (!storeId) return

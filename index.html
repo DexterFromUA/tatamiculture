@@ -7,13 +7,13 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="tatami.culture" />
-    <meta name="theme-color" content="#f6f1e8" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#161411" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fafafa" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>tatami.culture</title>
     <style>
       #startup:not([hidden]) { position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; justify-items: center; gap: 12px;
-        padding: 24px; text-align: center; background: #1a1a1a; color: #f3eee6; font: 16px/1.45 system-ui, sans-serif; }
+        padding: 24px; text-align: center; background: #fafafa; color: #1c1c1c; font: 16px/1.45 system-ui, sans-serif; }
+      html[data-theme="dark"] #startup:not([hidden]) { background: #1a1a1a; color: #f3eee6; }
       #startup > img { width: clamp(128px, 42vw, 176px); height: auto; }
       #startup p { max-width: 30ch; margin: 0; }
       #startup button { min-height: 44px; padding: 8px 16px; color: inherit; background: transparent; border: 1px solid; font: inherit; cursor: pointer; }
@@ -27,6 +27,17 @@
       <button type="button" hidden>Спробувати ще раз</button>
     </div>
     <script>
+      let startupTheme = null
+      try {
+        startupTheme = localStorage.getItem('tatami.resolved-theme')
+        if (startupTheme !== 'light' && startupTheme !== 'dark') {
+          const key = Object.keys(localStorage).find(item => item.startsWith('tatami.theme.'))
+          startupTheme = key ? localStorage.getItem(key) : null
+        }
+      } catch {}
+      document.documentElement.dataset.theme = startupTheme === 'light' || startupTheme === 'dark'
+        ? startupTheme : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+      document.querySelector('meta[name="theme-color"]').content = document.documentElement.dataset.theme === 'dark' ? '#161411' : '#fafafa'
       const previewSplash = '%DEV%' === 'true' && new URLSearchParams(location.search).get('pwa-preview') === 'splash'
       if (previewSplash) {
         document.getElementById('startup').hidden = false

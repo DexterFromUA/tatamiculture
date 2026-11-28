@@ -21,7 +21,7 @@ export function CatalogPage() {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage === 'en' ? 'en' : 'uk'
   const { filters, setFilters, rememberProduct, restoreScroll, catalog } = useOutletContext<CatalogNavigation>()
-  const { category, subcategory, search, size, sort } = filters
+  const { category, subcategory, search, size } = filters
   const [banner, setBanner] = useState<Banner | null | undefined>(undefined)
   const [imageResult, setImageResult] = useState<{ url: string; loaded: boolean }>()
   const heroImage = useRef<HTMLImageElement>(null)
@@ -144,7 +144,6 @@ export function CatalogPage() {
                 <label><input type="search" aria-label={t('Search products')} placeholder={t('Search products')} value={search} onChange={event => setFilters({ ...filters, search: event.target.value })} /></label>
                 <button type="button" className={`collection-stock-filter${filters.inStock ? ' active' : ''}`} aria-pressed={filters.inStock} onClick={() => setFilters({ ...filters, inStock: !filters.inStock })}>{t('In stock')}</button>
                 <label><span className="sr-only">{t('Filter by size')}</span><select value={size} onChange={event => setFilters({ ...filters, size: event.target.value })}><option value="">{t('All sizes')}</option>{sizes.map(item => <option key={item} value={item}>{item}</option>)}</select></label>
-                <label><span className="sr-only">{t('Sort products')}</span><select value={sort} onChange={event => setFilters({ ...filters, sort: event.target.value })}><option value="recently-updated">{t('Newest first')}</option><option value="price-low">{t('Price: low to high')}</option><option value="price-high">{t('Price: high to low')}</option></select></label>
               </div>
             </div>
             <div className="collection-filters" role="group" aria-label={t('Categories')}>

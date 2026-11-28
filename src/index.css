@@ -306,10 +306,11 @@ textarea {
   .banner-carousel__slide { animation: none; }
 }
 .collection-head { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 26px; }
+.collection-head > div:first-child { flex: 1 1 0; min-width: 0; }
 .collection-head :is(h1, h2) { margin: 10px 0 0; font: 600 clamp(2rem, 4vw, 3.2rem)/1 var(--ui); letter-spacing: -.05em; }
 .collection-head sup { color: var(--shop-muted); font: 500 .8rem var(--ui); vertical-align: top; }
 .collection-head p { margin: 0; color: var(--shop-muted); font-size: .85rem; }
-.collection-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: end; gap: 8px; }
+.collection-tools { display: flex; flex: 0 0 auto; flex-wrap: nowrap; justify-content: flex-end; align-items: end; gap: 8px; }
 .search-field { display: grid; gap: 4px; min-width: 0; }
 .search-field > span { color: var(--muted); font-size: .75rem; }
 .collection-tools label { min-width: 0; }
@@ -358,6 +359,7 @@ textarea {
   .storefront-hero__copy p { font-size: .875rem; }
   .collection-head { align-items: stretch; flex-direction: column; }
   .collection-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .collection-tools label:last-child { grid-column: 1 / -1; }
   .collection-tools :is(input, select) { width: 100%; }
   .collection-tools input[type="search"] { width: 100%; }
   .storefront-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 12px; } .storefront .product-card__meta { grid-template-columns: 1fr; } .storefront .product-card__meta .muted { grid-column: auto; } }
