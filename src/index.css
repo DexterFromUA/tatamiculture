@@ -322,7 +322,7 @@ textarea {
 .collection-filters { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 0 0 20px; margin-bottom: 8px; }
 .collection-filters::-webkit-scrollbar { display: none; }
 .collection-filters button { white-space: nowrap; padding: 9px 16px; border: 1px solid #cccccc; border-radius: 100px; background: transparent; color: inherit; font-size: .8rem; cursor: pointer; }
-.collection-filters button.active { background: #303030; border-color: #303030; color: white; }
+.collection-filters button.active { background: #bd2731; border-color: #bd2731; color: white; }
 .collection-filters:has(+ .collection-filters--subcategories) { padding-bottom: 6px; }
 .collection-filters--subcategories button { padding: 7px 12px; }
 .storefront-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 36px 16px; }
@@ -347,7 +347,7 @@ textarea {
 :root[data-theme="dark"] .storefront { --shop-ink: #f1f1f1; --shop-muted: #b3b3b3; }
 :root[data-theme="dark"] .storefront-hero { color: #1c1c1c; }
 :root[data-theme="dark"] .collection-filters button { border-color: #666666; }
-:root[data-theme="dark"] .collection-filters button.active { background: #dddddd; border-color: #dddddd; color: #202020; }
+:root[data-theme="dark"] .collection-filters button.active { border-color: #bd2731; }
 @media (max-width: 700px) {
   .collection-filters { margin-inline: -16px; padding-inline: 16px; }
   .storefront-hero { grid-template-columns: minmax(0, 1fr); height: auto; margin-bottom: 32px; }
@@ -2464,16 +2464,16 @@ input[type="date"] { color-scheme: light; }
 .theme-switch { --theme-position: 0px; position: relative; display: inline-flex; flex: 0 0 auto; width: 98px; height: 36px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper); transition: width .22s ease; }
 .theme-switch[data-mode="system"] { --theme-position: 30px; }
 .theme-switch[data-mode="dark"] { --theme-position: 60px; }
-.theme-switch::before { content: ''; position: absolute; top: 3px; left: 3px; width: 30px; height: 28px; border-radius: 999px; background: var(--ink); transform: translateX(var(--theme-position)); transition: transform .22s ease; }
+.theme-switch::before { content: ''; position: absolute; top: 3px; left: 3px; width: 30px; height: 28px; border-radius: 999px; background: #bd2731; transform: translateX(var(--theme-position)); transition: transform .22s ease; }
 .theme-switch__option { --option-position: 0px; position: absolute; top: 3px; left: 3px; width: 30px; height: 28px; cursor: pointer; transform: translateX(var(--option-position)); transition: transform .22s ease, opacity .16s ease; }
 .theme-switch__option:nth-child(2) { --option-position: 30px; }
 .theme-switch__option:nth-child(3) { --option-position: 60px; }
 .theme-switch__option input { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; padding: 0; margin: 0; opacity: 0; cursor: pointer; }
 .theme-switch__icon { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; border-radius: 999px; color: var(--muted); }
 .theme-switch__option:hover .theme-switch__icon { color: var(--ink); }
-.theme-switch__option input:checked + .theme-switch__icon { color: var(--paper); }
+.theme-switch__option input:checked + .theme-switch__icon { color: #fff; }
 .theme-switch__option input:focus-visible + .theme-switch__icon { outline: 2px solid var(--accent); outline-offset: 4px; }
-.theme-switch__trigger { position: absolute; inset: 3px auto auto 3px; display: flex; align-items: center; justify-content: center; width: 30px; height: 28px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--paper); cursor: pointer; transition: opacity .16s ease; }
+.theme-switch__trigger { position: absolute; inset: 3px auto auto 3px; display: flex; align-items: center; justify-content: center; width: 30px; height: 28px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: #fff; cursor: pointer; transition: opacity .16s ease; }
 .theme-switch__trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .theme-switch__options { position: absolute; inset: 3px; transition: opacity .16s ease; }
 .theme-switch__options .theme-switch__option { top: 0; left: 0; }
