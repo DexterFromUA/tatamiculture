@@ -1,8 +1,11 @@
-export type BannerImage = { url: string; path: string; productId?: string; productName?: string }
+export type BannerImage = { url: string; path: string; type?: 'image' | 'video'; productId?: string; productName?: string }
+
+export const defaultBannerTitle = 'Defend yourself'
 
 export type Banner = {
   store_id: string
   enabled: boolean
+  show_text: boolean
   image_url: string
   image_path: string
   images?: BannerImage[]

@@ -140,9 +140,11 @@ function safeFilename(name: string, id: string = crypto.randomUUID()) {
 
 export async function uploadBannerImage(storeId: string, file: File, token: string) {
   if (!url || !anonKey) throw new Error('Supabase is not configured')
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('Use a JPG, PNG, or WebP image')
-  if (file.size > 5 * 1024 * 1024) throw new Error('Image must be 5 MB or smaller')
-  const path = `${storeId}/${safeFilename(file.name)}`
+  const videoExtensions: Record<string, string> = { 'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov' }
+  const videoExtension = videoExtensions[file.type]
+  if (!videoExtension && !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('Use a JPG, PNG, WebP, MP4, WebM or MOV file')
+  if (file.size > (videoExtension ? 50 : 5) * 1024 * 1024) throw new Error(videoExtension ? 'Video must be 50 MB or smaller' : 'Image must be 5 MB or smaller')
+  const path = `${storeId}/${videoExtension ? `${crypto.randomUUID()}.${videoExtension}` : safeFilename(file.name)}`
   const response = await supabaseFetch(`/storage/v1/object/storefront-banners/${encodedStoragePath(path)}`, {
     method: 'POST', token, headers: { 'Content-Type': file.type }, body: file,
   })

@@ -24,6 +24,11 @@ const uk = {
 
   'Enter 9 digits after +380.': 'Введіть 9 цифр після +380.',
   'Storefront theme': 'Тема вітрини',
+  'Show banner text': 'Показувати текст банера',
+  'Banner images and videos': 'Зображення та відео банера',
+  'Images up to 5 MB · MP4, WebM or MOV up to 50 MB': 'Зображення до 5 МБ · MP4, WebM або MOV до 50 МБ',
+  'Use a JPG, PNG, WebP, MP4, WebM or MOV file': 'Виберіть файл JPG, PNG, WebP, MP4, WebM або MOV',
+  'Video must be 50 MB or smaller': 'Розмір відео не має перевищувати 50 МБ',
   'Choose the default appearance and let visitors switch themes.': 'Виберіть стандартне оформлення та дозвольте відвідувачам змінювати тему.',
   'Show theme switch next to language': 'Показувати кнопку зміни теми поруч із мовою',
   'Default theme': 'Стандартна тема',

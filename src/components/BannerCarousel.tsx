@@ -1,4 +1,4 @@
-import { useEffect, useState, type Ref } from 'react'
+import { useEffect, useRef, useState, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import type { BannerImage } from '../lib/banner'
@@ -12,14 +12,22 @@ export function BannerCarousel({ images, imageRef, ready, hideFirstImage }: {
   const { t } = useTranslation()
   const [position, setPosition] = useState(0)
   const [paused, setPaused] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+  const videoRef = useRef<HTMLVideoElement>(null)
   const total = images.length
   const current = position % total
 
   useEffect(() => {
-    if (!ready || paused || total < 2) return
+    const video = videoRef.current
+    if (!video) return
+    if (paused || !ready) video.pause()
+    else void video.play().catch(() => { if (total > 1) setPosition((current + 1) % total) })
+  }, [current, paused, ready, total])
+
+  useEffect(() => {
+    if (!ready || paused || total < 2 || images[current].type === 'video') return
     const timer = window.setTimeout(() => setPosition((current + 1) % total), 5000)
     return () => window.clearTimeout(timer)
-  }, [current, paused, ready, total])
+  }, [current, images, paused, ready, total])
 
   const move = (step: number) => {
     setPaused(true)
@@ -27,7 +35,10 @@ export function BannerCarousel({ images, imageRef, ready, hideFirstImage }: {
   }
 
   return <div className="storefront-hero__image">
-    {images[current].productId ? <Link className="banner-carousel__product" to={`/product/${images[current].productId}`} aria-label={images[current].productName}>
+    {images[current].type === 'video' ? <video ref={videoRef} key={images[current].url} src={images[current].url} muted playsInline loop={total === 1}
+      onError={() => { if (total > 1) setPosition((current + 1) % total) }}
+      onEnded={() => { if (!paused && total > 1) setPosition((current + 1) % total) }} />
+      : images[current].productId ? <Link className="banner-carousel__product" to={`/product/${images[current].productId}`} aria-label={images[current].productName}>
       <img ref={imageRef} src={images[current].url} alt="" hidden={hideFirstImage && current === 0} fetchPriority={current === 0 ? 'high' : 'auto'} />
       <span className="banner-carousel__product-name">{images[current].productName} ↗</span>
     </Link> : <img ref={imageRef} src={images[current].url} alt="" hidden={hideFirstImage && current === 0} fetchPriority={current === 0 ? 'high' : 'auto'} />}

@@ -3,13 +3,13 @@ import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { useStore } from '../context/StoreContext'
-import { bannerImages, type Banner, type BannerImage } from '../lib/banner'
+import { bannerImages, defaultBannerTitle, type Banner, type BannerImage } from '../lib/banner'
 import { LocalImagePreview } from './LocalImagePreview'
 import { ToggleSwitch } from './ToggleSwitch'
 import { removeBannerImage, SupabaseError, supabaseRequest, uploadBannerImage } from '../lib/supabase'
 
 const empty = (id: string): Banner => ({
-  store_id: id, enabled: true, image_url: '', image_path: '', images: [],
+  store_id: id, enabled: true, show_text: true, image_url: '', image_path: '', images: [],
   kicker_uk: '', kicker_en: '', title_uk: '', title_en: '', description_uk: '', description_en: '',
 })
 
@@ -47,7 +47,7 @@ export function BannerSettings() {
     try {
       for (const file of files) {
         const image = await uploadBannerImage(banner.store_id, file, token)
-        uploaded.push({ url: image.publicUrl, path: image.path })
+        uploaded.push({ url: image.publicUrl, path: image.path, type: file.type.startsWith('video/') ? 'video' : 'image' })
       }
       const images = [...keptImages, ...uploaded]
       const next = {
@@ -90,7 +90,7 @@ export function BannerSettings() {
       </label>
       <div className="banner-settings__image">
         <label className="product-photo-upload">
-          <input className="sr-only" type="file" multiple accept="image/jpeg,image/png,image/webp" disabled={busy}
+          <input className="sr-only" type="file" multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" disabled={busy}
             aria-describedby={imageHintId} onChange={event => {
               const picked = Array.from(event.target.files ?? [])
               if (picked.length) {
@@ -101,15 +101,15 @@ export function BannerSettings() {
             }} />
           <span className="product-photo-upload__icon" aria-hidden="true">＋</span>
           <span className="product-photo-upload__copy">
-            <strong>{t('Banner images')}</strong>
-            <small>{t('JPG, PNG or WebP · up to 5 MB per file')}</small>
+            <strong>{t('Banner images and videos')}</strong>
+            <small>{t('Images up to 5 MB · MP4, WebM or MOV up to 50 MB')}</small>
           </span>
           <span className="product-photo-upload__action" aria-hidden="true">{t('Choose files')}</span>
         </label>
         <p id={imageHintId} className="banner-settings__image-hint muted">{t('Without banner images, the banner shows new arrivals and products on sale.')}</p>
         {(keptImages.length > 0 || files.length > 0) && <ol className="banner-settings__slides">
           {keptImages.map(image => <li key={image.url}>
-            <img src={image.url} alt="" />
+            {image.type === 'video' ? <video src={image.url} muted playsInline preload="metadata" /> : <img src={image.url} alt="" />}
             <button type="button" className="text-btn" disabled={busy} onClick={() => {
               setRemovedUrls(current => [...current, image.url])
               setSaved(false)
@@ -124,7 +124,14 @@ export function BannerSettings() {
           </li>)}
         </ol>}
       </div>
-      <div className="banner-settings__languages">
+      <label className="switch-field banner-settings__visibility">
+        <ToggleSwitch checked={banner.show_text !== false} disabled={busy} onChange={event => {
+          setBanner({ ...banner, show_text: event.target.checked })
+          setSaved(false)
+        }} />
+        {t('Show banner text')}
+      </label>
+      {banner.show_text !== false && <div className="banner-settings__languages">
         {(['uk', 'en'] as const).map(language => <fieldset className="banner-settings__language" key={language} disabled={busy}>
           <legend>{language === 'uk' ? t('Ukrainian') : t('English')}</legend>
           {textFields.map(field => {
@@ -133,6 +140,7 @@ export function BannerSettings() {
               <span>{t(field.label)}</span>
               <input
                 maxLength={field.maxLength}
+                placeholder={field.key === 'title' ? defaultBannerTitle : undefined}
                 value={banner[key]}
                 onChange={event => {
                   setBanner({ ...banner, [key]: event.target.value })
@@ -142,7 +150,7 @@ export function BannerSettings() {
             </label>
           })}
         </fieldset>)}
-      </div>
+      </div>}
 
     </>}
   </section>
