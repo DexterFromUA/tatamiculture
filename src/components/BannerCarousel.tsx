@@ -35,6 +35,7 @@ export function BannerCarousel({ images, imageRef, ready, hideFirstImage }: {
   }
 
   return <div className="storefront-hero__image">
+    <div key={current} className="banner-carousel__slide">
     {images[current].type === 'video' ? <video ref={videoRef} key={images[current].url} src={images[current].url} muted playsInline loop={total === 1}
       onError={() => { if (total > 1) setPosition((current + 1) % total) }}
       onEnded={() => { if (!paused && total > 1) setPosition((current + 1) % total) }} />
@@ -42,6 +43,7 @@ export function BannerCarousel({ images, imageRef, ready, hideFirstImage }: {
       <img ref={imageRef} src={images[current].url} alt="" hidden={hideFirstImage && current === 0} fetchPriority={current === 0 ? 'high' : 'auto'} />
       <span className="banner-carousel__product-name">{images[current].productName} ↗</span>
     </Link> : <img ref={imageRef} src={images[current].url} alt="" hidden={hideFirstImage && current === 0} fetchPriority={current === 0 ? 'high' : 'auto'} />}
+    </div>
     {total > 1 && <div className="banner-carousel__controls" role="group" aria-label={t('Banner images')}>
       <button type="button" onClick={() => setPaused(!paused)} aria-label={t(paused ? 'Play slideshow' : 'Pause slideshow')}>
         <span aria-hidden="true">{paused ? '▶' : 'Ⅱ'}</span>
