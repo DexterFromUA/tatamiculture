@@ -94,17 +94,28 @@ function ProductDetails() {
     addToast(t('Added to cart'))
   }
 
+  const copyProductLink = async () => {
+    try {
+      await navigator.clipboard.writeText(new URL(`/product/${product.id}`, window.location.origin).href)
+      addToast(t('Product link copied'))
+    } catch {
+      addToast(t('Could not copy the product link'))
+    }
+  }
+
   return (
     <>
-    <Link className="shop-back" to="/">← {t('Back to shop')}</Link>
+    <div className="product-page__navigation">
+      <Link className="shop-back" to="/">← {t('Back to shop')}</Link>
+      <button type="button" className="product-page__copy" onClick={() => void copyProductLink()}>{t('Copy product link')}</button>
+    </div>
     <article className="product-view shop-detail">
       {activeImage && <div className="product-gallery">
         <div className="product-view__image">
-          <img src={activeImage} alt={name} />
+          <img key={imageIndex} className="product-gallery__image" src={activeImage} alt={name} />
           {images.length > 1 ? <div className="gallery-controls">
-            <button type="button" onClick={() => changeImage(-1)} aria-label={t('Previous image')}>←</button>
-            <span>{imageIndex + 1} / {images.length}</span>
-            <button type="button" onClick={() => changeImage(1)} aria-label={t('Next image')}>→</button>
+            <button type="button" onClick={() => changeImage(-1)} aria-label={t('Previous image')}><span aria-hidden="true">←</span></button>
+            <button type="button" onClick={() => changeImage(1)} aria-label={t('Next image')}><span aria-hidden="true">→</span></button>
           </div> : null}
         </div>
         {images.length > 1 ? <div className="gallery-thumbnails">

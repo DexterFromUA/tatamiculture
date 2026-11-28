@@ -381,27 +381,28 @@ textarea {
 }
 
 .product-gallery { min-width: 0; }
+.product-gallery__image { animation: product-image-appear .3s ease-out; }
+@keyframes product-image-appear { from { opacity: .5; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .product-gallery__image { animation: none; } }
 
 .product-view__image { position: relative; }
 
 .gallery-controls {
   position: absolute;
-  inset: auto 12px 12px;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   color: var(--ink);
+  pointer-events: none;
 }
 
-.gallery-controls button,
-.gallery-controls span {
-  border: 1px solid var(--line);
-  background: var(--paper);
-  padding: 7px 10px;
-}
-
-.gallery-controls button { cursor: pointer; color: inherit; }
+.gallery-controls button { width: 20%; height: 100%; padding: 0 12px; border: 0; background: transparent; font-size: 1.25rem; cursor: pointer; color: inherit; pointer-events: auto; }
+.gallery-controls button:first-child { text-align: left; }
+.gallery-controls button:last-child { text-align: right; }
+.gallery-controls button span { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 50%; background: rgba(255, 255, 255, .4); color: #242424; font-family: system-ui, sans-serif; line-height: 1; text-align: center; }
+.gallery-controls button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .gallery-thumbnails {
   display: flex;
@@ -1191,6 +1192,11 @@ textarea {
 }
 .shop-back { display: inline-block; margin-bottom: 24px; color: var(--muted); font-size: .8rem; text-decoration: none; }
 .shop-back:hover { color: var(--accent); }
+.product-page__navigation { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.product-page__navigation .shop-back { margin: 0; }
+.product-page__copy { padding: 4px 0; border: 0; background: none; color: var(--muted); font-size: .8rem; text-align: right; cursor: pointer; }
+.product-page__copy:hover { color: var(--accent); }
+.product-page__copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .shop-detail { gap: clamp(32px, 6vw, 80px); }
 .related-products { margin-top: 80px; padding-top: 32px; border-top: 1px solid var(--line); }
 .related-products h2 { margin: 0 0 24px; font-size: clamp(1.6rem, 3vw, 2.2rem); }
