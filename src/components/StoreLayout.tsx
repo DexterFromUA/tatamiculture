@@ -45,7 +45,7 @@ export function StoreLayout() {
   const catalogReady = useRef(false)
   const lastProduct = useRef<{ pathname: string; top: number } | null>(null)
   const [filters, setFilters] = useState<CatalogFilters>({
-    category: '', subcategory: '', search: '', size: '', sort: 'recently-updated',
+    category: '', subcategory: '', search: '', size: '', sort: 'recently-updated', inStock: false,
   })
   const [scrollState, setScrollState] = useState({ headerVisible: true, showTopButton: false })
   const [standalone, setStandalone] = useState(() => isStandalone() || pwaLayoutPreview)

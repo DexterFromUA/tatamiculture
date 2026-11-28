@@ -141,12 +141,13 @@ export const supabaseApi = {
   },
 
   async getCatalogPage(storeId: string, filters: CatalogFilters, cursor: CatalogCursor | null, signal: AbortSignal): Promise<CatalogPage> {
-    const { category, subcategory, search, size, sort } = filters
+    const { category, subcategory, search, size, sort, inStock } = filters
     const collection = category === newArrivalsCategory ? 'new' : category === discountedCategory ? 'sale' : 'all'
-    const result = await supabaseRequest<Omit<CatalogPage, 'rows'> & { rows: Row[] }>('/rest/v1/rpc/storefront_catalog_page', {
+    const result = await supabaseRequest<Omit<CatalogPage, 'rows'> & { rows: Row[] }>('/rest/v1/rpc/storefront_catalog_page_filtered', {
       method: 'POST', signal, body: JSON.stringify({
         p_store_id: storeId, p_search: search, p_size: size, p_sort: sort,
         p_collection: collection, p_category_id: collection === 'all' ? (subcategory || category || null) : null,
+        p_in_stock: inStock,
         p_after_price: cursor?.price, p_after_updated_at: cursor?.updatedAt, p_after_id: cursor?.id,
       }),
     })

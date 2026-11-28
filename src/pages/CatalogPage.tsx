@@ -142,6 +142,7 @@ export function CatalogPage() {
               </div>
               <div className="collection-tools">
                 <label><input type="search" aria-label={t('Search products')} placeholder={t('Search products')} value={search} onChange={event => setFilters({ ...filters, search: event.target.value })} /></label>
+                <button type="button" className={`collection-stock-filter${filters.inStock ? ' active' : ''}`} aria-pressed={filters.inStock} onClick={() => setFilters({ ...filters, inStock: !filters.inStock })}>{t('In stock')}</button>
                 <label><span className="sr-only">{t('Filter by size')}</span><select value={size} onChange={event => setFilters({ ...filters, size: event.target.value })}><option value="">{t('All sizes')}</option>{sizes.map(item => <option key={item} value={item}>{item}</option>)}</select></label>
                 <label><span className="sr-only">{t('Sort products')}</span><select value={sort} onChange={event => setFilters({ ...filters, sort: event.target.value })}><option value="recently-updated">{t('Newest first')}</option><option value="price-low">{t('Price: low to high')}</option><option value="price-high">{t('Price: high to low')}</option></select></label>
               </div>

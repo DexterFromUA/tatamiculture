@@ -9,6 +9,7 @@ export type CatalogFilters = {
   search: string
   size: string
   sort: string
+  inStock: boolean
 }
 
 export type CatalogCursor = { price: number; updatedAt: string; id: string }
